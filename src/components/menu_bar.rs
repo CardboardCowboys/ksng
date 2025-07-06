@@ -27,7 +27,11 @@ fn button_enabled_with_shortcut(
 ) -> bool {
   let mut s = String::new();
   if modifiers.command {
-    s += "Ctrl+";
+    if cfg!(target_os = "macos") {
+      s += "Cmd+";
+    } else {
+      s += "Ctrl+";
+    }
   }
   if modifiers.alt {
     s += "Alt+";
@@ -112,8 +116,8 @@ pub fn menu_bar(app: &KsngApp, ctx: &Context, ui: &mut Ui) {
             ui,
             redo_desc.is_some(),
             redo_label,
-            Key::Z,
-            Modifiers::COMMAND | Modifiers::SHIFT,
+            Key::Y,
+            Modifiers::COMMAND,
           ) {
             app.dispatch(KsngEvent::Redo);
             ui.close_menu();
