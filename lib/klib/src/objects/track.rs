@@ -7,26 +7,44 @@ use crate::{
   objects::{event::Event, file::File},
 };
 
+/// Settings for an audio track.
 #[derive(Serialize, Deserialize)]
 pub struct AudioTrackValue {
+  /// Whether this track should be muted.
   pub muted: bool,
+  /// The volume of this track, between 0 and 1.
   pub volume: f32,
 }
 
+impl Default for AudioTrackValue {
+  fn default() -> Self {
+    Self {
+      muted: false,
+      volume: 1.0,
+    }
+  }
+}
+
+/// Type-specific data for a track.
 #[derive(Serialize, Deserialize)]
 pub enum TrackValue {
+  /// Settings for an audio track.
   Audio(AudioTrackValue),
 }
 
+/// The type of the track.
 #[repr(u8)]
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy, Default, Debug)]
 pub enum TrackType {
+  /// A lyrics track.
   #[default]
   Lyrics = 0,
+  /// An audio track.
   Audio = 1,
 }
 
 impl TrackType {
+  /// Reads this `TrackType` from the `BinaryReader` along with the corresponding value, if any.
   pub fn read(reader: &mut BinaryReader) -> Result<(TrackType, Option<TrackValue>), Error> {
     let type_byte = reader.read_u8()?;
     let track_type = match type_byte {
@@ -44,17 +62,54 @@ impl TrackType {
   }
 }
 
+/// A single track in a file containing events.
 #[derive(Default)]
 pub struct Track {
+  /// The unique ID of the track.
   pub id: Uuid,
+  /// The order of the track in relation to other tracks.
   pub order: u32,
+  /// The type of the track.
   pub track_type: TrackType,
+  /// Any data of this track specific to its type.
   pub track_value: Option<TrackValue>,
 
+  /// The events on this track.
   pub events: Vec<Event>,
 }
 
 impl Track {
+  /// Creates a new track of type `track_type` with the given `order`.
+  pub fn new_type(track_type: TrackType, order: u32) -> Track {
+    match track_type {
+      TrackType::Lyrics => Track::new_lyrics(order),
+      TrackType::Audio => Track::new_audio(order),
+    }
+  }
+
+  /// Creates a new `Lyrics` track with the given `order`.
+  pub fn new_lyrics(order: u32) -> Track {
+    Track {
+      id: Uuid::new_v4(),
+      order,
+      track_type: TrackType::Lyrics,
+      track_value: None,
+      events: Default::default(),
+    }
+  }
+
+  /// Creates a new `Audio` track with the given `order`.
+  pub fn new_audio(order: u32) -> Track {
+    Track {
+      id: Uuid::new_v4(),
+      order,
+      track_type: TrackType::Audio,
+      track_value: Some(TrackValue::Audio(AudioTrackValue::default())),
+      events: Default::default(),
+    }
+  }
+
+  /// Writes this track to the provided `BinaryWriter`.
   pub fn write(&self, writer: &mut BinaryWriter) -> Result<(), Error> {
     let (hi, lo) = self.id.as_u64_pair();
     writer.write_u64(hi)?;
@@ -72,6 +127,7 @@ impl Track {
     Ok(())
   }
 
+  /// Reads this track from the provided `BinaryReader`
   pub fn read(reader: &mut BinaryReader) -> Result<Track, Error> {
     let mut track = Track::default();
 

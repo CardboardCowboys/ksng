@@ -3,6 +3,7 @@ pub enum UiError {
   Io(String),
   Serde(String),
   Klib(klib::error::Error),
+  InvalidCommand(String),
 }
 
 impl From<std::io::Error> for UiError {

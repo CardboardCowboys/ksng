@@ -1,4 +1,4 @@
-use klib::objects::file::File;
+use klib::objects::{file::File, track::Track};
 use uuid::Uuid;
 
 pub struct Project {
@@ -10,10 +10,13 @@ pub struct Project {
 
 impl Default for Project {
   fn default() -> Self {
+    let mut file = File::default();
+    file.tracks.push(Track::new_lyrics(0));
+
     Self {
       id: Uuid::new_v4(),
       name: None,
-      file: Default::default(),
+      file,
       dirty: true,
     }
   }

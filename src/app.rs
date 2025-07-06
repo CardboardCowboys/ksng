@@ -1,10 +1,12 @@
 use std::{cell::RefCell, collections::VecDeque};
 
-use egui::{Button, Context, Sides, Ui};
+use egui::{menu::SubMenu, Button, Context, Sides, Ui};
+use klib::objects::track::TrackType;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
+  commands::{track::AddTrackCommand, CommandDispatcher},
   fs::Data,
   logger::Logger,
   modals::{
@@ -19,8 +21,9 @@ pub struct KsngApp {
   pub project: RefCell<Option<Project>>,
   pub modals: ModalManager,
   pub logger: Logger,
-  event_queue: RefCell<VecDeque<KsngEvent>>,
+  pub commands: CommandDispatcher,
 
+  event_queue: RefCell<VecDeque<KsngEvent>>,
   close_allowed: RefCell<bool>,
 }
 
@@ -35,6 +38,7 @@ impl Default for KsngApp {
       project: RefCell::new(None),
       modals: Default::default(),
       logger: Default::default(),
+      commands: CommandDispatcher::default(),
       event_queue: Default::default(),
       close_allowed: RefCell::new(false),
     }
@@ -143,6 +147,8 @@ impl eframe::App for KsngApp {
     }
     drop(queue);
 
+    self.logger.wrap(self.commands.process(self));
+
     // Put your widgets into a `SidePanel`, `TopBottomPanel`, `CentralPanel`, `Window` or `Area`.
     // For inspiration and more examples, go to https://emilk.github.io/egui
 
@@ -178,6 +184,54 @@ impl eframe::App for KsngApp {
               if !is_web && ui.button("Quit").clicked() {
                 ctx.send_viewport_cmd(egui::ViewportCommand::Close);
               }
+            });
+
+            ui.menu_button("Edit", |ui| {
+              let undo_desc = self.commands.undo_description();
+              let undo_label = undo_desc
+                .as_ref()
+                .map(|d| format!("Undo {d}"))
+                .unwrap_or("Undo".to_string());
+              if ui
+                .add_enabled(undo_desc.is_some(), Button::new(&undo_label))
+                .clicked()
+              {
+                self.logger.wrap(self.commands.undo(self));
+                ui.close_menu();
+              }
+
+              let redo_desc = self.commands.redo_description();
+              let redo_label = redo_desc
+                .as_ref()
+                .map(|d| format!("Redo {d}"))
+                .unwrap_or("Redo".to_string());
+              if ui
+                .add_enabled(redo_desc.is_some(), Button::new(&redo_label))
+                .clicked()
+              {
+                self.logger.wrap(self.commands.redo(self));
+                ui.close_menu();
+              }
+            });
+
+            ui.add_enabled_ui(project.is_some(), |ui| {
+              ui.menu_button("Track", |ui| {
+                ui.menu_button("Add", |ui| {
+                  if ui.button("Lyrics").clicked() {
+                    self
+                      .commands
+                      .dispatch(AddTrackCommand::new(TrackType::Lyrics));
+                    ui.close_menu();
+                  }
+
+                  if ui.button("Audio").clicked() {
+                    self
+                      .commands
+                      .dispatch(AddTrackCommand::new(TrackType::Audio));
+                    ui.close_menu();
+                  }
+                });
+              });
             });
           },
           |ui| {
