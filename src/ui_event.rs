@@ -9,4 +9,6 @@ pub enum KsngEvent {
   ProjectOpenId(Uuid),
   ProjectDelete(Uuid),
   Quit,
+  Undo,
+  Redo,
 }

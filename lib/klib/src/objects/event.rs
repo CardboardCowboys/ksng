@@ -31,10 +31,7 @@ impl EventType {
       _ => Err(Error::Format(format!("Unknown event type {type_byte}"))),
     }?;
 
-    let event_value: Option<EventValue> = match event_type {
-      EventType::Lyric | EventType::AudioClip => serde_json::from_str(&reader.read_string()?)?,
-      _ => None,
-    };
+    let event_value: Option<EventValue> = serde_json::from_str(&reader.read_string()?)?;
 
     Ok((event_type, event_value))
   }
@@ -51,6 +48,28 @@ pub struct Event {
 }
 
 impl Event {
+  pub fn new_lyric(start: Timecode, end: Timecode, text: String) -> Event {
+    Event {
+      id: Uuid::new_v4(),
+      linked_id: None,
+      start_timecode: start,
+      end_timecode: end,
+      event_type: EventType::Lyric,
+      value: Some(EventValue::Lyric { text }),
+    }
+  }
+
+  pub fn new_audio(start: Timecode, end: Timecode, offset: Timecode, file: AudioFile) -> Event {
+    Event {
+      id: Uuid::new_v4(),
+      linked_id: None,
+      start_timecode: start,
+      end_timecode: end,
+      event_type: EventType::AudioClip,
+      value: Some(EventValue::AudioClip { offset, file }),
+    }
+  }
+
   pub fn write(&self, writer: &mut BinaryWriter) -> Result<(), Error> {
     let (hi, lo) = self.id.as_u64_pair();
     writer.write_u64(hi)?;

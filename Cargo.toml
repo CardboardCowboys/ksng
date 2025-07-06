@@ -31,6 +31,8 @@ uuid = { version = "1.17.0", features = ["v4"] }
 egui-file-dialog = "0.10.0"
 egui_extras = { version = "0.31.1", features = ["svg"] }
 once_cell = "1.21.3"
+symphonia = { version = "0.5.4", features = ["mp3", "aac"] }
+infer = "0.19.0"
 
 # native:
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]

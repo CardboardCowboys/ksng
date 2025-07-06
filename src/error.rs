@@ -4,6 +4,7 @@ pub enum UiError {
   Serde(String),
   Klib(klib::error::Error),
   InvalidCommand(String),
+  Audio(String),
 }
 
 impl From<std::io::Error> for UiError {
@@ -21,5 +22,11 @@ impl From<serde_json::Error> for UiError {
 impl From<klib::error::Error> for UiError {
   fn from(value: klib::error::Error) -> Self {
     UiError::Klib(value)
+  }
+}
+
+impl From<symphonia::core::errors::Error> for UiError {
+  fn from(value: symphonia::core::errors::Error) -> Self {
+    UiError::Audio(format!("UiError::Audio ({value:?})"))
   }
 }

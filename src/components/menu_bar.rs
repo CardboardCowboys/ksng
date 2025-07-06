@@ -1,7 +1,13 @@
 use egui::{Button, Context, Sides, Ui};
 use klib::objects::track::TrackType;
 
-use crate::{commands::track::AddTrackCommand, ui_event::KsngEvent, KsngApp};
+use crate::{
+  audio::AudioFileInfo,
+  commands::{event::AddAudioEventCommand, track::AddTrackCommand},
+  modals::{alert::AlertModal, open_file::OpenFileModal},
+  ui_event::KsngEvent,
+  KsngApp,
+};
 
 pub fn menu_bar(app: &KsngApp, ctx: &Context, ui: &mut Ui) {
   egui::menu::bar(ui, |ui| {
@@ -13,15 +19,18 @@ pub fn menu_bar(app: &KsngApp, ctx: &Context, ui: &mut Ui) {
         ui.menu_button("File", |ui| {
           if ui.button("New").clicked() {
             app.dispatch_warn_dirty(KsngEvent::ProjectNew);
+            ui.close_menu();
           }
 
           if ui.button("Open").clicked() {
             app.dispatch_warn_dirty(KsngEvent::ProjectOpen);
+            ui.close_menu();
           }
 
           let is_dirty = project.as_ref().map(|f| f.dirty).unwrap_or(false);
           if ui.add_enabled(is_dirty, Button::new("Save")).clicked() {
             app.dispatch(KsngEvent::ProjectSave);
+            ui.close_menu();
           }
 
           if ui
@@ -29,11 +38,13 @@ pub fn menu_bar(app: &KsngApp, ctx: &Context, ui: &mut Ui) {
             .clicked()
           {
             app.dispatch_warn_dirty(KsngEvent::ProjectClose);
+            ui.close_menu();
           }
 
           // NOTE: no File->Quit on web pages!
           if !is_web && ui.button("Quit").clicked() {
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+            ui.close_menu();
           }
         });
 
@@ -47,7 +58,7 @@ pub fn menu_bar(app: &KsngApp, ctx: &Context, ui: &mut Ui) {
             .add_enabled(undo_desc.is_some(), Button::new(&undo_label))
             .clicked()
           {
-            app.logger.wrap(app.commands.undo(app));
+            app.dispatch(KsngEvent::Undo);
             ui.close_menu();
           }
 
@@ -60,7 +71,7 @@ pub fn menu_bar(app: &KsngApp, ctx: &Context, ui: &mut Ui) {
             .add_enabled(redo_desc.is_some(), Button::new(&redo_label))
             .clicked()
           {
-            app.logger.wrap(app.commands.redo(app));
+            app.dispatch(KsngEvent::Redo);
             ui.close_menu();
           }
         });
@@ -81,6 +92,46 @@ pub fn menu_bar(app: &KsngApp, ctx: &Context, ui: &mut Ui) {
                   .dispatch(AddTrackCommand::new(TrackType::Audio));
                 ui.close_menu();
               }
+            });
+          });
+
+          ui.menu_button("Event", |ui| {
+            ui.add_enabled_ui(app.selection.selected_tracks().len() == 1, |ui| {
+              ui.menu_button("Add", |ui| {
+                let audio_track = project.as_ref().and_then(|p| {
+                  p.file.tracks.iter().find(|t| {
+                    t.track_type == TrackType::Audio && app.selection.is_track_selected(t.id)
+                  })
+                });
+
+                if ui
+                  .add_enabled(audio_track.is_some(), Button::new("Audio"))
+                  .clicked()
+                {
+                  let id = audio_track.unwrap().id;
+                  app.modals.add(OpenFileModal::new(
+                    "Audio Files".to_string(),
+                    vec!["mp3", "wav", "flac", "aac", "ogg", "opus"],
+                    move |app, path| {
+                      if let Some(info) = app.logger.wrap(AudioFileInfo::from_file(&path)) {
+                        match info {
+                          Some(info) => {
+                            app
+                              .commands
+                              .dispatch(AddAudioEventCommand::new(id, path, info));
+                          }
+                          None => {
+                            app.modals.add(AlertModal::new(format!(
+                              "Unable to read file {path:?} or unsupported format."
+                            )));
+                          }
+                        }
+                      }
+                    },
+                  ));
+                  ui.close_menu();
+                }
+              });
             });
           });
         });

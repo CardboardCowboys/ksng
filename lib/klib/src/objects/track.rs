@@ -34,7 +34,7 @@ pub enum TrackValue {
 
 /// The type of the track.
 #[repr(u8)]
-#[derive(Clone, Copy, Default, Debug)]
+#[derive(Clone, Copy, Default, Debug, PartialEq)]
 pub enum TrackType {
   /// A lyrics track.
   #[default]
@@ -53,10 +53,7 @@ impl TrackType {
       _ => Err(Error::Format(format!("Invalid track type {type_byte}"))),
     }?;
 
-    let track_value: Option<TrackValue> = match track_type {
-      TrackType::Audio => serde_json::from_str(&reader.read_string()?)?,
-      _ => None,
-    };
+    let track_value: Option<TrackValue> = serde_json::from_str(&reader.read_string()?)?;
 
     Ok((track_type, track_value))
   }

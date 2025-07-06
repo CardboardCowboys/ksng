@@ -43,5 +43,6 @@ impl ModalManager {
 pub mod alert;
 pub mod confirm;
 pub mod dirty_warning;
+pub mod open_file;
 pub mod open_project;
 pub mod save_project;

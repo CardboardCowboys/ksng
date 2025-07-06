@@ -55,6 +55,7 @@ impl Command for AddTrackCommand {
       ))?;
 
     if let Some(added_id) = *self.added_track_id.borrow() {
+      app.selection.remove_track(added_id);
       file.tracks.retain(|t| t.id != added_id);
     }
 

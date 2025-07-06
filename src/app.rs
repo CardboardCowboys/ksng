@@ -14,6 +14,7 @@ use crate::{
     save_project::SaveProjectModal, ModalManager,
   },
   project::Project,
+  selection::SelectionManager,
   ui_event::KsngEvent,
 };
 
@@ -22,6 +23,7 @@ pub struct KsngApp {
   pub modals: ModalManager,
   pub logger: Logger,
   pub commands: CommandDispatcher,
+  pub selection: SelectionManager,
 
   event_queue: RefCell<VecDeque<KsngEvent>>,
   close_allowed: RefCell<bool>,
@@ -39,6 +41,7 @@ impl Default for KsngApp {
       modals: Default::default(),
       logger: Default::default(),
       commands: CommandDispatcher::default(),
+      selection: SelectionManager::default(),
       event_queue: Default::default(),
       close_allowed: RefCell::new(false),
     }
@@ -50,9 +53,11 @@ impl KsngApp {
     match event {
       KsngEvent::ProjectClose => {
         self.project.replace(None);
+        self.selection.clear();
       }
       KsngEvent::ProjectNew => {
         self.project.replace(Some(Project::default()));
+        self.selection.clear();
       }
       KsngEvent::ProjectSave => {
         SaveProjectModal::save(self, None);
@@ -67,6 +72,7 @@ impl KsngApp {
 
         if let Some(project) = project {
           self.project.replace(Some(project));
+          self.selection.clear();
         }
       }
       KsngEvent::Quit => {
@@ -75,6 +81,12 @@ impl KsngApp {
       }
       KsngEvent::ProjectDelete(id) => {
         self.logger.wrap(Data::delete_project(id));
+      }
+      KsngEvent::Undo => {
+        self.logger.wrap(self.commands.undo(self));
+      }
+      KsngEvent::Redo => {
+        self.logger.wrap(self.commands.redo(self));
       }
     }
   }
