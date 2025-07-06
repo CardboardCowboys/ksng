@@ -6,8 +6,8 @@ use uuid::Uuid;
 
 use crate::{
   fs::Data,
-  icons,
   modals::{alert::AlertModal, confirm::ConfirmModal, KModal},
+  style::icons,
   ui_event::KsngEvent,
 };
 

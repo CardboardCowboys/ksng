@@ -1,12 +1,12 @@
 use std::{cell::RefCell, collections::VecDeque};
 
-use egui::{menu::SubMenu, Button, Context, Sides, Ui};
-use klib::objects::track::TrackType;
+use egui::{Context, Id};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-  commands::{track::AddTrackCommand, CommandDispatcher},
+  commands::CommandDispatcher,
+  components,
   fs::Data,
   logger::Logger,
   modals::{
@@ -148,128 +148,22 @@ impl eframe::App for KsngApp {
     drop(queue);
 
     self.logger.wrap(self.commands.process(self));
+    self.modals.process(self, ctx);
 
     // Put your widgets into a `SidePanel`, `TopBottomPanel`, `CentralPanel`, `Window` or `Area`.
     // For inspiration and more examples, go to https://emilk.github.io/egui
 
     egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
-      egui::menu::bar(ui, |ui| {
-        let project = self.project.borrow();
-        Sides::new().show(
-          ui,
-          |ui| {
-            let is_web = cfg!(target_arch = "wasm32");
-            ui.menu_button("File", |ui| {
-              if ui.button("New").clicked() {
-                self.dispatch_warn_dirty(KsngEvent::ProjectNew);
-              }
-
-              if ui.button("Open").clicked() {
-                self.dispatch_warn_dirty(KsngEvent::ProjectOpen);
-              }
-
-              let is_dirty = project.as_ref().map(|f| f.dirty).unwrap_or(false);
-              if ui.add_enabled(is_dirty, Button::new("Save")).clicked() {
-                self.dispatch(KsngEvent::ProjectSave);
-              }
-
-              if ui
-                .add_enabled(project.is_some(), Button::new("Close"))
-                .clicked()
-              {
-                self.dispatch_warn_dirty(KsngEvent::ProjectClose);
-              }
-
-              // NOTE: no File->Quit on web pages!
-              if !is_web && ui.button("Quit").clicked() {
-                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-              }
-            });
-
-            ui.menu_button("Edit", |ui| {
-              let undo_desc = self.commands.undo_description();
-              let undo_label = undo_desc
-                .as_ref()
-                .map(|d| format!("Undo {d}"))
-                .unwrap_or("Undo".to_string());
-              if ui
-                .add_enabled(undo_desc.is_some(), Button::new(&undo_label))
-                .clicked()
-              {
-                self.logger.wrap(self.commands.undo(self));
-                ui.close_menu();
-              }
-
-              let redo_desc = self.commands.redo_description();
-              let redo_label = redo_desc
-                .as_ref()
-                .map(|d| format!("Redo {d}"))
-                .unwrap_or("Redo".to_string());
-              if ui
-                .add_enabled(redo_desc.is_some(), Button::new(&redo_label))
-                .clicked()
-              {
-                self.logger.wrap(self.commands.redo(self));
-                ui.close_menu();
-              }
-            });
-
-            ui.add_enabled_ui(project.is_some(), |ui| {
-              ui.menu_button("Track", |ui| {
-                ui.menu_button("Add", |ui| {
-                  if ui.button("Lyrics").clicked() {
-                    self
-                      .commands
-                      .dispatch(AddTrackCommand::new(TrackType::Lyrics));
-                    ui.close_menu();
-                  }
-
-                  if ui.button("Audio").clicked() {
-                    self
-                      .commands
-                      .dispatch(AddTrackCommand::new(TrackType::Audio));
-                    ui.close_menu();
-                  }
-                });
-              });
-            });
-          },
-          |ui| {
-            if let Some(project) = project.as_ref() {
-              ui.label(
-                format!(
-                  "Project: {}",
-                  project.name.as_ref().unwrap_or(&"(unnamed)".to_string())
-                ) + match project.dirty {
-                  true => "*",
-                  false => "",
-                },
-              );
-            } else {
-              ui.label("No project");
-            }
-          },
-        )
-      });
+      components::menu_bar::menu_bar(self, ctx, ui);
     });
 
-    self.modals.process(self, ctx);
-
     egui::CentralPanel::default().show(ctx, |ui| {
-      // The central panel the region left after adding TopPanel's and SidePanel's
-      ui.heading("eframe template");
-
-      ui.separator();
-
-      ui.add(egui::github_link_file!(
-        "https://github.com/emilk/eframe_template/blob/main/",
-        "Source code."
-      ));
-
-      ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
-        powered_by_egui_and_eframe(ui);
-        egui::warn_if_debug_build(ui);
-      });
+      egui::TopBottomPanel::bottom(Id::new("timeline"))
+        .default_height(200.0)
+        .resizable(true)
+        .show_inside(ui, |ui| {
+          components::timeline::timeline(self, ctx, ui);
+        });
     });
 
     if ctx.input(|i| i.viewport().close_requested()) {
@@ -281,18 +175,4 @@ impl eframe::App for KsngApp {
       }
     }
   }
-}
-
-fn powered_by_egui_and_eframe(ui: &mut egui::Ui) {
-  ui.horizontal(|ui| {
-    ui.spacing_mut().item_spacing.x = 0.0;
-    ui.label("Powered by ");
-    ui.hyperlink_to("egui", "https://github.com/emilk/egui");
-    ui.label(" and ");
-    ui.hyperlink_to(
-      "eframe",
-      "https://github.com/emilk/egui/tree/master/crates/eframe",
-    );
-    ui.label(".");
-  });
 }
