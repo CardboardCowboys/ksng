@@ -1,4 +1,4 @@
-use egui::{Button, Context, Sides, Ui};
+use egui::{Button, Context, Key, Modifiers, Sides, Ui};
 use klib::objects::track::TrackType;
 
 use crate::{
@@ -9,6 +9,44 @@ use crate::{
   KsngApp,
 };
 
+fn button_with_shortcut(
+  ui: &mut Ui,
+  text: impl Into<String>,
+  key: Key,
+  modifiers: Modifiers,
+) -> bool {
+  button_enabled_with_shortcut(ui, true, text, key, modifiers)
+}
+
+fn button_enabled_with_shortcut(
+  ui: &mut Ui,
+  enabled: bool,
+  text: impl Into<String>,
+  key: Key,
+  modifiers: Modifiers,
+) -> bool {
+  let mut s = String::new();
+  if modifiers.command {
+    s += "Ctrl+";
+  }
+  if modifiers.alt {
+    s += "Alt+";
+  }
+  if modifiers.shift {
+    s += "Shift+";
+  }
+  s += key.name();
+
+  let clicked = ui
+    .add_enabled(enabled, Button::new(text.into()).shortcut_text(s))
+    .clicked();
+  if clicked {
+    return true;
+  }
+
+  ui.input_mut(|input| input.consume_key(modifiers, key))
+}
+
 pub fn menu_bar(app: &KsngApp, ctx: &Context, ui: &mut Ui) {
   egui::menu::bar(ui, |ui| {
     let project = app.project.borrow();
@@ -17,18 +55,18 @@ pub fn menu_bar(app: &KsngApp, ctx: &Context, ui: &mut Ui) {
       |ui| {
         let is_web = cfg!(target_arch = "wasm32");
         ui.menu_button("File", |ui| {
-          if ui.button("New").clicked() {
+          if button_with_shortcut(ui, "New", Key::N, Modifiers::COMMAND) {
             app.dispatch_warn_dirty(KsngEvent::ProjectNew);
             ui.close_menu();
           }
 
-          if ui.button("Open").clicked() {
+          if button_with_shortcut(ui, "Open", Key::O, Modifiers::COMMAND) {
             app.dispatch_warn_dirty(KsngEvent::ProjectOpen);
             ui.close_menu();
           }
 
           let is_dirty = project.as_ref().map(|f| f.dirty).unwrap_or(false);
-          if ui.add_enabled(is_dirty, Button::new("Save")).clicked() {
+          if button_enabled_with_shortcut(ui, is_dirty, "Save", Key::S, Modifiers::COMMAND) {
             app.dispatch(KsngEvent::ProjectSave);
             ui.close_menu();
           }
@@ -42,7 +80,7 @@ pub fn menu_bar(app: &KsngApp, ctx: &Context, ui: &mut Ui) {
           }
 
           // NOTE: no File->Quit on web pages!
-          if !is_web && ui.button("Quit").clicked() {
+          if !is_web && button_with_shortcut(ui, "Quit", Key::Q, Modifiers::COMMAND) {
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
             ui.close_menu();
           }
@@ -54,10 +92,13 @@ pub fn menu_bar(app: &KsngApp, ctx: &Context, ui: &mut Ui) {
             .as_ref()
             .map(|d| format!("Undo {d}"))
             .unwrap_or("Undo".to_string());
-          if ui
-            .add_enabled(undo_desc.is_some(), Button::new(&undo_label))
-            .clicked()
-          {
+          if button_enabled_with_shortcut(
+            ui,
+            undo_desc.is_some(),
+            undo_label,
+            Key::Z,
+            Modifiers::COMMAND,
+          ) {
             app.dispatch(KsngEvent::Undo);
             ui.close_menu();
           }
@@ -67,10 +108,13 @@ pub fn menu_bar(app: &KsngApp, ctx: &Context, ui: &mut Ui) {
             .as_ref()
             .map(|d| format!("Redo {d}"))
             .unwrap_or("Redo".to_string());
-          if ui
-            .add_enabled(redo_desc.is_some(), Button::new(&redo_label))
-            .clicked()
-          {
+          if button_enabled_with_shortcut(
+            ui,
+            redo_desc.is_some(),
+            redo_label,
+            Key::Z,
+            Modifiers::COMMAND | Modifiers::SHIFT,
+          ) {
             app.dispatch(KsngEvent::Redo);
             ui.close_menu();
           }
