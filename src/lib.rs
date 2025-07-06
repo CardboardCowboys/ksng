@@ -1,7 +1,8 @@
 #![warn(clippy::all, rust_2018_idioms)]
 
+mod async_handler;
+mod data;
 mod error;
-mod fs;
 mod icons;
 mod logger;
 mod modals;

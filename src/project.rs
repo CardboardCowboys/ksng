@@ -1,6 +1,7 @@
 use klib::objects::file::File;
 use uuid::Uuid;
 
+#[derive(Clone)]
 pub struct Project {
   pub id: Uuid,
   pub name: Option<String>,

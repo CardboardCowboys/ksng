@@ -1,6 +1,6 @@
 use egui::{Button, Id, Modal, Sides};
 
-use crate::{fs::Data, modals::KModal, ui_event::KsngEvent, KsngApp};
+use crate::{data::Data, modals::KModal, ui_event::KsngEvent, KsngApp};
 
 pub struct SaveProjectModal {
   open: bool,
@@ -10,7 +10,7 @@ pub struct SaveProjectModal {
 
 impl SaveProjectModal {
   pub fn save(app: &KsngApp, after: Option<KsngEvent>) {
-    if let Some(project) = &*app.project.borrow() {
+    if let Some(project) = app.project.read().expect("Poisoned").as_ref() {
       if project.name.is_none() {
         app.modals.add(SaveProjectModal {
           open: true,
@@ -20,14 +20,31 @@ impl SaveProjectModal {
         return;
       }
 
-      app.logger.wrap(Data::save_project(project));
-    }
+      SaveProjectModal::perform_async_save(app, after);
+    } else {
+      app.set_dirty_state(false);
 
+      if let Some(after) = after {
+        app.dispatch(after);
+      }
+    }
+  }
+
+  fn perform_async_save(app: &KsngApp, after: Option<KsngEvent>) {
     app.set_dirty_state(false);
-
-    if let Some(after) = after {
-      app.dispatch(after);
-    }
+    let event_queue = app.event_queue.clone();
+    let data = app.data.clone();
+    let project_holder = app.project.clone();
+    app.async_handler.clone().wrap(async move || {
+      let project_rw = project_holder.read().expect("Poisoned").clone();
+      if let Some(project) = project_rw.as_ref() {
+        data.save_project(&project).await?;
+      }
+      if let Some(after) = after {
+        event_queue.write().expect("Poisoned").push_back(after);
+      }
+      Ok(())
+    });
   }
 }
 
@@ -53,15 +70,12 @@ impl KModal for SaveProjectModal {
         |_ui| {},
         |ui| {
           if ui.add_enabled(validate_name, Button::new("Save")).clicked() {
-            if let Some(project) = &mut *app.project.borrow_mut() {
+            if let Some(project) = app.project.write().expect("Poisoned").as_mut() {
               project.name = Some(self.name.clone());
-              app.logger.wrap(Data::save_project(project));
-              project.dirty = false;
               self.open = false;
-              if let Some(after) = self.after {
-                app.dispatch(after);
-              }
             }
+
+            Self::perform_async_save(app, self.after);
           }
 
           if ui.button("Cancel").clicked() {

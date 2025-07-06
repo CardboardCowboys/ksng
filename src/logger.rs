@@ -1,4 +1,4 @@
-use std::cell::RefCell;
+use std::{cell::RefCell, sync::RwLock};
 
 use log::error;
 
@@ -19,7 +19,7 @@ pub struct LogMessage {
 
 #[derive(Default)]
 pub struct Logger {
-  pub messages: RefCell<Vec<LogMessage>>,
+  messages: RwLock<Vec<LogMessage>>,
 }
 
 impl Logger {
@@ -35,10 +35,14 @@ impl Logger {
   }
 
   pub fn log(&self, log_type: LogType, text: String) {
-    self.messages.borrow_mut().push(LogMessage {
-      text,
-      log_type,
-      time: chrono::offset::Local::now().naive_local(),
-    })
+    self
+      .messages
+      .write()
+      .expect("Writing to logger message buffer")
+      .push(LogMessage {
+        text,
+        log_type,
+        time: chrono::offset::Local::now().naive_local(),
+      })
   }
 }

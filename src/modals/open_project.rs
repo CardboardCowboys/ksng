@@ -1,11 +1,10 @@
-use egui::{
-  Align, Button, Color32, Id, ImageButton, Label, Layout, Modal, Sense, Sides, TopBottomPanel,
-};
+use egui::{Align, Button, Id, ImageButton, Layout, Modal, Sense, Sides, Spinner, TopBottomPanel};
 use egui_extras::{Column, TableBuilder};
 use uuid::Uuid;
 
 use crate::{
-  fs::Data,
+  async_handler::AsyncValueState,
+  data::ProjectManifest,
   icons,
   modals::{alert::AlertModal, confirm::ConfirmModal, KModal},
   ui_event::KsngEvent,
@@ -40,7 +39,15 @@ impl KModal for OpenProjectModal {
       ui.set_min_height(400.0);
 
       ui.vertical(|ui| {
-        let manifest = app.logger.wrap(Data::list_projects()).unwrap_or_default();
+        let manifest_async = app.data.list_projects();
+        let manifest_ptr = manifest_async.get();
+        let manifest = (*manifest_ptr)
+          .clone()
+          .unwrap_or(ProjectManifest::default());
+
+        if manifest_async.state() == AsyncValueState::Loading {
+          ui.add(Spinner::new().size(32.0));
+        }
 
         if self.selected_id.is_some()
           && !manifest
@@ -121,7 +128,8 @@ impl KModal for OpenProjectModal {
                 if let Some(selected_id) = self.selected_id {
                   if app
                     .project
-                    .borrow()
+                    .read()
+                    .expect("Poisoned")
                     .as_ref()
                     .map(|p| p.id == selected_id)
                     .unwrap_or(false)

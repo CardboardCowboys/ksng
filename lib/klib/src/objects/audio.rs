@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub enum AudioFileType {
   Mp3,
   Wave,
@@ -11,7 +11,7 @@ pub enum AudioFileType {
   Opus,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct AudioFile {
   id: Uuid,
   extension: AudioFileType,

@@ -7,13 +7,13 @@ use crate::{
   objects::{event::Event, file::File},
 };
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct AudioTrackValue {
   pub muted: bool,
   pub volume: f32,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub enum TrackValue {
   Audio(AudioTrackValue),
 }
@@ -44,7 +44,7 @@ impl TrackType {
   }
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct Track {
   pub id: Uuid,
   pub order: u32,

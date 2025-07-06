@@ -4,7 +4,7 @@ use uuid::Uuid;
 
 use crate::{error::Error, objects::audio::AudioFile, timecode::Timecode};
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub enum EventValue {
   Lyric { text: String },
   AudioClip { offset: Timecode, file: AudioFile },
@@ -40,7 +40,7 @@ impl EventType {
   }
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct Event {
   pub id: Uuid,
   pub linked_id: Option<Uuid>,

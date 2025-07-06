@@ -1,11 +1,14 @@
-use binary_rw::{BinaryReader, BinaryWriter, Endian, FileStream, ReadStream, WriteStream};
+use binary_rw::{
+  BinaryReader, BinaryWriter, Endian, FileStream, MemoryStream, ReadStream, SliceStream,
+  WriteStream,
+};
 
 use crate::{config::Config, error::Error, objects::track::Track};
 
 const MAGIC_NUMBER: u32 = 0x474E534B;
 const FILE_VERSION: u16 = 0;
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct File {
   pub config: Config,
   pub metadata: serde_json::Value,
@@ -32,6 +35,12 @@ impl File {
   pub fn write_to_file(&self, file: std::fs::File) -> Result<(), Error> {
     let mut stream = FileStream::new(file);
     self.write(&mut stream)
+  }
+
+  pub fn write_to_bytes(&self) -> Result<Vec<u8>, Error> {
+    let mut stream = MemoryStream::new();
+    self.write(&mut stream)?;
+    Ok(stream.into())
   }
 
   pub fn read(stream: &mut impl ReadStream) -> Result<File, Error> {
@@ -65,6 +74,11 @@ impl File {
 
   pub fn read_from_file(file: std::fs::File) -> Result<File, Error> {
     let mut stream = FileStream::new(file);
+    File::read(&mut stream)
+  }
+
+  pub fn read_from_bytes(bytes: &[u8]) -> Result<File, Error> {
+    let mut stream = SliceStream::new(bytes);
     File::read(&mut stream)
   }
 }
