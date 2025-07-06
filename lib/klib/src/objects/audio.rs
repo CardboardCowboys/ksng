@@ -1,5 +1,18 @@
+use std::path::PathBuf;
+
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+
+/// Where this audio file should be expected to be located.
+#[derive(Serialize, Deserialize)]
+pub enum AudioFileSource {
+  /// The audio file is located at this path.
+  Path(PathBuf),
+  /// The audio file storage is managed by the libary user,
+  /// and only the file ID and type will be necessary to
+  /// retrieve it.
+  Managed,
+}
 
 #[derive(Serialize, Deserialize)]
 pub enum AudioFileType {
@@ -14,5 +27,6 @@ pub enum AudioFileType {
 #[derive(Serialize, Deserialize)]
 pub struct AudioFile {
   id: Uuid,
-  extension: AudioFileType,
+  file_type: AudioFileType,
+  source: AudioFileSource,
 }
