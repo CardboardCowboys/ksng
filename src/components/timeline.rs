@@ -1,8 +1,9 @@
 use egui::{
-  CentralPanel, Color32, Context, Frame, Id, Margin, PointerButton, Pos2, Rect, ScrollArea,
-  SidePanel, Stroke, StrokeKind, Ui, Vec2,
+  style::ScrollAnimation, Align, CentralPanel, Color32, Context, Frame, Id, Margin, PointerButton,
+  Pos2, Rect, ScrollArea, SidePanel, Stroke, StrokeKind, Ui, Vec2,
 };
 use klib::{objects::track::EventList, timecode::Timecode};
+use log::info;
 
 use crate::{
   style::colors::{self, color_for_track_type},
@@ -13,28 +14,56 @@ const TRACK_HEIGHT: f32 = 50.0;
 const TRACK_INNER_PADDING: i8 = 2;
 const TRACK_HEADER_WIDTH: f32 = 200.0;
 const PIXELS_PER_SECOND: f32 = 40.0;
+const MIN_X_ZOOM: f32 = 0.01;
+const MAX_X_ZOOM: f32 = 20.0;
+const MIN_Y_ZOOM: f32 = 0.5;
+const MAX_Y_ZOOM: f32 = 20.0;
 
 pub struct Timeline {
   zoom: Vec2,
+  horiz_scroll_offset: f32,
 }
 
 impl Default for Timeline {
   fn default() -> Self {
     Self {
       zoom: Vec2::new(1.0, 1.0),
+      horiz_scroll_offset: 0.0,
     }
   }
 }
 
 impl Timeline {
   pub fn update(&mut self, app: &KsngApp, ctx: &Context, ui: &mut Ui) {
-    ui.input_mut(|input| {
-      input.smooth_scroll_delta = if input.modifiers.alt {
-        input.smooth_scroll_delta
+    let zoom_delta = ui.input_mut(|input| {
+      if input.modifiers.alt {
+        Vec2::new(0.0, input.zoom_delta() - 1.0)
       } else {
-        Vec2::new(input.smooth_scroll_delta.y, input.smooth_scroll_delta.x)
+        Vec2::new(input.zoom_delta() - 1.0, 0.0)
       }
     });
+
+    ui.input_mut(|input| {
+      if zoom_delta.length_sq() > 0.0 {
+        input.smooth_scroll_delta = Vec2::ZERO;
+      } else {
+        input.smooth_scroll_delta = if input.modifiers.alt {
+          input.smooth_scroll_delta
+        } else {
+          Vec2::new(input.smooth_scroll_delta.y, input.smooth_scroll_delta.x)
+        }
+      }
+    });
+
+    let prev_zoom = self.zoom;
+
+    self.zoom = Vec2::new(
+      (self.zoom.x + zoom_delta.x).clamp(MIN_X_ZOOM, MAX_X_ZOOM),
+      (self.zoom.y + zoom_delta.y).clamp(MIN_Y_ZOOM, MAX_Y_ZOOM),
+    );
+
+    let track_height = TRACK_HEIGHT * self.zoom.y;
+    let pixels_per_second = PIXELS_PER_SECOND * self.zoom.x;
 
     ScrollArea::vertical().auto_shrink(false).show(ui, |ui| {
       let project = app.project.borrow();
@@ -61,7 +90,7 @@ impl Timeline {
           }
 
           let res = frame.show(ui, |ui| {
-            ui.set_height(TRACK_HEIGHT);
+            ui.set_height(track_height);
             ui.set_width(TRACK_HEADER_WIDTH);
             ui.style_mut().visuals.override_text_color = Some(Color32::WHITE);
             ui.heading(format!("{:?}", track.track_type));
@@ -82,33 +111,36 @@ impl Timeline {
         }
       });
 
+      ui.visuals_mut().clip_rect_margin = 0.0;
       CentralPanel::default().show_inside(ui, |ui| {
-        ScrollArea::horizontal()
+        let res = ScrollArea::horizontal()
           .auto_shrink(false)
+          .animated(false)
+          .horizontal_scroll_offset(self.horiz_scroll_offset)
           .show_viewport(ui, |ui, viewport_rect| {
             for track in &project.file.tracks {
               let frame = Frame::new().fill(Color32::WHITE).show(ui, |ui| {
-                ui.set_height(TRACK_HEIGHT + TRACK_INNER_PADDING as f32 * 2.0 + 10.0);
+                ui.set_height(track_height + TRACK_INNER_PADDING as f32 * 2.0 + 10.0);
                 let len = track
                   .events
                   .iter()
                   .max_by_key(|e| e.end_timecode)
                   .map(|ev| ev.end_timecode)
                   .unwrap_or_default();
-                let width = len.to_seconds() * PIXELS_PER_SECOND;
+                let width = len.to_seconds() * pixels_per_second;
                 ui.set_width(width);
               });
 
               let rect = frame.response.rect;
-              let visible_len = Timecode::from_seconds(viewport_rect.width() / PIXELS_PER_SECOND);
-              let visible_start = Timecode::from_seconds(viewport_rect.min.x / PIXELS_PER_SECOND);
+              let visible_len = Timecode::from_seconds(viewport_rect.width() / pixels_per_second);
+              let visible_start = Timecode::from_seconds(viewport_rect.min.x / pixels_per_second);
 
               for ev in track
                 .events
                 .events_in_range((visible_start, visible_start + visible_len))
               {
-                let start_x = ev.start_timecode.to_seconds() * PIXELS_PER_SECOND + rect.min.x;
-                let end_x = ev.end_timecode.to_seconds() * PIXELS_PER_SECOND + rect.min.x;
+                let start_x = ev.start_timecode.to_seconds() * pixels_per_second + rect.min.x;
+                let end_x = ev.end_timecode.to_seconds() * pixels_per_second + rect.min.x;
                 let width = (end_x - start_x).max(1.0);
                 let rect = Rect {
                   min: Pos2::new(start_x, rect.min.y),
@@ -128,6 +160,20 @@ impl Timeline {
               }
             }
           });
+
+        self.horiz_scroll_offset = res.state.offset.x;
+
+        // Try repositioning the scroll area to put the cursor where it was before the zoom.
+        if let Some(cursor_pos) = ui.input(|input| input.pointer.latest_pos()) {
+          if (self.zoom.x - prev_zoom.x).abs() > 0.0 && res.inner_rect.contains(cursor_pos) {
+            let content_pos_x = cursor_pos.x - res.inner_rect.min.x + self.horiz_scroll_offset;
+            let prev_pps = PIXELS_PER_SECOND * prev_zoom.x;
+            let prev_pos_s = content_pos_x / prev_pps;
+            let new_pos_s = content_pos_x / pixels_per_second;
+            let diff_pixels = (new_pos_s - prev_pos_s) * pixels_per_second;
+            self.horiz_scroll_offset -= diff_pixels;
+          }
+        }
       });
     });
   }
