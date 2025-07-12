@@ -1,10 +1,12 @@
 use binary_rw::{BinaryReader, BinaryWriter};
 use serde::{Deserialize, Serialize};
+use sortedlist_rs::SortedList;
 use uuid::Uuid;
 
 use crate::{
   error::Error,
   objects::{event::Event, file::File},
+  timecode::Timecode,
 };
 
 /// Settings for an audio track.
@@ -72,7 +74,7 @@ pub struct Track {
   pub track_value: Option<TrackValue>,
 
   /// The events on this track.
-  pub events: Vec<Event>,
+  pub events: SortedList<Event>,
 }
 
 impl Track {
@@ -117,7 +119,7 @@ impl Track {
     writer.write_string(serde_json::to_string(&self.track_value)?)?;
 
     writer.write_usize(self.events.len())?;
-    for event in &self.events {
+    for event in self.events.iter() {
       event.write(writer)?;
     }
 
@@ -139,12 +141,46 @@ impl Track {
     track.track_value = track_value;
 
     let event_num = reader.read_usize()?;
-    track.events.reserve(event_num);
 
     for _i in 0..event_num {
-      track.events.push(Event::read(reader)?)
+      track.events.insert(Event::read(reader)?)
     }
 
     Ok(track)
+  }
+}
+
+pub trait EventList {
+  /// Removes an event with the given ID from the event list.
+  /// Returns true if the event was removed, false if not.
+  fn remove_id(&mut self, id: Uuid) -> bool;
+  fn events_in_range<'s>(
+    &'s self,
+    range: (Timecode, Timecode),
+  ) -> Box<dyn Iterator<Item = &'s Event> + 's>;
+}
+
+impl EventList for SortedList<Event> {
+  fn remove_id(&mut self, id: Uuid) -> bool {
+    let mut remove_idx: Option<usize> = None;
+    for (idx, item) in self.iter().enumerate() {
+      if item.id == id {
+        remove_idx = Some(idx);
+        break;
+      }
+    }
+
+    if let Some(idx) = remove_idx {
+      self.remove(idx);
+      return true;
+    }
+    false
+  }
+
+  fn events_in_range<'s>(
+    &'s self,
+    range: (Timecode, Timecode),
+  ) -> Box<dyn Iterator<Item = &'s Event> + 's> {
+    Box::new(self.iter().filter(move |ev| ev.is_in_range(range)))
   }
 }

@@ -4,18 +4,19 @@ use uuid::Uuid;
 
 use crate::{error::Error, objects::audio::AudioFile, timecode::Timecode};
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, PartialEq, Eq)]
 pub enum EventValue {
   Lyric { text: String },
   AudioClip { offset: Timecode, file: AudioFile },
 }
 
 #[repr(u8)]
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy, Default, PartialEq, Eq)]
 pub enum EventType {
   #[default]
   Lyric = 0,
   LineBreak = 1,
+  ParagraphBreak = 2,
   AudioClip = 8,
   Image = 16,
 }
@@ -26,6 +27,7 @@ impl EventType {
     let event_type = match type_byte {
       0 => Ok(EventType::Lyric),
       1 => Ok(EventType::LineBreak),
+      2 => Ok(EventType::ParagraphBreak),
       8 => Ok(EventType::AudioClip),
       16 => Ok(EventType::Image),
       _ => Err(Error::Format(format!("Unknown event type {type_byte}"))),
@@ -37,7 +39,7 @@ impl EventType {
   }
 }
 
-#[derive(Default)]
+#[derive(Default, PartialEq, Eq)]
 pub struct Event {
   pub id: Uuid,
   pub linked_id: Option<Uuid>,
@@ -45,6 +47,18 @@ pub struct Event {
   pub end_timecode: Timecode,
   pub event_type: EventType,
   pub value: Option<EventValue>,
+}
+
+impl PartialOrd for Event {
+  fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+    Some(self.cmp(other))
+  }
+}
+
+impl Ord for Event {
+  fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+    self.start_timecode.0.cmp(&other.start_timecode.0)
+  }
 }
 
 impl Event {
@@ -114,5 +128,14 @@ impl Event {
     event.value = event_value;
 
     Ok(event)
+  }
+
+  /// Checks whether this event is within the range (start, end)
+  pub fn is_in_range(&self, range: (Timecode, Timecode)) -> bool {
+    let (start, end) = range;
+    (self.start_timecode >= start && self.start_timecode < end)
+      || (self.end_timecode >= start && self.end_timecode < end)
+      || (start >= self.start_timecode && start < self.end_timecode)
+      || (end >= self.start_timecode && end < self.end_timecode)
   }
 }

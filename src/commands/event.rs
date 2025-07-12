@@ -7,7 +7,7 @@ use klib::{
   objects::{
     audio::{AudioFile, AudioFileSource},
     event::Event,
-    track,
+    track::{self, EventList},
   },
   timecode::Timecode,
 };
@@ -67,7 +67,7 @@ impl Command for AddAudioEventCommand {
 
     let event = Event::new_audio(Timecode(0), self.audio_info.length, Timecode(0), audio_file);
     let event_id = event.id;
-    track.events.push(event);
+    track.events.insert(event);
 
     (*self.added_event_id.borrow_mut()) = Some(event_id);
 
@@ -93,7 +93,7 @@ impl Command for AddAudioEventCommand {
 
     if let Some(added_event_id) = *self.added_event_id.borrow() {
       app.selection.remove_event(added_event_id);
-      track.events.retain(|e| e.id != added_event_id);
+      track.events.remove_id(added_event_id);
     }
 
     Ok(())

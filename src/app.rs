@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 use crate::{
   commands::CommandDispatcher,
-  components,
+  components::{self, timeline::Timeline},
   fs::Data,
   logger::Logger,
   modals::{
@@ -27,6 +27,7 @@ pub struct KsngApp {
 
   event_queue: RefCell<VecDeque<KsngEvent>>,
   close_allowed: RefCell<bool>,
+  timeline: RefCell<Timeline>,
 }
 
 #[derive(Serialize, Deserialize, Default)]
@@ -44,6 +45,7 @@ impl Default for KsngApp {
       selection: SelectionManager::default(),
       event_queue: Default::default(),
       close_allowed: RefCell::new(false),
+      timeline: Default::default(),
     }
   }
 }
@@ -174,7 +176,7 @@ impl eframe::App for KsngApp {
         .default_height(200.0)
         .resizable(true)
         .show_inside(ui, |ui| {
-          components::timeline::timeline(self, ctx, ui);
+          self.timeline.borrow_mut().update(self, ctx, ui);
         });
     });
 

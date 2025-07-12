@@ -1887,6 +1887,7 @@ dependencies = [
  "log",
  "serde",
  "serde_json",
+ "sortedlist-rs",
  "uuid",
 ]
 
@@ -3094,6 +3095,12 @@ checksum = "74212e6bbe9a4352329b2f68ba3130c15a3f26fe88ff22dbdc6cdd58fa85e99c"
 dependencies = [
  "serde",
 ]
+
+[[package]]
+name = "sortedlist-rs"
+version = "0.2.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2cd4d51267d89402396b48c7b3c8449e879a73b6710f01e0c88b1e4c64b41582"
 
 [[package]]
 name = "spirv"
