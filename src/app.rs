@@ -56,10 +56,12 @@ impl KsngApp {
       KsngEvent::ProjectClose => {
         self.project.replace(None);
         self.selection.clear();
+        *self.timeline.borrow_mut() = Timeline::default();
       }
       KsngEvent::ProjectNew => {
         self.project.replace(Some(Project::default()));
         self.selection.clear();
+        *self.timeline.borrow_mut() = Timeline::default();
       }
       KsngEvent::ProjectSave => {
         SaveProjectModal::save(self, None);
@@ -75,6 +77,7 @@ impl KsngApp {
         if let Some(project) = project {
           self.project.replace(Some(project));
           self.selection.clear();
+          *self.timeline.borrow_mut() = Timeline::default();
         }
       }
       KsngEvent::Quit => {

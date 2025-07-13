@@ -1,9 +1,22 @@
-use egui::{
-  style::ScrollAnimation, Align, CentralPanel, Color32, Context, Frame, Id, Margin, PointerButton,
-  Pos2, Rect, ScrollArea, SidePanel, Stroke, StrokeKind, Ui, Vec2,
+use std::{
+  borrow::Cow,
+  collections::{hash_map::Entry, HashMap},
+  str::FromStr,
 };
-use klib::{objects::track::EventList, timecode::Timecode};
+
+use egui::{
+  style::ScrollAnimation, Align, Align2, CentralPanel, Color32, Context, FontId, Frame, Id, Margin,
+  PointerButton, Pos2, Rect, ScrollArea, SidePanel, Spacing, Stroke, StrokeKind, Ui, Vec2,
+};
+use klib::{
+  objects::{
+    event::{Event, EventType},
+    track::EventList,
+  },
+  timecode::Timecode,
+};
 use log::info;
+use uuid::Uuid;
 
 use crate::{
   style::colors::{self, color_for_track_type},
@@ -22,6 +35,7 @@ const MAX_Y_ZOOM: f32 = 20.0;
 pub struct Timeline {
   zoom: Vec2,
   horiz_scroll_offset: f32,
+  event_text: HashMap<Uuid, String>,
 }
 
 impl Default for Timeline {
@@ -29,6 +43,7 @@ impl Default for Timeline {
     Self {
       zoom: Vec2::new(1.0, 1.0),
       horiz_scroll_offset: 0.0,
+      event_text: Default::default(),
     }
   }
 }
@@ -72,55 +87,59 @@ impl Timeline {
       }
       let project = project.as_ref().unwrap();
 
-      SidePanel::left(Id::new("timeline#headers")).show_inside(ui, |ui| {
-        for track in &project.file.tracks {
-          let mut frame = Frame::new()
-            .corner_radius(0)
-            .outer_margin(Margin::symmetric(0, TRACK_INNER_PADDING))
-            .inner_margin(5)
-            .fill(color_for_track_type(track.track_type));
-
-          if app.selection.is_track_selected(track.id) {
-            frame = frame.stroke(Stroke::new(1.0, Color32::WHITE));
-          } else {
-            frame = frame.stroke(Stroke::new(
-              1.0,
-              Color32::from_rgba_premultiplied(0, 0, 0, 0),
-            ));
-          }
-
-          let res = frame.show(ui, |ui| {
-            ui.set_height(track_height);
-            ui.set_width(TRACK_HEADER_WIDTH);
-            ui.style_mut().visuals.override_text_color = Some(Color32::WHITE);
-            ui.heading(format!("{:?}", track.track_type));
-          });
-
-          let header_clicked = ui.input(|input| {
-            input.pointer.button_clicked(PointerButton::Primary)
-              && res
-                .response
-                .rect
-                .contains(input.pointer.interact_pos().unwrap())
-          });
-
-          if header_clicked {
-            let single = !ui.input(|i| i.modifiers.shift);
-            app.selection.select_track(track.id, single);
-          }
-        }
-      });
-
       ui.visuals_mut().clip_rect_margin = 0.0;
-      CentralPanel::default().show_inside(ui, |ui| {
-        let res = ScrollArea::horizontal()
-          .auto_shrink(false)
-          .animated(false)
-          .horizontal_scroll_offset(self.horiz_scroll_offset)
-          .show_viewport(ui, |ui, viewport_rect| {
-            for track in &project.file.tracks {
-              let frame = Frame::new().fill(Color32::WHITE).show(ui, |ui| {
-                ui.set_height(track_height + TRACK_INNER_PADDING as f32 * 2.0 + 10.0);
+      ui.spacing_mut().item_spacing = Vec2::ZERO;
+      ui.spacing_mut().indent = 0.0;
+
+      SidePanel::left(Id::new("timeline#headers"))
+        .frame(Frame::side_top_panel(ui.style()))
+        .show_inside(ui, |ui| {
+          for track in &project.file.tracks {
+            let mut frame = Frame::new()
+              .corner_radius(0)
+              .outer_margin(Margin::symmetric(0, TRACK_INNER_PADDING))
+              .fill(color_for_track_type(track.track_type));
+
+            if app.selection.is_track_selected(track.id) {
+              frame = frame.stroke(Stroke::new(1.0, Color32::WHITE));
+            } else {
+              frame = frame.stroke(Stroke::new(
+                1.0,
+                Color32::from_rgba_premultiplied(0, 0, 0, 0),
+              ));
+            }
+
+            let res = frame.show(ui, |ui| {
+              ui.set_height(track_height);
+              ui.set_width(TRACK_HEADER_WIDTH);
+              ui.style_mut().visuals.override_text_color = Some(Color32::WHITE);
+              ui.heading(format!("{:?}", track.track_type));
+            });
+
+            let header_clicked = ui.input(|input| {
+              input.pointer.button_clicked(PointerButton::Primary)
+                && res
+                  .response
+                  .rect
+                  .contains(input.pointer.interact_pos().unwrap())
+            });
+
+            if header_clicked {
+              let single = !ui.input(|i| i.modifiers.shift);
+              app.selection.select_track(track.id, single);
+            }
+          }
+        });
+
+      CentralPanel::default()
+        .frame(Frame::side_top_panel(ui.style()))
+        .show_inside(ui, |ui| {
+          let res = ScrollArea::horizontal()
+            .auto_shrink(false)
+            .animated(false)
+            .horizontal_scroll_offset(self.horiz_scroll_offset)
+            .show_viewport(ui, |ui, viewport_rect| {
+              for track in &project.file.tracks {
                 let len = track
                   .events
                   .iter()
@@ -128,53 +147,100 @@ impl Timeline {
                   .map(|ev| ev.end_timecode)
                   .unwrap_or_default();
                 let width = len.to_seconds() * pixels_per_second;
-                ui.set_width(width);
-              });
+                let (_id, rect) = ui.allocate_space(Vec2::new(
+                  width,
+                  track_height + TRACK_INNER_PADDING as f32 * 3.0,
+                ));
+                let visible_len = Timecode::from_seconds(viewport_rect.width() / pixels_per_second);
+                let visible_start = Timecode::from_seconds(viewport_rect.min.x / pixels_per_second);
 
-              let rect = frame.response.rect;
-              let visible_len = Timecode::from_seconds(viewport_rect.width() / pixels_per_second);
-              let visible_start = Timecode::from_seconds(viewport_rect.min.x / pixels_per_second);
+                for ev in track
+                  .events
+                  .events_in_range((visible_start, visible_start + visible_len))
+                {
+                  let start_x = ev.start_timecode.to_seconds() * pixels_per_second + rect.min.x;
+                  let end_x = ev.end_timecode.to_seconds() * pixels_per_second + rect.min.x;
+                  let width = (end_x - start_x).max(1.0);
+                  let rect = Rect {
+                    min: Pos2::new(start_x, rect.min.y + TRACK_INNER_PADDING as f32),
+                    max: Pos2::new(start_x + width, rect.max.y - TRACK_INNER_PADDING as f32),
+                  };
 
-              for ev in track
-                .events
-                .events_in_range((visible_start, visible_start + visible_len))
-              {
-                let start_x = ev.start_timecode.to_seconds() * pixels_per_second + rect.min.x;
-                let end_x = ev.end_timecode.to_seconds() * pixels_per_second + rect.min.x;
-                let width = (end_x - start_x).max(1.0);
-                let rect = Rect {
-                  min: Pos2::new(start_x, rect.min.y),
-                  max: Pos2::new(start_x + width, rect.max.y),
-                };
+                  let color = colors::color_for_event_type(ev.event_type);
+                  let stroke_color = colors::darkened_color_for_event_type(ev.event_type);
 
-                let color = colors::color_for_event_type(ev.event_type);
-                let stroke_color = colors::darkened_color_for_event_type(ev.event_type);
+                  ui.painter().rect_filled(rect, 0, color);
+                  ui.painter().rect_stroke(
+                    rect,
+                    0,
+                    Stroke::new(1.0, stroke_color),
+                    StrokeKind::Inside,
+                  );
 
-                ui.painter().rect_filled(rect, 0, color);
-                ui.painter().rect_stroke(
-                  rect,
-                  0,
-                  Stroke::new(1.0, stroke_color),
-                  StrokeKind::Inside,
-                );
+                  if width > 5.0 {
+                    self.draw_event_text(ui, ev, &rect);
+                  }
+                }
               }
+            });
+
+          self.horiz_scroll_offset = res.state.offset.x;
+
+          // Try repositioning the scroll area to put the cursor where it was before the zoom.
+          if let Some(cursor_pos) = ui.input(|input| input.pointer.latest_pos()) {
+            if (self.zoom.x - prev_zoom.x).abs() > 0.0 && res.inner_rect.contains(cursor_pos) {
+              let content_pos_x = cursor_pos.x - res.inner_rect.min.x + self.horiz_scroll_offset;
+              let prev_pps = PIXELS_PER_SECOND * prev_zoom.x;
+              let prev_pos_s = content_pos_x / prev_pps;
+              let new_pos_s = content_pos_x / pixels_per_second;
+              let diff_pixels = (new_pos_s - prev_pos_s) * pixels_per_second;
+              self.horiz_scroll_offset -= diff_pixels;
             }
-          });
-
-        self.horiz_scroll_offset = res.state.offset.x;
-
-        // Try repositioning the scroll area to put the cursor where it was before the zoom.
-        if let Some(cursor_pos) = ui.input(|input| input.pointer.latest_pos()) {
-          if (self.zoom.x - prev_zoom.x).abs() > 0.0 && res.inner_rect.contains(cursor_pos) {
-            let content_pos_x = cursor_pos.x - res.inner_rect.min.x + self.horiz_scroll_offset;
-            let prev_pps = PIXELS_PER_SECOND * prev_zoom.x;
-            let prev_pos_s = content_pos_x / prev_pps;
-            let new_pos_s = content_pos_x / pixels_per_second;
-            let diff_pixels = (new_pos_s - prev_pos_s) * pixels_per_second;
-            self.horiz_scroll_offset -= diff_pixels;
           }
-        }
-      });
+        });
     });
+  }
+
+  fn draw_event_text(&mut self, ui: &mut Ui, event: &Event, rect: &Rect) {
+    match self.event_text.entry(event.id) {
+      Entry::Occupied(entry) => Self::draw_event_text_impl(ui, rect, entry.get().as_ref()),
+      Entry::Vacant(entry) => Self::draw_event_text_impl(
+        ui,
+        rect,
+        entry.insert(Self::create_event_text(event)).as_ref(),
+      ),
+    }
+  }
+
+  fn draw_event_text_impl(ui: &mut Ui, rect: &Rect, text: &str) {
+    let font = FontId::proportional(12.0);
+    let inner_rect = rect.expand2(Vec2::new(2.0, 2.0));
+    ui.painter().with_clip_rect(inner_rect).text(
+      Pos2::new(rect.min.x + 2.0, rect.min.y + 2.0),
+      Align2::LEFT_TOP,
+      text,
+      font,
+      Color32::WHITE,
+    );
+  }
+
+  fn create_event_text(event: &Event) -> String {
+    let name = match event.event_type {
+      EventType::Lyric => "Lyric",
+      EventType::LineBreak => "LineBreak",
+      EventType::ParagraphBreak => "ParagraphBreak",
+      EventType::AudioClip => "AudioClip",
+      EventType::Image => "Image",
+    }
+    .to_owned();
+    if let Some(s) = event.description() {
+      if event.event_type == EventType::Lyric {
+        format!("{name}\n'{s}'")
+      } else {
+        format!("{name}\n{s}")
+      }
+    } else {
+      name
+    }
   }
 }

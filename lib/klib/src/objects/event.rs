@@ -4,6 +4,8 @@ use uuid::Uuid;
 
 use crate::{error::Error, objects::audio::AudioFile, timecode::Timecode};
 
+use super::audio::AudioFileSource;
+
 #[derive(Serialize, Deserialize, PartialEq, Eq)]
 pub enum EventValue {
   Lyric { text: String },
@@ -137,5 +139,24 @@ impl Event {
       || (self.end_timecode >= start && self.end_timecode < end)
       || (start >= self.start_timecode && start < self.end_timecode)
       || (end >= self.start_timecode && end < self.end_timecode)
+  }
+
+  /// Obtains a string describing this event, if any.
+  /// For example, a Lyric event will return the text of the lyric.
+  pub fn description(&self) -> Option<String> {
+    self.value.as_ref().and_then(|v| match v {
+      EventValue::Lyric { text } => Some(if self.linked_id.is_some() {
+        "-".to_string() + text
+      } else {
+        text.clone()
+      }),
+      EventValue::AudioClip { file, .. } => match &file.source {
+        AudioFileSource::Path(path_buf) => path_buf
+          .file_stem()
+          .and_then(|s| s.to_str())
+          .map(|s| s.to_owned()),
+        AudioFileSource::Managed => None,
+      },
+    })
   }
 }
