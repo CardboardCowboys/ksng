@@ -3,15 +3,13 @@
 mod audio;
 mod commands;
 mod components;
-mod error;
 mod fs;
-mod logger;
 mod modals;
+mod playback;
 mod project;
 mod selection;
 mod style;
-mod ui;
-mod ui_event;
+mod util;
 
 mod app;
 pub use app::KsngApp;

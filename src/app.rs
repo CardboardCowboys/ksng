@@ -9,14 +9,14 @@ use crate::{
   commands::CommandDispatcher,
   components::{self, timeline::Timeline},
   fs::Data,
-  logger::Logger,
   modals::{
     dirty_warning::DirtyWarningModal, open_project::OpenProjectModal,
     save_project::SaveProjectModal, ModalManager,
   },
+  playback::{Playback, PlaybackState},
   project::Project,
   selection::SelectionManager,
-  ui_event::KsngEvent,
+  util::{logger::Logger, ui_event::KsngEvent},
 };
 
 pub struct KsngApp {
@@ -26,6 +26,7 @@ pub struct KsngApp {
   pub commands: CommandDispatcher,
   pub selection: SelectionManager,
   pub waveforms: RefCell<AudioWaveformProvider>,
+  pub playback: RefCell<Playback>,
 
   event_queue: RefCell<VecDeque<KsngEvent>>,
   close_allowed: RefCell<bool>,
@@ -44,6 +45,7 @@ impl Default for KsngApp {
       project: RefCell::new(None),
       modals: Default::default(),
       waveforms: RefCell::new(AudioWaveformProvider::new(logger.clone())),
+      playback: Default::default(),
       logger,
       commands: CommandDispatcher::default(),
       selection: SelectionManager::default(),
@@ -59,6 +61,7 @@ impl KsngApp {
     self.selection.clear();
     *self.timeline.borrow_mut() = Timeline::default();
     self.waveforms.borrow_mut().clear(ctx);
+    self.playback.borrow_mut().on_audio_change(self);
   }
 
   fn on_event(&self, ctx: &Context, event: KsngEvent) {
@@ -100,6 +103,9 @@ impl KsngApp {
       KsngEvent::Redo => {
         self.logger.wrap(self.commands.redo(self));
       }
+      KsngEvent::AudioChanged => {
+        self.playback.borrow_mut().on_audio_change(self);
+      }
     }
   }
 
@@ -140,6 +146,7 @@ impl KsngApp {
           Data::list_projects().and_then(|manifest| Data::load_project(project_id, &manifest)),
         );
         app.project.replace(project);
+        app.on_project_change(&cc.egui_ctx);
       }
     }
 
@@ -174,6 +181,10 @@ impl eframe::App for KsngApp {
     self.logger.wrap(self.commands.process(self));
     self.modals.process(self, ctx);
 
+    if self.playback.borrow().state() == PlaybackState::Playing {
+      ctx.request_repaint();
+    }
+
     // Put your widgets into a `SidePanel`, `TopBottomPanel`, `CentralPanel`, `Window` or `Area`.
     // For inspiration and more examples, go to https://emilk.github.io/egui
 
@@ -188,6 +199,14 @@ impl eframe::App for KsngApp {
         .show_inside(ui, |ui| {
           self.timeline.borrow_mut().update(self, ctx, ui);
         });
+      egui::CentralPanel::default().show_inside(ui, |ui| {
+        egui::SidePanel::right(Id::new("player"))
+          .default_width(300.0)
+          .resizable(true)
+          .show_inside(ui, |ui| {
+            components::player::player(self, ctx, ui);
+          });
+      });
     });
 
     if ctx.input(|i| i.viewport().close_requested()) {

@@ -9,7 +9,7 @@ use symphonia::core::{
   probe::Hint,
 };
 
-use crate::error::UiError;
+use crate::util::error::UiError;
 
 pub struct AudioFileInfo {
   pub audio_type: AudioFileType,

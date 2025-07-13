@@ -4,7 +4,7 @@ use klib::objects::file::File;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{error::UiError, project::Project};
+use crate::{project::Project, util::error::UiError};
 
 #[derive(Serialize, Deserialize)]
 pub struct ProjectEntry {
@@ -70,12 +70,7 @@ impl Data {
     let project_file = std::fs::File::open(project_dir.join("project.kpj"))?;
     let kfile = File::read_from_file(project_file)?;
 
-    Ok(Project {
-      id: entry.id,
-      name: Some(entry.name.clone()),
-      file: kfile,
-      dirty: false,
-    })
+    Ok(Project::from_file(entry.id, entry.name.clone(), kfile))
   }
 
   pub fn delete_project(id: Uuid) -> Result<(), UiError> {

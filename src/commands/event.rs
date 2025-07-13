@@ -13,7 +13,12 @@ use klib::{
 };
 use uuid::Uuid;
 
-use crate::{audio::info::AudioFileInfo, commands::Command, error::UiError, KsngApp};
+use crate::{
+  audio::info::AudioFileInfo,
+  commands::Command,
+  util::{error::UiError, ui_event::KsngEvent},
+  KsngApp,
+};
 
 pub struct AddAudioEventCommand {
   audio_track_id: Uuid,
@@ -70,6 +75,7 @@ impl Command for AddAudioEventCommand {
     track.events.insert(event);
 
     (*self.added_event_id.borrow_mut()) = Some(event_id);
+    app.dispatch(KsngEvent::AudioChanged);
 
     Ok(())
   }
@@ -95,6 +101,8 @@ impl Command for AddAudioEventCommand {
       app.selection.remove_event(added_event_id);
       track.events.remove_id(added_event_id);
     }
+
+    app.dispatch(KsngEvent::AudioChanged);
 
     Ok(())
   }

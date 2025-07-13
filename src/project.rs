@@ -1,4 +1,7 @@
-use klib::objects::{file::File, track::Track};
+use klib::{
+  objects::{file::File, track::Track},
+  timecode::Timecode,
+};
 use uuid::Uuid;
 
 pub struct Project {
@@ -6,6 +9,7 @@ pub struct Project {
   pub name: Option<String>,
   pub file: File,
   pub dirty: bool,
+  pub length: Timecode,
 }
 
 impl Default for Project {
@@ -18,6 +22,19 @@ impl Default for Project {
       name: None,
       file,
       dirty: true,
+      length: Timecode(0),
+    }
+  }
+}
+
+impl Project {
+  pub fn from_file(id: Uuid, name: String, file: File) -> Project {
+    Project {
+      id,
+      name: Some(name),
+      length: file.calculate_length(),
+      file,
+      dirty: false,
     }
   }
 }

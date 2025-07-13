@@ -2,7 +2,7 @@ use std::sync::{Arc, RwLock};
 
 use log::error;
 
-use crate::error::UiError;
+use crate::util::error::UiError;
 
 pub enum LogType {
   Debug,

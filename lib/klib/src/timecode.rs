@@ -1,4 +1,7 @@
-use std::ops::{Add, Deref};
+use std::{
+  ops::{Add, Deref, Sub},
+  time::Duration,
+};
 
 use serde::{Deserialize, Serialize};
 
@@ -16,6 +19,14 @@ impl Timecode {
   pub fn to_seconds(&self) -> f32 {
     self.0 as f32 / 1000.0
   }
+
+  /// Converts the timecode to a string in the form MM:SS
+  pub fn to_string_seconds(&self) -> String {
+    let seconds = self.0 / 1000;
+    let minutes = seconds / 60;
+    let seconds = seconds - (minutes * 60);
+    format!("{minutes:02}:{seconds:02}")
+  }
 }
 
 impl Deref for Timecode {
@@ -31,5 +42,31 @@ impl Add for Timecode {
 
   fn add(self, rhs: Self) -> Self::Output {
     Timecode(self.0 + rhs.0)
+  }
+}
+
+impl Sub for Timecode {
+  type Output = Timecode;
+
+  fn sub(self, rhs: Self) -> Self::Output {
+    Timecode(self.0 - rhs.0)
+  }
+}
+
+impl From<Timecode> for Duration {
+  fn from(value: Timecode) -> Self {
+    Duration::from_millis(value.0 as u64)
+  }
+}
+
+impl From<&Timecode> for Duration {
+  fn from(value: &Timecode) -> Self {
+    Duration::from_millis(value.0 as u64)
+  }
+}
+
+impl From<Duration> for Timecode {
+  fn from(value: Duration) -> Self {
+    Timecode(value.as_millis() as u32)
   }
 }

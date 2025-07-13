@@ -5,7 +5,7 @@ use crate::{
   audio::info::AudioFileInfo,
   commands::{event::AddAudioEventCommand, track::AddTrackCommand},
   modals::{alert::AlertModal, open_file::OpenFileModal},
-  ui_event::KsngEvent,
+  util::ui_event::KsngEvent,
   KsngApp,
 };
 

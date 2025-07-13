@@ -10,7 +10,7 @@ use crate::{
 };
 
 /// Settings for an audio track.
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct AudioTrackValue {
   /// Whether this track should be muted.
   pub muted: bool,
@@ -147,6 +147,16 @@ impl Track {
     }
 
     Ok(track)
+  }
+
+  /// Returns the timecode representing the length of this track (the end of the last event on the track).
+  pub fn calculate_length(&self) -> Timecode {
+    self
+      .events
+      .iter()
+      .max_by_key(|e| e.end_timecode)
+      .map(|e| e.end_timecode)
+      .unwrap_or_default()
   }
 }
 

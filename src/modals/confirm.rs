@@ -1,6 +1,6 @@
 use egui::{Id, Modal, Sides};
 
-use crate::{modals::KModal, ui_event::KsngEvent};
+use crate::{modals::KModal, util::ui_event::KsngEvent};
 
 pub struct ConfirmModal {
   open: bool,

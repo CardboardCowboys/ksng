@@ -2,7 +2,7 @@ use egui::{Context, Id, Modal, Sides};
 
 use crate::{
   modals::{save_project::SaveProjectModal, KModal},
-  ui_event::KsngEvent,
+  util::ui_event::KsngEvent,
   KsngApp,
 };
 

@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use egui::{CentralPanel, Id, Modal, Sides};
 use egui_file_dialog::{DialogState, FileDialog};
 
-use crate::{modals::KModal, ui_event::KsngEvent, KsngApp};
+use crate::{modals::KModal, util::ui_event::KsngEvent, KsngApp};
 
 type OpenFileCallback = dyn Fn(&KsngApp, PathBuf);
 

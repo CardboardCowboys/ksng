@@ -3,7 +3,7 @@ use std::cell::RefCell;
 use klib::objects::track::{Track, TrackType};
 use uuid::Uuid;
 
-use crate::{commands::Command, error::UiError, KsngApp};
+use crate::{commands::Command, util::error::UiError, KsngApp};
 
 pub struct AddTrackCommand {
   track_type: TrackType,

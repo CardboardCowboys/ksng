@@ -3,7 +3,7 @@ use std::{
   collections::{LinkedList, VecDeque},
 };
 
-use crate::{error::UiError, KsngApp};
+use crate::{util::error::UiError, KsngApp};
 
 pub mod event;
 pub mod track;
@@ -44,6 +44,10 @@ impl CommandDispatcher {
       command.execute(app)?;
       if command.make_dirty() {
         app.set_dirty_state(true);
+
+        if let Some(project) = app.project.borrow_mut().as_mut() {
+          project.length = project.file.calculate_length();
+        }
       }
       if command.can_undo() {
         undo_queue.push_back(command);
@@ -77,6 +81,10 @@ impl CommandDispatcher {
       command.undo(app)?;
       if command.make_dirty() {
         app.set_dirty_state(true);
+
+        if let Some(project) = app.project.borrow_mut().as_mut() {
+          project.length = project.file.calculate_length();
+        }
       }
       self.redo_queue.borrow_mut().push_back(command);
     }
@@ -89,6 +97,10 @@ impl CommandDispatcher {
       command.execute(app)?;
       if command.make_dirty() {
         app.set_dirty_state(true);
+
+        if let Some(project) = app.project.borrow_mut().as_mut() {
+          project.length = project.file.calculate_length();
+        }
       }
       self.undo_queue.borrow_mut().push_back(command);
     }

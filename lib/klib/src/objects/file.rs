@@ -1,6 +1,6 @@
 use binary_rw::{BinaryReader, BinaryWriter, Endian, FileStream, ReadStream, WriteStream};
 
-use crate::{config::Config, error::Error, objects::track::Track};
+use crate::{config::Config, error::Error, objects::track::Track, timecode::Timecode};
 
 const MAGIC_NUMBER: u32 = 0x474E534B;
 const FILE_VERSION: u16 = 0;
@@ -66,5 +66,15 @@ impl File {
   pub fn read_from_file(file: std::fs::File) -> Result<File, Error> {
     let mut stream = FileStream::new(file);
     File::read(&mut stream)
+  }
+
+  /// Calculates the length of this file (the end timecode of the last event on any track)
+  pub fn calculate_length(&self) -> Timecode {
+    self
+      .tracks
+      .iter()
+      .map(|t| t.calculate_length())
+      .max()
+      .unwrap_or_default()
   }
 }

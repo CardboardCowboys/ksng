@@ -11,4 +11,5 @@ pub enum KsngEvent {
   Quit,
   Undo,
   Redo,
+  AudioChanged,
 }
