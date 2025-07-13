@@ -2,7 +2,7 @@ use egui::{Button, Context, Key, Modifiers, Sides, Ui};
 use klib::objects::track::TrackType;
 
 use crate::{
-  audio::AudioFileInfo,
+  audio::info::AudioFileInfo,
   commands::{event::AddAudioEventCommand, track::AddTrackCommand},
   modals::{alert::AlertModal, open_file::OpenFileModal},
   ui_event::KsngEvent,

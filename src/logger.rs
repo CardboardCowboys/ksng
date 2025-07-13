@@ -1,4 +1,4 @@
-use std::cell::RefCell;
+use std::sync::{Arc, RwLock};
 
 use log::error;
 
@@ -17,9 +17,9 @@ pub struct LogMessage {
   pub time: chrono::NaiveDateTime,
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct Logger {
-  pub messages: RefCell<Vec<LogMessage>>,
+  pub messages: Arc<RwLock<Vec<LogMessage>>>,
 }
 
 impl Logger {
@@ -35,7 +35,7 @@ impl Logger {
   }
 
   pub fn log(&self, log_type: LogType, text: String) {
-    self.messages.borrow_mut().push(LogMessage {
+    self.messages.write().unwrap().push(LogMessage {
       text,
       log_type,
       time: chrono::offset::Local::now().naive_local(),

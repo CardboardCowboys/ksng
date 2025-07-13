@@ -142,6 +142,25 @@ impl Data {
   }
 }
 
-struct Filesystem;
+pub struct Cache;
 
-impl Filesystem {}
+impl Cache {
+  pub fn get_file_path(id: Uuid, ext: &str) -> Result<PathBuf, UiError> {
+    Self::cache_dir().map(|p| p.join(format!("{id}.{ext}")))
+  }
+
+  fn cache_dir() -> Result<PathBuf, UiError> {
+    let cache_dir = directories::ProjectDirs::from("com", "Cardboard Cowboys", "ksng")
+      .ok_or(UiError::Io(
+        "Couldn't obtain path to cache directory".to_string(),
+      ))?
+      .cache_dir()
+      .to_path_buf();
+
+    if !std::fs::exists(&cache_dir)? {
+      std::fs::create_dir_all(&cache_dir)?;
+    }
+
+    Ok(cache_dir)
+  }
+}

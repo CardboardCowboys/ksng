@@ -5,6 +5,7 @@ pub enum UiError {
   Klib(klib::error::Error),
   InvalidCommand(String),
   Audio(String),
+  Image(String),
 }
 
 impl From<std::io::Error> for UiError {

@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
+  audio::waveform::AudioWaveformProvider,
   commands::CommandDispatcher,
   components::{self, timeline::Timeline},
   fs::Data,
@@ -24,6 +25,7 @@ pub struct KsngApp {
   pub logger: Logger,
   pub commands: CommandDispatcher,
   pub selection: SelectionManager,
+  pub waveforms: RefCell<AudioWaveformProvider>,
 
   event_queue: RefCell<VecDeque<KsngEvent>>,
   close_allowed: RefCell<bool>,
@@ -37,10 +39,12 @@ struct AppSavedData {
 
 impl Default for KsngApp {
   fn default() -> Self {
+    let logger = Logger::default();
     Self {
       project: RefCell::new(None),
       modals: Default::default(),
-      logger: Default::default(),
+      waveforms: RefCell::new(AudioWaveformProvider::new(logger.clone())),
+      logger,
       commands: CommandDispatcher::default(),
       selection: SelectionManager::default(),
       event_queue: Default::default(),
@@ -51,17 +55,21 @@ impl Default for KsngApp {
 }
 
 impl KsngApp {
+  fn on_project_change(&self, ctx: &Context) {
+    self.selection.clear();
+    *self.timeline.borrow_mut() = Timeline::default();
+    self.waveforms.borrow_mut().clear(ctx);
+  }
+
   fn on_event(&self, ctx: &Context, event: KsngEvent) {
     match event {
       KsngEvent::ProjectClose => {
         self.project.replace(None);
-        self.selection.clear();
-        *self.timeline.borrow_mut() = Timeline::default();
+        self.on_project_change(ctx);
       }
       KsngEvent::ProjectNew => {
         self.project.replace(Some(Project::default()));
-        self.selection.clear();
-        *self.timeline.borrow_mut() = Timeline::default();
+        self.on_project_change(ctx);
       }
       KsngEvent::ProjectSave => {
         SaveProjectModal::save(self, None);
@@ -76,8 +84,7 @@ impl KsngApp {
 
         if let Some(project) = project {
           self.project.replace(Some(project));
-          self.selection.clear();
-          *self.timeline.borrow_mut() = Timeline::default();
+          self.on_project_change(ctx);
         }
       }
       KsngEvent::Quit => {

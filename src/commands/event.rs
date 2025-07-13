@@ -13,7 +13,7 @@ use klib::{
 };
 use uuid::Uuid;
 
-use crate::{audio::AudioFileInfo, commands::Command, error::UiError, KsngApp};
+use crate::{audio::info::AudioFileInfo, commands::Command, error::UiError, KsngApp};
 
 pub struct AddAudioEventCommand {
   audio_track_id: Uuid,

@@ -5,8 +5,9 @@ use std::{
 };
 
 use egui::{
-  style::ScrollAnimation, Align, Align2, CentralPanel, Color32, Context, FontId, Frame, Id, Margin,
-  PointerButton, Pos2, Rect, ScrollArea, SidePanel, Spacing, Stroke, StrokeKind, Ui, Vec2,
+  style::ScrollAnimation, Align, Align2, CentralPanel, Color32, Context, FontId, Frame, Id,
+  ImageSource, Margin, PointerButton, Pos2, Rect, ScrollArea, SidePanel, Spacing, Stroke,
+  StrokeKind, TextureOptions, Ui, Vec2,
 };
 use klib::{
   objects::{
@@ -23,7 +24,7 @@ use crate::{
   KsngApp,
 };
 
-const TRACK_HEIGHT: f32 = 50.0;
+pub const TRACK_HEIGHT: f32 = 50.0;
 const TRACK_INNER_PADDING: i8 = 2;
 const TRACK_HEADER_WIDTH: f32 = 200.0;
 const PIXELS_PER_SECOND: f32 = 40.0;
@@ -170,6 +171,16 @@ impl Timeline {
                   let stroke_color = colors::darkened_color_for_event_type(ev.event_type);
 
                   ui.painter().rect_filled(rect, 0, color);
+
+                  if ev.event_type == EventType::AudioClip {
+                    if let Some(image) = app.waveforms.borrow().get_image(ev) {
+                      let image = egui::Image::new(ImageSource::Uri(image.as_ref().into()))
+                        .texture_options(TextureOptions::NEAREST)
+                        .tint(Color32::from_black_alpha(127));
+                      image.paint_at(ui, rect);
+                    }
+                  }
+
                   ui.painter().rect_stroke(
                     rect,
                     0,
