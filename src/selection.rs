@@ -10,14 +10,30 @@ pub struct SelectionManager {
 
 impl SelectionManager {
   pub fn select_track(&self, id: Uuid, single: bool) {
-    self.select(id, single, &mut self.selected_tracks.borrow_mut())
+    self.select(
+      id,
+      single,
+      &mut self.selected_tracks.borrow_mut(),
+      &mut self.selected_events.borrow_mut(),
+    )
   }
 
   pub fn select_event(&self, id: Uuid, single: bool) {
-    self.select(id, single, &mut self.selected_events.borrow_mut())
+    self.select(
+      id,
+      single,
+      &mut self.selected_events.borrow_mut(),
+      &mut self.selected_tracks.borrow_mut(),
+    )
   }
 
-  fn select(&self, id: Uuid, single: bool, selected: &mut HashSet<Uuid>) {
+  fn select(
+    &self,
+    id: Uuid,
+    single: bool,
+    selected: &mut HashSet<Uuid>,
+    other: &mut HashSet<Uuid>,
+  ) {
     if selected.contains(&id) {
       if single {
         let was_multiple = selected.len() > 1;
@@ -33,6 +49,7 @@ impl SelectionManager {
         selected.clear();
       }
       selected.insert(id);
+      other.clear();
     }
   }
 

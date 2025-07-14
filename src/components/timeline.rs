@@ -6,7 +6,7 @@ use std::{
 
 use egui::{
   style::ScrollAnimation, Align, Align2, CentralPanel, Color32, Context, FontId, Frame, Id,
-  ImageSource, Margin, PointerButton, Pos2, Rect, ScrollArea, SidePanel, Spacing, Stroke,
+  ImageSource, Margin, PointerButton, Pos2, Rect, ScrollArea, Sense, SidePanel, Spacing, Stroke,
   StrokeKind, TextureOptions, Ui, Vec2,
 };
 use klib::{
@@ -97,6 +97,7 @@ impl Timeline {
     );
 
     let mouse_pos = ui.input(|input| input.pointer.latest_pos());
+    let is_shift = ui.input(|input| input.modifiers.shift);
 
     let track_height = TRACK_HEIGHT * self.zoom.y;
     let pixels_per_second = PIXELS_PER_SECOND * self.zoom.x;
@@ -161,6 +162,36 @@ impl Timeline {
             .drag_to_scroll(self.state == TimelineUiState::Idle)
             .horizontal_scroll_offset(self.horiz_scroll_offset)
             .show_viewport(ui, |ui, viewport_rect| {
+              // Set playhead rect and check for interactions before checking event interactions.
+              let playhead_rect = ui.max_rect();
+              let playhead_pos = app.playback.borrow().position().to_seconds() * pixels_per_second;
+              let playhead_pos2 =
+                Pos2::new(playhead_rect.min.x + playhead_pos, playhead_rect.min.y);
+
+              // Update playhead state.
+              let scrub_rect = Rect {
+                min: Pos2::new(playhead_pos2.x - SCRUB_AREA / 2.0, playhead_pos2.y),
+                max: Pos2::new(playhead_pos2.x + SCRUB_AREA / 2.0, playhead_rect.max.y),
+              };
+
+              if let Some(mouse_pos) = mouse_pos {
+                if self.state == TimelineUiState::Idle && scrub_rect.contains(mouse_pos) {
+                  ui.input(|input| {
+                    if input.pointer.primary_down() {
+                      self.state = TimelineUiState::Scrubbing;
+                    }
+                  });
+                } else if self.state == TimelineUiState::Scrubbing
+                  && !scrub_rect.contains(mouse_pos)
+                {
+                  ui.input(|input| {
+                    if !input.pointer.primary_down() {
+                      self.state = TimelineUiState::Idle;
+                    }
+                  });
+                }
+              }
+
               for track in &project.file.tracks {
                 let len = track
                   .events
@@ -188,8 +219,18 @@ impl Timeline {
                     max: Pos2::new(start_x + width, rect.max.y - TRACK_INNER_PADDING as f32),
                   };
 
+                  let response = ui.allocate_rect(rect, Sense::click_and_drag());
+
+                  if response.clicked() && self.state == TimelineUiState::Idle {
+                    app.selection.select_event(ev.id, !is_shift);
+                  }
+
                   let color = colors::color_for_event_type(ev.event_type);
-                  let stroke_color = colors::darkened_color_for_event_type(ev.event_type);
+                  let stroke_color = if app.selection.is_event_selected(ev.id) {
+                    colors::SELECTED_COLOR
+                  } else {
+                    colors::darkened_color_for_event_type(ev.event_type)
+                  };
 
                   ui.painter().rect_filled(rect, 0, color);
 
@@ -216,13 +257,10 @@ impl Timeline {
               }
 
               // Draw playhead
-              let rect = ui.max_rect();
-              let playhead_pos = app.playback.borrow().position().to_seconds() * pixels_per_second;
-              let playhead_pos2 = Pos2::new(rect.min.x + playhead_pos, rect.min.y);
               ui.painter().rect_filled(
                 Rect {
                   min: Pos2::new(playhead_pos2.x - 0.5, playhead_pos2.y),
-                  max: Pos2::new(playhead_pos2.x + 0.5, rect.max.y),
+                  max: Pos2::new(playhead_pos2.x + 0.5, playhead_rect.max.y),
                 },
                 0,
                 colors::PLAYHEAD_COLOR,
@@ -243,29 +281,6 @@ impl Timeline {
               );
               mesh.add_triangle(0, 1, 2);
               ui.painter().add(egui::Shape::mesh(mesh));
-
-              let scrub_rect = Rect {
-                min: Pos2::new(playhead_pos2.x - SCRUB_AREA / 2.0, playhead_pos2.y),
-                max: Pos2::new(playhead_pos2.x + SCRUB_AREA / 2.0, rect.max.y),
-              };
-
-              if let Some(mouse_pos) = mouse_pos {
-                if self.state == TimelineUiState::Idle && scrub_rect.contains(mouse_pos) {
-                  ui.input(|input| {
-                    if input.pointer.primary_down() {
-                      self.state = TimelineUiState::Scrubbing;
-                    }
-                  });
-                } else if self.state == TimelineUiState::Scrubbing
-                  && !scrub_rect.contains(mouse_pos)
-                {
-                  ui.input(|input| {
-                    if !input.pointer.primary_down() {
-                      self.state = TimelineUiState::Idle;
-                    }
-                  });
-                }
-              }
             });
 
           self.horiz_scroll_offset = res.state.offset.x;

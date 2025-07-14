@@ -1,4 +1,8 @@
-use egui::{Align, Context, Id, ImageButton, Layout, Slider, TopBottomPanel, Ui, Vec2};
+use egui::{
+  style::DebugOptions, Align, Context, Id, ImageButton, Layout, Slider, TopBottomPanel, Ui, Vec2,
+};
+use egui_flex::Flex;
+use klib::timecode::Timecode;
 
 use crate::{playback::PlaybackState, style::icons, KsngApp};
 
@@ -13,12 +17,25 @@ pub fn player(app: &KsngApp, ctx: &Context, ui: &mut Ui) {
           .as_ref()
           .map(|p| p.length)
           .unwrap_or_default();
+
+        let mut slider_position = position.0;
+        ui.style_mut().spacing.slider_width = ui.max_rect().width();
+        ui.add(
+          Slider::new(&mut slider_position, 0..=duration.0)
+            .show_value(false)
+            .integer(),
+        );
+
+        if slider_position != position.0 {
+          app.playback.borrow().seek(Timecode(slider_position));
+        }
+
         ui.columns(3, |columns| {
-          columns[0].with_layout(Layout::top_down(Align::Center), |ui| ui.label("00:00"));
+          columns[0].with_layout(Layout::top_down(Align::Min), |ui| ui.label("00:00"));
           columns[1].with_layout(Layout::top_down(Align::Center), |ui| {
             ui.label(position.to_string_seconds());
           });
-          columns[2].with_layout(Layout::top_down(Align::Center), |ui| {
+          columns[2].with_layout(Layout::top_down(Align::Max), |ui| {
             ui.label(duration.to_string_seconds());
           });
         });
