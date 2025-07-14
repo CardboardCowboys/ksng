@@ -63,7 +63,11 @@ impl AudioMixer {
   }
 
   pub fn update_streams(&mut self, project: &Project) {
-    let (mixer, mixer_source) = mixer(2, 48000);
+    let prev_pos = self.sink.get_pos();
+    let prev_state = !self.sink.is_paused();
+    let (mixer, mut mixer_source) = mixer(2, 48000);
+    // Add zero source so we can play even if there's no audio tracks.
+    mixer.add(Zero::new(2, 48000));
 
     for track in project
       .file
@@ -99,9 +103,15 @@ impl AudioMixer {
       }
     }
 
+    // Tick the mixer source once to make the sources no longer pending.
+    mixer_source.next();
+
+    self.sink.clear();
     self.sink.append(mixer_source);
-    self.sink.play();
-    self.sink.pause();
+    if prev_state {
+      self.sink.play();
+    }
+    self.seek(prev_pos.into());
   }
 
   fn create_decoder(file: &AudioFile) -> Option<Decoder<std::fs::File>> {

@@ -8,7 +8,7 @@ use crate::{
   fs::Data,
   modals::{alert::AlertModal, confirm::ConfirmModal, KModal},
   style::icons,
-  util::ui_event::KsngEvent,
+  util::{ui::KsngUiExt, ui_event::KsngEvent},
 };
 
 pub struct OpenProjectModal {
@@ -79,7 +79,7 @@ impl KModal for OpenProjectModal {
                 let mut clicked = false;
 
                 row.col(|ui| {
-                  if crate::util::ui::inert_label(ui, &entry.name).clicked() {
+                  if ui.inert_label(&entry.name).clicked() {
                     clicked = true;
                   }
                 });
@@ -90,7 +90,7 @@ impl KModal for OpenProjectModal {
                     .last_modified
                     .format("%B %d %Y %I:%M %p")
                     .write_to(&mut s);
-                  if crate::util::ui::inert_label(ui, &s).clicked() {
+                  if ui.inert_label(&s).clicked() {
                     clicked = true;
                   }
                 });

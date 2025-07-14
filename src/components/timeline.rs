@@ -5,14 +5,15 @@ use std::{
 };
 
 use egui::{
-  style::ScrollAnimation, Align, Align2, CentralPanel, Color32, Context, FontId, Frame, Id,
-  ImageSource, Margin, PointerButton, Pos2, Rect, ScrollArea, Sense, SidePanel, Spacing, Stroke,
-  StrokeKind, TextureOptions, Ui, Vec2,
+  scroll_area::ScrollSource, style::ScrollAnimation, Align, Align2, CentralPanel, Color32, Context,
+  FontId, Frame, Id, ImageButton, ImageSource, Label, Layout, Margin, PointerButton, Pos2, Rect,
+  ScrollArea, Sense, SidePanel, Sides, Spacing, Stroke, StrokeKind, TextureOptions, Ui, UiBuilder,
+  Vec2,
 };
 use klib::{
   objects::{
     event::{Event, EventType},
-    track::EventList,
+    track::{EventList, TrackValue},
   },
   timecode::Timecode,
 };
@@ -20,7 +21,12 @@ use log::info;
 use uuid::Uuid;
 
 use crate::{
-  style::colors::{self, color_for_track_type},
+  commands::track::MuteTrackCommand,
+  style::{
+    colors::{self, color_for_track_type},
+    icons,
+  },
+  util::ui::KsngUiExt,
   KsngApp,
 };
 
@@ -33,7 +39,7 @@ const MAX_X_ZOOM: f32 = 20.0;
 const MIN_Y_ZOOM: f32 = 0.5;
 const MAX_Y_ZOOM: f32 = 20.0;
 
-const SCRUB_AREA: f32 = 15.0;
+const SCRUB_AREA: f32 = 8.0;
 
 #[derive(PartialEq)]
 enum TimelineUiState {
@@ -131,20 +137,66 @@ impl Timeline {
               ));
             }
 
+            let mut buttons_clicked = false;
             let res = frame.show(ui, |ui| {
               ui.set_height(track_height);
               ui.set_width(TRACK_HEADER_WIDTH);
               ui.style_mut().visuals.override_text_color = Some(Color32::WHITE);
-              ui.heading(format!("{:?}", track.track_type));
+              let rect = ui.max_rect();
+              let contents_rect = Rect {
+                min: Pos2::new(rect.min.x + 2.0, rect.min.y + 2.0),
+                max: Pos2::new(rect.max.x - 2.0, rect.max.y - 2.0),
+              };
+              let mut child_ui = ui.new_child(UiBuilder::new().max_rect(contents_rect));
+              Sides::new().show(
+                &mut child_ui,
+                |ui| {
+                  ui.inert_heading(format!("{:?}", track.track_type));
+                },
+                |ui| {
+                  let settings_button = ImageButton::new(icons::GEAR);
+                  if ui
+                    .add_sized(Vec2::new(20.0, 20.0), settings_button)
+                    .clicked()
+                  {
+                    info!("settings clicked!");
+                    buttons_clicked = true;
+                  }
+
+                  ui.add_space(2.0);
+
+                  if let Some(track_value) = &track.track_value {
+                    match track_value {
+                      TrackValue::Audio(audio) => {
+                        let mut mute_button = ImageButton::new(if audio.muted {
+                          icons::VOLUME_OFF
+                        } else {
+                          icons::VOLUME
+                        });
+
+                        if audio.muted {
+                          mute_button = mute_button.tint(Color32::RED);
+                        }
+
+                        if ui.add_sized(Vec2::new(20.0, 20.0), mute_button).clicked() {
+                          app.commands.dispatch(MuteTrackCommand::new(track));
+                          buttons_clicked = true;
+                        }
+                      }
+                    }
+                  }
+                },
+              );
             });
 
-            let header_clicked = ui.input(|input| {
-              input.pointer.button_clicked(PointerButton::Primary)
-                && res
-                  .response
-                  .rect
-                  .contains(input.pointer.interact_pos().unwrap())
-            });
+            let header_clicked = !buttons_clicked
+              && ui.input(|input| {
+                input.pointer.button_clicked(PointerButton::Primary)
+                  && res
+                    .response
+                    .rect
+                    .contains(input.pointer.interact_pos().unwrap())
+              });
 
             if header_clicked {
               let single = !ui.input(|i| i.modifiers.shift);
@@ -156,10 +208,15 @@ impl Timeline {
       CentralPanel::default()
         .frame(Frame::side_top_panel(ui.style()))
         .show_inside(ui, |ui| {
-          let res = ScrollArea::horizontal()
+          let mut scroll_source = ScrollSource::ALL;
+          if self.state != TimelineUiState::Idle {
+            scroll_source.drag = false;
+          }
+
+          let res: egui::scroll_area::ScrollAreaOutput<()> = ScrollArea::horizontal()
             .auto_shrink(false)
             .animated(false)
-            .drag_to_scroll(self.state == TimelineUiState::Idle)
+            .scroll_source(scroll_source)
             .horizontal_scroll_offset(self.horiz_scroll_offset)
             .show_viewport(ui, |ui, viewport_rect| {
               // Set playhead rect and check for interactions before checking event interactions.
@@ -181,15 +238,15 @@ impl Timeline {
                       self.state = TimelineUiState::Scrubbing;
                     }
                   });
-                } else if self.state == TimelineUiState::Scrubbing
-                  && !scrub_rect.contains(mouse_pos)
-                {
+                } else if self.state == TimelineUiState::Scrubbing {
                   ui.input(|input| {
                     if !input.pointer.primary_down() {
                       self.state = TimelineUiState::Idle;
                     }
                   });
                 }
+              } else if self.state != TimelineUiState::Idle {
+                self.state = TimelineUiState::Idle;
               }
 
               for track in &project.file.tracks {

@@ -1,9 +1,13 @@
 use std::cell::RefCell;
 
-use klib::objects::track::{Track, TrackType};
+use klib::objects::track::{Track, TrackType, TrackValue};
 use uuid::Uuid;
 
-use crate::{commands::Command, util::error::UiError, KsngApp};
+use crate::{
+  commands::Command,
+  util::{error::UiError, ui_event::KsngEvent},
+  KsngApp,
+};
 
 pub struct AddTrackCommand {
   track_type: TrackType,
@@ -58,6 +62,94 @@ impl Command for AddTrackCommand {
       app.selection.remove_track(added_id);
       file.tracks.retain(|t| t.id != added_id);
     }
+
+    Ok(())
+  }
+}
+
+/// Sets the mute state of an audio track.
+pub struct MuteTrackCommand {
+  track_id: Uuid,
+  to_mute_state: bool,
+}
+
+impl MuteTrackCommand {
+  pub fn new(track: &Track) -> MuteTrackCommand {
+    let mute_state = if let Some(TrackValue::Audio(audio_value)) = &track.track_value {
+      audio_value.muted
+    } else {
+      false
+    };
+
+    MuteTrackCommand {
+      track_id: track.id,
+      to_mute_state: !mute_state,
+    }
+  }
+}
+
+impl Command for MuteTrackCommand {
+  fn can_undo(&self) -> bool {
+    true
+  }
+
+  fn description(&self) -> String {
+    if self.to_mute_state {
+      "Mute Audio Track"
+    } else {
+      "Unmute Audio Track"
+    }
+    .to_string()
+  }
+
+  fn execute(&self, app: &KsngApp) -> Result<(), UiError> {
+    let mut project = app.project.borrow_mut();
+    let file = project
+      .as_mut()
+      .map(|p| &mut p.file)
+      .ok_or(UiError::InvalidCommand(
+        "MuteTrackCommand without project".to_string(),
+      ))?;
+
+    let track = file
+      .tracks
+      .iter_mut()
+      .find(|t| t.id == self.track_id)
+      .ok_or(UiError::InvalidCommand(
+        "MuteTrackCommand can't find target track".to_string(),
+      ))?;
+
+    if let Some(TrackValue::Audio(audio_value)) = &mut track.track_value {
+      audio_value.muted = self.to_mute_state;
+    }
+
+    app.dispatch(KsngEvent::AudioChanged);
+
+    Ok(())
+  }
+
+  fn undo(&self, app: &KsngApp) -> Result<(), UiError> {
+    let mut project = app.project.borrow_mut();
+    let file = project
+      .as_mut()
+      .map(|p| &mut p.file)
+      .ok_or(UiError::InvalidCommand(
+        "MuteTrackCommand without project".to_string(),
+      ))?;
+
+    let track = file
+      .tracks
+      .iter_mut()
+      .find(|t| t.id == self.track_id)
+      .ok_or(UiError::InvalidCommand(
+        "MuteTrackCommand can't find target track".to_string(),
+      ))?;
+
+    if let Some(TrackValue::Audio(audio_value)) = &mut track.track_value {
+      audio_value.muted = !self.to_mute_state;
+    }
+
+    app.dispatch(KsngEvent::AudioChanged);
 
     Ok(())
   }
