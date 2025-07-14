@@ -50,6 +50,13 @@ impl AudioMixer {
     self.sink.get_pos().into()
   }
 
+  pub fn seek(&self, time: Timecode) {
+    let res = self.sink.try_seek(time.into());
+    if let Err(err) = res {
+      log::error!("seek err: {err:?}");
+    }
+  }
+
   pub fn reset(&mut self) {
     self.sink.stop();
     self.sink.clear();
@@ -93,8 +100,8 @@ impl AudioMixer {
     }
 
     self.sink.append(mixer_source);
-    // Add Zero source so we can continue playing after the audio has ended.
-    self.sink.append(Zero::new(2, 48000))
+    self.sink.play();
+    self.sink.pause();
   }
 
   fn create_decoder(file: &AudioFile) -> Option<Decoder<std::fs::File>> {

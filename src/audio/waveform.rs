@@ -117,8 +117,8 @@ impl WaveformGenerator {
     let center_y = (self.height as f32 / 2.0).floor();
     for (i, peak) in peaks.iter().enumerate() {
       let peak = (*peak).clamp(0.05, 1.0);
-      let start_y = center_y - (peak * center_y);
-      let end_y = center_y + (peak * center_y);
+      let start_y = (center_y - (peak * center_y)).floor();
+      let end_y = (center_y + (peak * center_y)).floor();
       pixmap.fill_rect(
         Rect::from_ltrb(i as f32, start_y, (i + 1) as f32, end_y).unwrap(),
         &paint,

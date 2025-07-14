@@ -49,4 +49,8 @@ impl Playback {
 
     self.state = new_state;
   }
+
+  pub fn seek(&self, time: Timecode) {
+    self.mixer.seek(time);
+  }
 }

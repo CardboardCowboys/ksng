@@ -3337,8 +3337,7 @@ dependencies = [
 [[package]]
 name = "rodio"
 version = "0.21.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c77aa3b6f8b1a4218337a758fb894ae36b98e774f939f370da72521afeb2c068"
+source = "git+https://github.com/azrogers/rodio.git?branch=mixer-seek#b2cf0f0387dc1614fe7223e904dbee143b0ad0bc"
 dependencies = [
  "cpal",
  "dasp_sample",

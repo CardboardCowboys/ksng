@@ -35,7 +35,7 @@ symphonia = { version = "0.5.4", features = ["mp3", "aac"] }
 infer = "0.19.0"
 tiny-skia = "0.11.4"
 image = { version = "0.25.6", features = ["png"], default-features = false }
-rodio = { version = "0.21.0", features = ["playback"] }
+rodio = { git = "https://github.com/azrogers/rodio.git", branch = "mixer-seek", features = ["playback"] }
 
 # native:
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]

@@ -2,6 +2,8 @@ use egui::Color32;
 use klib::objects::{event::EventType, track::TrackType};
 
 pub const EVENT_BORDER_COLOR: Color32 = Color32::from_rgb(99, 105, 128);
+pub const PLAYHEAD_COLOR: Color32 = Color32::from_rgb(251, 255, 254);
+pub const PLAYHEAD_TOP_COLOR: Color32 = Color32::from_rgb(59, 142, 165);
 
 pub fn color_for_track_type(track_type: TrackType) -> Color32 {
   match track_type {

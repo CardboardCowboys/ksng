@@ -33,10 +33,27 @@ const MAX_X_ZOOM: f32 = 20.0;
 const MIN_Y_ZOOM: f32 = 0.5;
 const MAX_Y_ZOOM: f32 = 20.0;
 
+const SCRUB_AREA: f32 = 15.0;
+
+#[derive(PartialEq)]
+enum TimelineUiState {
+  /// Nothing special is happening.
+  Idle,
+  /// We don't know what we're doing yet.
+  Pending,
+  /// We're currently box selecting.
+  Multiselect,
+  /// We're currently scrubbing the timeline.
+  Scrubbing,
+  /// We're currently dragging an event.
+  Dragging,
+}
+
 pub struct Timeline {
   zoom: Vec2,
   horiz_scroll_offset: f32,
   event_text: HashMap<Uuid, String>,
+  state: TimelineUiState,
 }
 
 impl Default for Timeline {
@@ -45,6 +62,7 @@ impl Default for Timeline {
       zoom: Vec2::new(1.0, 1.0),
       horiz_scroll_offset: 0.0,
       event_text: Default::default(),
+      state: TimelineUiState::Idle,
     }
   }
 }
@@ -77,6 +95,8 @@ impl Timeline {
       (self.zoom.x + zoom_delta.x).clamp(MIN_X_ZOOM, MAX_X_ZOOM),
       (self.zoom.y + zoom_delta.y).clamp(MIN_Y_ZOOM, MAX_Y_ZOOM),
     );
+
+    let mouse_pos = ui.input(|input| input.pointer.latest_pos());
 
     let track_height = TRACK_HEIGHT * self.zoom.y;
     let pixels_per_second = PIXELS_PER_SECOND * self.zoom.x;
@@ -138,6 +158,7 @@ impl Timeline {
           let res = ScrollArea::horizontal()
             .auto_shrink(false)
             .animated(false)
+            .drag_to_scroll(self.state == TimelineUiState::Idle)
             .horizontal_scroll_offset(self.horiz_scroll_offset)
             .show_viewport(ui, |ui, viewport_rect| {
               for track in &project.file.tracks {
@@ -193,19 +214,77 @@ impl Timeline {
                   }
                 }
               }
+
+              // Draw playhead
+              let rect = ui.max_rect();
+              let playhead_pos = app.playback.borrow().position().to_seconds() * pixels_per_second;
+              let playhead_pos2 = Pos2::new(rect.min.x + playhead_pos, rect.min.y);
+              ui.painter().rect_filled(
+                Rect {
+                  min: Pos2::new(playhead_pos2.x - 0.5, playhead_pos2.y),
+                  max: Pos2::new(playhead_pos2.x + 0.5, rect.max.y),
+                },
+                0,
+                colors::PLAYHEAD_COLOR,
+              );
+
+              let mut mesh = egui::Mesh::default();
+              mesh.colored_vertex(
+                Pos2::new(playhead_pos2.x - 5.0, playhead_pos2.y),
+                colors::PLAYHEAD_TOP_COLOR,
+              );
+              mesh.colored_vertex(
+                Pos2::new(playhead_pos2.x + 5.0, playhead_pos2.y),
+                colors::PLAYHEAD_TOP_COLOR,
+              );
+              mesh.colored_vertex(
+                Pos2::new(playhead_pos2.x, playhead_pos2.y + 10.0),
+                colors::PLAYHEAD_TOP_COLOR,
+              );
+              mesh.add_triangle(0, 1, 2);
+              ui.painter().add(egui::Shape::mesh(mesh));
+
+              let scrub_rect = Rect {
+                min: Pos2::new(playhead_pos2.x - SCRUB_AREA / 2.0, playhead_pos2.y),
+                max: Pos2::new(playhead_pos2.x + SCRUB_AREA / 2.0, rect.max.y),
+              };
+
+              if let Some(mouse_pos) = mouse_pos {
+                if self.state == TimelineUiState::Idle && scrub_rect.contains(mouse_pos) {
+                  ui.input(|input| {
+                    if input.pointer.primary_down() {
+                      self.state = TimelineUiState::Scrubbing;
+                    }
+                  });
+                } else if self.state == TimelineUiState::Scrubbing
+                  && !scrub_rect.contains(mouse_pos)
+                {
+                  ui.input(|input| {
+                    if !input.pointer.primary_down() {
+                      self.state = TimelineUiState::Idle;
+                    }
+                  });
+                }
+              }
             });
 
           self.horiz_scroll_offset = res.state.offset.x;
 
           // Try repositioning the scroll area to put the cursor where it was before the zoom.
           if let Some(cursor_pos) = ui.input(|input| input.pointer.latest_pos()) {
+            let content_pos_x = cursor_pos.x - res.inner_rect.min.x + self.horiz_scroll_offset;
             if (self.zoom.x - prev_zoom.x).abs() > 0.0 && res.inner_rect.contains(cursor_pos) {
-              let content_pos_x = cursor_pos.x - res.inner_rect.min.x + self.horiz_scroll_offset;
               let prev_pps = PIXELS_PER_SECOND * prev_zoom.x;
               let prev_pos_s = content_pos_x / prev_pps;
               let new_pos_s = content_pos_x / pixels_per_second;
               let diff_pixels = (new_pos_s - prev_pos_s) * pixels_per_second;
               self.horiz_scroll_offset -= diff_pixels;
+            } else if self.state == TimelineUiState::Scrubbing {
+              let cursor_pos_s = content_pos_x / pixels_per_second;
+              app
+                .playback
+                .borrow()
+                .seek(Timecode::from_seconds(cursor_pos_s));
             }
           }
         });
