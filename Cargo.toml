@@ -68,4 +68,4 @@ opt-level = 2
 
 [workspace]
 resolver = "2"
-members = [".", "lib/klib"]
+members = [".", "lib/klib", "lib/klib-macros"]
