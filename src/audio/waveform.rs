@@ -22,7 +22,6 @@ use uuid::Uuid;
 use crate::{components::timeline, fs::Cache, util::error::UiError, util::logger::Logger};
 
 const BLOCK_SIZE: usize = 2048;
-const DYNAMIC_RANGE: f32 = 48.0;
 
 pub struct WaveformGenerator {
   height: usize,

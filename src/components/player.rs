@@ -1,12 +1,9 @@
-use egui::{
-  style::DebugOptions, Align, Context, Id, ImageButton, Layout, Slider, TopBottomPanel, Ui, Vec2,
-};
-use egui_flex::Flex;
+use egui::{Align, Context, Id, ImageButton, Layout, Slider, TopBottomPanel, Ui, Vec2};
 use klib::timecode::Timecode;
 
 use crate::{playback::PlaybackState, style::icons, KsngApp};
 
-pub fn player(app: &KsngApp, ctx: &Context, ui: &mut Ui) {
+pub fn player(app: &KsngApp, _ctx: &Context, ui: &mut Ui) {
   TopBottomPanel::bottom(Id::new("player#controls")).show_inside(ui, |ui| {
     ui.add_enabled_ui(app.project.borrow().is_some(), |ui| {
       ui.vertical_centered(|ui| {

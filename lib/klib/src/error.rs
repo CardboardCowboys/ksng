@@ -23,15 +23,14 @@ impl Display for Error {
 
 impl From<binary_rw::BinaryError> for Error {
   fn from(value: binary_rw::BinaryError) -> Self {
-    Error::Io(format!("Binary read/write error: {:?}", value))
+    Error::Io(format!("Binary read/write error: {value:?}"))
   }
 }
 
 impl From<serde_json::Error> for Error {
   fn from(value: serde_json::Error) -> Self {
     Error::Serde(format!(
-      "JSON serialization/deserialization error: {:?}",
-      value
+      "JSON serialization/deserialization error: {value:?}"
     ))
   }
 }

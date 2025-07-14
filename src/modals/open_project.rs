@@ -1,6 +1,4 @@
-use egui::{
-  Align, Button, Color32, Id, ImageButton, Label, Layout, Modal, Sense, Sides, TopBottomPanel,
-};
+use egui::{Align, Button, Id, ImageButton, Layout, Modal, Sense, Sides, TopBottomPanel};
 use egui_extras::{Column, TableBuilder};
 use uuid::Uuid;
 

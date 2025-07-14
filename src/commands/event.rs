@@ -1,13 +1,10 @@
-use std::{
-  cell::RefCell,
-  path::{Path, PathBuf},
-};
+use std::{cell::RefCell, path::PathBuf};
 
 use klib::{
   objects::{
     audio::{AudioFile, AudioFileSource},
     event::Event,
-    track::{self, EventList},
+    track::EventList,
   },
   timecode::Timecode,
 };

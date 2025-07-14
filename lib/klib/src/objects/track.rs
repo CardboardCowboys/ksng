@@ -3,11 +3,7 @@ use serde::{Deserialize, Serialize};
 use sortedlist_rs::SortedList;
 use uuid::Uuid;
 
-use crate::{
-  error::Error,
-  objects::{event::Event, file::File},
-  timecode::Timecode,
-};
+use crate::{error::Error, objects::event::Event, timecode::Timecode};
 
 /// Settings for an audio track.
 #[derive(Serialize, Deserialize, Clone)]

@@ -1,6 +1,5 @@
-use egui::{CentralPanel, Id, Modal, Sides};
-
-use crate::{modals::KModal, util::ui_event::KsngEvent};
+use crate::modals::KModal;
+use egui::{Id, Modal};
 
 pub struct AlertModal {
   open: bool,
@@ -18,7 +17,7 @@ impl KModal for AlertModal {
     !self.open
   }
 
-  fn process(&mut self, app: &crate::KsngApp, context: &egui::Context) {
+  fn process(&mut self, _app: &crate::KsngApp, context: &egui::Context) {
     if !self.open {
       return;
     }

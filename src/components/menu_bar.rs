@@ -1,4 +1,4 @@
-use egui::{Button, Context, Key, Modifiers, Sides, Ui};
+use egui::{Button, Context, Key, MenuBar, Modifiers, Sides, Ui};
 use klib::objects::track::TrackType;
 
 use crate::{
@@ -52,7 +52,7 @@ fn button_enabled_with_shortcut(
 }
 
 pub fn menu_bar(app: &KsngApp, ctx: &Context, ui: &mut Ui) {
-  egui::menu::bar(ui, |ui| {
+  MenuBar::new().ui(ui, |ui| {
     let project = app.project.borrow();
     Sides::new().show(
       ui,
@@ -61,18 +61,18 @@ pub fn menu_bar(app: &KsngApp, ctx: &Context, ui: &mut Ui) {
         ui.menu_button("File", |ui| {
           if button_with_shortcut(ui, "New", Key::N, Modifiers::COMMAND) {
             app.dispatch_warn_dirty(KsngEvent::ProjectNew);
-            ui.close_menu();
+            ui.close();
           }
 
           if button_with_shortcut(ui, "Open", Key::O, Modifiers::COMMAND) {
             app.dispatch_warn_dirty(KsngEvent::ProjectOpen);
-            ui.close_menu();
+            ui.close();
           }
 
           let is_dirty = project.as_ref().map(|f| f.dirty).unwrap_or(false);
           if button_enabled_with_shortcut(ui, is_dirty, "Save", Key::S, Modifiers::COMMAND) {
             app.dispatch(KsngEvent::ProjectSave);
-            ui.close_menu();
+            ui.close();
           }
 
           if ui
@@ -80,13 +80,13 @@ pub fn menu_bar(app: &KsngApp, ctx: &Context, ui: &mut Ui) {
             .clicked()
           {
             app.dispatch_warn_dirty(KsngEvent::ProjectClose);
-            ui.close_menu();
+            ui.close();
           }
 
           // NOTE: no File->Quit on web pages!
           if !is_web && button_with_shortcut(ui, "Quit", Key::Q, Modifiers::COMMAND) {
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-            ui.close_menu();
+            ui.close();
           }
         });
 
@@ -104,7 +104,7 @@ pub fn menu_bar(app: &KsngApp, ctx: &Context, ui: &mut Ui) {
             Modifiers::COMMAND,
           ) {
             app.dispatch(KsngEvent::Undo);
-            ui.close_menu();
+            ui.close();
           }
 
           let redo_desc = app.commands.redo_description();
@@ -120,7 +120,7 @@ pub fn menu_bar(app: &KsngApp, ctx: &Context, ui: &mut Ui) {
             Modifiers::COMMAND,
           ) {
             app.dispatch(KsngEvent::Redo);
-            ui.close_menu();
+            ui.close();
           }
         });
 
@@ -131,14 +131,14 @@ pub fn menu_bar(app: &KsngApp, ctx: &Context, ui: &mut Ui) {
                 app
                   .commands
                   .dispatch(AddTrackCommand::new(TrackType::Lyrics));
-                ui.close_menu();
+                ui.close();
               }
 
               if ui.button("Audio").clicked() {
                 app
                   .commands
                   .dispatch(AddTrackCommand::new(TrackType::Audio));
-                ui.close_menu();
+                ui.close();
               }
             });
           });
@@ -177,7 +177,7 @@ pub fn menu_bar(app: &KsngApp, ctx: &Context, ui: &mut Ui) {
                       }
                     },
                   ));
-                  ui.close_menu();
+                  ui.close();
                 }
               });
             });

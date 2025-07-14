@@ -1,14 +1,9 @@
-use std::{
-  borrow::Cow,
-  collections::{hash_map::Entry, HashMap},
-  str::FromStr,
-};
+use std::collections::{hash_map::Entry, HashMap};
 
 use egui::{
-  scroll_area::ScrollSource, style::ScrollAnimation, Align, Align2, CentralPanel, Color32, Context,
-  FontId, Frame, Id, ImageButton, ImageSource, Label, Layout, Margin, PointerButton, Pos2, Rect,
-  ScrollArea, Sense, SidePanel, Sides, Spacing, Stroke, StrokeKind, TextureOptions, Ui, UiBuilder,
-  Vec2,
+  scroll_area::ScrollSource, Align2, CentralPanel, Color32, Context, FontId, Frame, Id,
+  ImageButton, ImageSource, Margin, PointerButton, Pos2, Rect, ScrollArea, Sense, SidePanel, Sides,
+  Stroke, StrokeKind, TextureOptions, Ui, UiBuilder, Vec2,
 };
 use klib::{
   objects::{
@@ -74,7 +69,7 @@ impl Default for Timeline {
 }
 
 impl Timeline {
-  pub fn update(&mut self, app: &KsngApp, ctx: &Context, ui: &mut Ui) {
+  pub fn update(&mut self, app: &KsngApp, _ctx: &Context, ui: &mut Ui) {
     let zoom_delta = ui.input_mut(|input| {
       if input.modifiers.alt {
         Vec2::new(0.0, input.zoom_delta() - 1.0)

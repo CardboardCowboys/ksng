@@ -1,9 +1,6 @@
-use std::path::PathBuf;
-
-use egui::{CentralPanel, Id, Modal, Sides};
+use crate::{modals::KModal, KsngApp};
 use egui_file_dialog::{DialogState, FileDialog};
-
-use crate::{modals::KModal, util::ui_event::KsngEvent, KsngApp};
+use std::path::PathBuf;
 
 type OpenFileCallback = dyn Fn(&KsngApp, PathBuf);
 
