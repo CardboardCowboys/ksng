@@ -160,24 +160,20 @@ impl Timeline {
 
                   ui.add_space(2.0);
 
-                  if let Some(track_value) = &track.track_value {
-                    match track_value {
-                      TrackValue::Audio(audio) => {
-                        let mut mute_button = ImageButton::new(if audio.muted {
-                          icons::VOLUME_OFF
-                        } else {
-                          icons::VOLUME
-                        });
+                  if let Some(TrackValue::Audio(audio)) = &track.track_value {
+                    let mut mute_button = ImageButton::new(if audio.muted {
+                      icons::VOLUME_OFF
+                    } else {
+                      icons::VOLUME
+                    });
 
-                        if audio.muted {
-                          mute_button = mute_button.tint(Color32::RED);
-                        }
+                    if audio.muted {
+                      mute_button = mute_button.tint(Color32::RED);
+                    }
 
-                        if ui.add_sized(Vec2::new(20.0, 20.0), mute_button).clicked() {
-                          app.commands.dispatch(MuteTrackCommand::new(track));
-                          buttons_clicked = true;
-                        }
-                      }
+                    if ui.add_sized(Vec2::new(20.0, 20.0), mute_button).clicked() {
+                      app.commands.dispatch(MuteTrackCommand::new(track));
+                      buttons_clicked = true;
                     }
                   }
                 },

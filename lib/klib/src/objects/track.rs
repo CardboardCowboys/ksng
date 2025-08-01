@@ -3,7 +3,14 @@ use serde::{Deserialize, Serialize};
 use sortedlist_rs::SortedList;
 use uuid::Uuid;
 
-use crate::{error::Error, objects::event::Event, timecode::Timecode};
+use crate::{
+  error::Error,
+  objects::event::Event,
+  style::LyricsTrackStyle,
+  timecode::Timecode,
+  video::layouts::{paragraph::ParagraphMergerMode, LyricsTrackLayoutMode},
+  Rect,
+};
 
 /// Settings for an audio track.
 #[derive(Serialize, Deserialize, Clone)]
@@ -23,11 +30,40 @@ impl Default for AudioTrackValue {
   }
 }
 
+#[derive(Serialize, Deserialize)]
+pub struct LyricsTrackValue {
+  /// The bounds of this lyrics track within the frame, normalized from 0.0-1.0.
+  pub bounds: Rect,
+  /// The layout mode selected for this track.
+  pub layout: LyricsTrackLayoutMode,
+  /// The style of this track.
+  pub style: LyricsTrackStyle,
+}
+
+impl Default for LyricsTrackValue {
+  fn default() -> Self {
+    Self {
+      bounds: Rect {
+        x0: 0.05,
+        y0: 0.1,
+        x1: 0.95,
+        y1: 0.9,
+      },
+      layout: LyricsTrackLayoutMode::Paragraph {
+        merger_mode: ParagraphMergerMode::Page,
+      },
+      style: Default::default(),
+    }
+  }
+}
+
 /// Type-specific data for a track.
 #[derive(Serialize, Deserialize)]
 pub enum TrackValue {
   /// Settings for an audio track.
   Audio(AudioTrackValue),
+  /// Settings for a lyrics track.
+  Lyrics(LyricsTrackValue),
 }
 
 /// The type of the track.

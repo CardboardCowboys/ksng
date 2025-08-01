@@ -134,11 +134,7 @@ impl Event {
 
   /// Checks whether this event is within the range (start, end)
   pub fn is_in_range(&self, range: (Timecode, Timecode)) -> bool {
-    let (start, end) = range;
-    (self.start_timecode >= start && self.start_timecode < end)
-      || (self.end_timecode >= start && self.end_timecode < end)
-      || (start >= self.start_timecode && start < self.end_timecode)
-      || (end >= self.start_timecode && end < self.end_timecode)
+    Timecode::ranges_overlap(range, (self.start_timecode, self.end_timecode))
   }
 
   /// Obtains a string describing this event, if any.
@@ -157,6 +153,14 @@ impl Event {
           .map(|s| s.to_owned()),
         AudioFileSource::Managed => None,
       },
+    })
+  }
+
+  /// Returns the text of this lyric event, or an empty string if not a lyric event.
+  pub fn text(&self) -> Option<&str> {
+    self.value.as_ref().map(|v| match v {
+      EventValue::Lyric { text } => text.as_str(),
+      EventValue::AudioClip { .. } => "",
     })
   }
 }

@@ -1,5 +1,5 @@
 use std::{
-  ops::{Add, Deref, Sub},
+  ops::{Add, Deref, Mul, Sub},
   time::Duration,
 };
 
@@ -27,6 +27,16 @@ impl Timecode {
     let seconds = seconds - (minutes * 60);
     format!("{minutes:02}:{seconds:02}")
   }
+
+  /// Compares two (start, end) pairs and returns true if they overlap.
+  pub fn ranges_overlap(a: (Timecode, Timecode), b: (Timecode, Timecode)) -> bool {
+    let (a_start, a_end) = a;
+    let (b_start, b_end) = b;
+    (a_start >= b_start && a_start < b_end)
+      || (a_end >= b_start && a_end < b_end)
+      || (b_start >= a_start && b_start < a_end)
+      || (b_end >= a_start && b_end < a_end)
+  }
 }
 
 impl Deref for Timecode {
@@ -50,6 +60,14 @@ impl Sub for Timecode {
 
   fn sub(self, rhs: Self) -> Self::Output {
     Timecode(self.0 - rhs.0)
+  }
+}
+
+impl Mul for Timecode {
+  type Output = Timecode;
+
+  fn mul(self, rhs: Self) -> Self::Output {
+    Timecode(self.0 * rhs.0)
   }
 }
 
