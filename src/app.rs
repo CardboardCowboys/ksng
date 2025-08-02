@@ -17,6 +17,7 @@ use crate::{
   project::Project,
   selection::SelectionManager,
   util::{logger::Logger, ui_event::KsngEvent},
+  video::VideoState,
 };
 
 pub struct KsngApp {
@@ -27,6 +28,7 @@ pub struct KsngApp {
   pub selection: SelectionManager,
   pub waveforms: RefCell<AudioWaveformProvider>,
   pub playback: RefCell<Playback>,
+  pub video: RefCell<VideoState>,
 
   event_queue: RefCell<VecDeque<KsngEvent>>,
   close_allowed: RefCell<bool>,
@@ -38,14 +40,15 @@ struct AppSavedData {
   project_id: Option<Uuid>,
 }
 
-impl Default for KsngApp {
-  fn default() -> Self {
+impl KsngApp {
+  pub fn new_from_device(device: &wgpu::Device) -> Self {
     let logger = Logger::default();
     Self {
       project: RefCell::new(None),
       modals: Default::default(),
       waveforms: RefCell::new(AudioWaveformProvider::new(logger.clone())),
       playback: Default::default(),
+      video: RefCell::new(VideoState::new(device).unwrap()),
       logger,
       commands: CommandDispatcher::default(),
       selection: SelectionManager::default(),
@@ -62,6 +65,11 @@ impl KsngApp {
     *self.timeline.borrow_mut() = Timeline::default();
     self.waveforms.borrow_mut().clear(ctx);
     self.playback.borrow_mut().on_audio_change(self);
+    if let Some(project) = self.project.borrow().as_ref() {
+      self.video.borrow_mut().update_from_file(&project.file);
+    } else {
+      self.video.borrow_mut().clear();
+    }
   }
 
   fn on_event(&self, ctx: &Context, event: KsngEvent) {
@@ -134,10 +142,7 @@ impl KsngApp {
 impl KsngApp {
   /// Called once before the first frame.
   pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
-    // This is also where you can customize the look and feel of egui using
-    // `cc.egui_ctx.set_visuals` and `cc.egui_ctx.set_fonts`.
-
-    let app = KsngApp::default();
+    let app = KsngApp::new_from_device(&cc.wgpu_render_state.as_ref().unwrap().device);
 
     if let Some(storage) = cc.storage {
       let data: AppSavedData = eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default();
@@ -171,7 +176,7 @@ impl eframe::App for KsngApp {
   }
 
   /// Called each time the UI needs repainting, which may be many times per second.
-  fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+  fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
     let mut queue = self.event_queue.borrow_mut();
     while let Some(event) = queue.pop_front() {
       self.on_event(ctx, event);
@@ -180,6 +185,15 @@ impl eframe::App for KsngApp {
 
     self.logger.wrap(self.commands.process(self));
     self.modals.process(self, ctx);
+
+    if let Some(wgpu_state) = frame.wgpu_render_state() {
+      self.logger.wrap(self.video.borrow_mut().process_frame(
+        &wgpu_state.device,
+        &wgpu_state.queue,
+        &mut wgpu_state.renderer.write(),
+        self.playback.borrow().position(),
+      ));
+    }
 
     if self.playback.borrow().state() == PlaybackState::Playing {
       ctx.request_repaint();

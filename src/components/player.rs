@@ -1,9 +1,17 @@
-use egui::{Align, Context, Id, ImageButton, Layout, Slider, TopBottomPanel, Ui, Vec2};
+use egui::{
+  load::SizedTexture, Align, Context, Id, ImageButton, ImageSource, Layout, Slider, TopBottomPanel,
+  Ui, Vec2,
+};
 use klib::timecode::Timecode;
 
 use crate::{playback::PlaybackState, style::icons, KsngApp};
 
-pub fn player(app: &KsngApp, _ctx: &Context, ui: &mut Ui) {
+pub fn player(app: &KsngApp, ctx: &Context, ui: &mut Ui) {
+  TopBottomPanel::top(Id::new("player#view")).show_inside(ui, |ui| {
+    if let Some(texture) = app.video.borrow().last_frame_texture() {
+      ui.image(ImageSource::Texture(texture));
+    }
+  });
   TopBottomPanel::bottom(Id::new("player#controls")).show_inside(ui, |ui| {
     ui.add_enabled_ui(app.project.borrow().is_some(), |ui| {
       ui.vertical_centered(|ui| {

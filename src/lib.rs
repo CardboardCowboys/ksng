@@ -10,6 +10,7 @@ mod project;
 mod selection;
 mod style;
 mod util;
+mod video;
 
 mod app;
 pub use app::KsngApp;

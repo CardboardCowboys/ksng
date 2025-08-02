@@ -1,6 +1,7 @@
 use std::{
   cell::RefCell,
   collections::{LinkedList, VecDeque},
+  ops::BitOr,
 };
 
 use crate::{util::error::UiError, KsngApp};
@@ -8,11 +9,31 @@ use crate::{util::error::UiError, KsngApp};
 pub mod event;
 pub mod track;
 
+#[derive(Copy, Clone)]
+pub struct UpdateFlags(u32);
+
+impl BitOr for UpdateFlags {
+  type Output = UpdateFlags;
+
+  fn bitor(self, rhs: Self) -> Self::Output {
+    UpdateFlags(self.0 | rhs.0)
+  }
+}
+
+impl UpdateFlags {
+  pub const MAKE_DIRTY: UpdateFlags = UpdateFlags(1 << 0);
+  pub const INVALIDATE_VIDEO: UpdateFlags = UpdateFlags(1 << 1);
+
+  pub fn has_flag(&self, flag: UpdateFlags) -> bool {
+    (self.0 & flag.0) == flag.0
+  }
+}
+
 pub trait Command {
   fn can_undo(&self) -> bool;
   fn description(&self) -> String;
-  fn make_dirty(&self) -> bool {
-    true
+  fn update_flags(&self) -> UpdateFlags {
+    UpdateFlags::MAKE_DIRTY
   }
 
   fn execute(&self, app: &KsngApp) -> Result<(), UiError>;
@@ -42,13 +63,7 @@ impl CommandDispatcher {
     let mut did_command = false;
     while let Some(command) = queue.pop_front() {
       command.execute(app)?;
-      if command.make_dirty() {
-        app.set_dirty_state(true);
-
-        if let Some(project) = app.project.borrow_mut().as_mut() {
-          project.length = project.file.calculate_length();
-        }
-      }
+      Self::apply_flags(command.update_flags(), app);
       if command.can_undo() {
         undo_queue.push_back(command);
       }
@@ -79,13 +94,7 @@ impl CommandDispatcher {
   pub fn undo(&self, app: &KsngApp) -> Result<(), UiError> {
     if let Some(command) = self.undo_queue.borrow_mut().pop_back() {
       command.undo(app)?;
-      if command.make_dirty() {
-        app.set_dirty_state(true);
-
-        if let Some(project) = app.project.borrow_mut().as_mut() {
-          project.length = project.file.calculate_length();
-        }
-      }
+      Self::apply_flags(command.update_flags(), app);
       self.redo_queue.borrow_mut().push_back(command);
     }
 
@@ -95,16 +104,27 @@ impl CommandDispatcher {
   pub fn redo(&self, app: &KsngApp) -> Result<(), UiError> {
     if let Some(command) = self.redo_queue.borrow_mut().pop_back() {
       command.execute(app)?;
-      if command.make_dirty() {
-        app.set_dirty_state(true);
-
-        if let Some(project) = app.project.borrow_mut().as_mut() {
-          project.length = project.file.calculate_length();
-        }
-      }
+      Self::apply_flags(command.update_flags(), app);
       self.undo_queue.borrow_mut().push_back(command);
     }
 
     Ok(())
+  }
+
+  fn apply_flags(flags: UpdateFlags, app: &KsngApp) {
+    if flags.has_flag(UpdateFlags::MAKE_DIRTY) {
+      app.set_dirty_state(true);
+
+      if let Some(project) = app.project.borrow_mut().as_mut() {
+        project.length = project.file.calculate_length();
+      }
+    }
+    if flags.has_flag(UpdateFlags::INVALIDATE_VIDEO) {
+      if let Some(project) = app.project.borrow().as_ref() {
+        app.video.borrow_mut().update_from_file(&project.file);
+      } else {
+        app.video.borrow_mut().clear();
+      }
+    }
   }
 }

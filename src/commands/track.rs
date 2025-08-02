@@ -4,7 +4,7 @@ use klib::objects::track::{Track, TrackType, TrackValue};
 use uuid::Uuid;
 
 use crate::{
-  commands::Command,
+  commands::{Command, UpdateFlags},
   util::{error::UiError, ui_event::KsngEvent},
   KsngApp,
 };
@@ -30,6 +30,10 @@ impl Command for AddTrackCommand {
 
   fn description(&self) -> String {
     format!("Add {:?} Track", self.track_type)
+  }
+
+  fn update_flags(&self) -> UpdateFlags {
+    UpdateFlags::MAKE_DIRTY | UpdateFlags::INVALIDATE_VIDEO
   }
 
   fn execute(&self, app: &KsngApp) -> Result<(), UiError> {

@@ -1,4 +1,5 @@
 use parley::{FontContext, LayoutContext};
+use serde::{Deserialize, Serialize};
 
 use crate::{
   objects::track::{LyricsTrackValue, Track, TrackType, TrackValue},
@@ -17,10 +18,21 @@ pub mod layouts;
 pub mod renderer;
 pub mod sequence;
 
+#[derive(Serialize, Deserialize, Clone)]
 pub struct VideoConfig {
   pub width: f64,
   pub height: f64,
   pub base_color: Color32,
+}
+
+impl Default for VideoConfig {
+  fn default() -> Self {
+    Self {
+      width: 1920.0,
+      height: 1080.0,
+      base_color: Color32::from_rgb(0, 0, 0),
+    }
+  }
 }
 
 fn layout_lyrics_track(track: &Track, video_config: &VideoConfig) -> Vec<Box<dyn VideoElement>> {
