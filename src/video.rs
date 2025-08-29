@@ -50,7 +50,7 @@ impl VideoState {
     wgpu_renderer: &mut egui_wgpu::Renderer,
     time: Timecode,
   ) -> Result<(), UiError> {
-    if self
+    /*if self
       .last_rendered_frame
       .as_ref()
       .map(|f| f.time == time)
@@ -58,7 +58,7 @@ impl VideoState {
     {
       // Frame already rendered.
       return Ok(());
-    }
+    }*/
 
     let Some(sequence) = &self.sequence else {
       return Ok(());

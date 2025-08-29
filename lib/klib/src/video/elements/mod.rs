@@ -3,6 +3,7 @@ use vello::Scene;
 use crate::timecode::Timecode;
 
 pub mod paragraph;
+pub mod solid;
 pub mod text;
 
 /// A video element is an renderable item with a position and a start and end time.
