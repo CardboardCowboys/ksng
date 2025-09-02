@@ -1,4 +1,3 @@
-use parley::{FontContext, LayoutContext};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -20,8 +19,8 @@ pub mod sequence;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct VideoConfig {
-  pub width: f64,
-  pub height: f64,
+  pub width: f32,
+  pub height: f32,
   pub base_color: Color32,
 }
 
@@ -50,8 +49,7 @@ fn layout_lyrics_track(track: &Track, video_config: &VideoConfig) -> Vec<Box<dyn
       y1: video_config.height * track_config.bounds.y1,
     },
     style: &track_config.style,
-    font_context: FontContext::new(),
-    layout_context: LayoutContext::new(),
+    font_mgr: skia_safe::FontMgr::new(),
   };
 
   match track_config.layout {

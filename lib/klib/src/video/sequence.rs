@@ -50,7 +50,7 @@ impl VideoSequence {
           if start_index == 0 {
             start_index = j;
           }
-          end_index = j;
+          end_index = j + 1;
         }
       }
 

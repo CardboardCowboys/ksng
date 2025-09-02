@@ -1,5 +1,3 @@
-use parley::{fontique::FontInfo, FontContext};
-use parley::{Brush, RangedBuilder, StyleProperty};
 use serde::{Deserialize, Serialize};
 
 /// A 32-bit RGBA color.
@@ -12,7 +10,7 @@ impl Color32 {
   }
 
   pub fn from_rgba(r: u8, g: u8, b: u8, a: u8) -> Color32 {
-    Color32((r as u32) << 24 & (g as u32) << 16 & (b as u32) << 8 & (a as u32))
+    Color32((r as u32) << 24 | (g as u32) << 16 | (b as u32) << 8 | (a as u32))
   }
 
   pub fn to_floats(self) -> [f32; 4] {
@@ -29,9 +27,10 @@ impl Color32 {
   }
 }
 
-impl From<Color32> for vello::peniko::color::AlphaColor<vello::peniko::color::Srgb> {
+impl From<Color32> for skia_safe::Color4f {
   fn from(value: Color32) -> Self {
-    vello::peniko::color::AlphaColor::<vello::peniko::color::Srgb>::new(value.to_floats())
+    let floats = value.to_floats();
+    skia_safe::Color4f::new(floats[0], floats[1], floats[2], floats[3])
   }
 }
 
@@ -45,79 +44,41 @@ pub enum FontStyle {
   /// Generally a slanted style, originally based on semi-cursive forms.
   /// This often has a different structure from the normal style.
   Italic,
-  /// Oblique (or slanted) style with an optional angle in degrees,
-  /// counter-clockwise from the vertical.
-  Oblique(Option<f32>),
+  Oblique,
 }
 
-impl From<FontStyle> for parley::FontStyle {
+impl From<FontStyle> for skia_safe::font_style::Slant {
   fn from(value: FontStyle) -> Self {
     match value {
-      FontStyle::Normal => parley::FontStyle::Normal,
-      FontStyle::Italic => parley::FontStyle::Italic,
-      FontStyle::Oblique(angle) => parley::FontStyle::Oblique(angle),
+      FontStyle::Normal => skia_safe::font_style::Slant::Upright,
+      FontStyle::Italic => skia_safe::font_style::Slant::Italic,
+      FontStyle::Oblique => skia_safe::font_style::Slant::Oblique,
     }
   }
 }
 
-/// Visual weight class of a font, typically on a scale from 1.0 to 1000.0.
-///
-/// The default value is [`FontWeight::NORMAL`] or `400.0`.
-///
-/// In variable fonts, this can be controlled with the `wght` [axis]. This
-/// is an `f32` so that it can represent the same range of values as the
-/// `wght` axis.
-///
-/// See <https://fonts.google.com/knowledge/glossary/weight>
-///
-/// In CSS, this corresponds to the [`font-weight`] property.
-///
-/// [axis]: crate::AxisInfo
-/// [`font-weight`]: https://www.w3.org/TR/css-fonts-4/#font-weight-prop
+/// Visual weight class of a font, typically on a scale from 1 to 1000.
 #[derive(Serialize, Deserialize, Copy, Clone, PartialEq, PartialOrd, Debug)]
-pub struct FontWeight(f32);
+pub struct FontWeight(i32);
 
-impl From<FontWeight> for parley::FontWeight {
+impl From<FontWeight> for skia_safe::font_style::Weight {
   fn from(value: FontWeight) -> Self {
-    parley::FontWeight::new(value.0)
+    skia_safe::font_style::Weight::from(value.0)
   }
 }
 
-/// Visual width of a font-- a relative change from the normal aspect
-/// ratio, typically in the range `0.5` to `2.0`.
-///
-/// The default value is [`FontWidth::NORMAL`] or `1.0`.
-///
-/// In variable fonts, this can be controlled with the `wdth` [axis]. This
-/// is an `f32` so that it can represent the same range of values as the
-/// `wdth` axis.
-///
-/// In Open Type, the `u16` [`usWidthClass`] field has 9 values, from 1-9,
-/// which doesn't allow for the wide range of values possible with variable
-/// fonts.
-///
-/// See <https://fonts.google.com/knowledge/glossary/width>
-///
-/// In CSS, this corresponds to the [`font-width`] property.
-///
-/// This has also been known as "stretch" and has a legacy CSS name alias,
-/// [`font-stretch`].
-///
-/// [axis]: crate::AxisInfo
-/// [`usWidthClass`]: https://learn.microsoft.com/en-us/typography/opentype/spec/os2#uswidthclass
-/// [`font-width`]: https://www.w3.org/TR/css-fonts-4/#font-width-prop
-/// [`font-stretch`]: https://www.w3.org/TR/css-fonts-4/#font-stretch-prop
+/// Visual width of a font
 #[derive(Serialize, Deserialize, Copy, Clone, PartialEq, PartialOrd, Debug)]
-pub struct FontWidth(f32);
+pub struct FontWidth(i32);
 
-impl From<FontWidth> for parley::FontWidth {
+impl From<FontWidth> for skia_safe::font_style::Width {
   fn from(value: FontWidth) -> Self {
-    parley::FontWidth::from_ratio(value.0)
+    skia_safe::font_style::Width::from(value.0)
   }
 }
 
 /// A font with configuration options.
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Font {
   pub style: FontStyle,
   pub weight: FontWeight,
@@ -127,25 +88,10 @@ pub struct Font {
 }
 
 impl Font {
-  pub fn load_font_info(&self, font_context: &mut FontContext) -> Option<FontInfo> {
-    let font_id = font_context.collection.family_id(&self.family)?;
-    let family_info = font_context.collection.family(font_id)?;
-    let font_info = family_info.match_font(
-      self.width.into(),
-      self.style.into(),
-      self.weight.into(),
-      true,
-    )?;
-    Some(font_info.clone())
-  }
-
-  pub fn push_builder<B: Brush>(&self, builder: &mut RangedBuilder<'_, B>) {
-    let family = parley::FontFamily::Named(self.family.clone().into());
-    builder.push_default(StyleProperty::FontStack(parley::FontStack::Single(family)));
-    builder.push_default(StyleProperty::FontSize(self.size));
-    builder.push_default(StyleProperty::FontStyle(self.style.into()));
-    builder.push_default(StyleProperty::FontWeight(self.weight.into()));
-    builder.push_default(StyleProperty::FontWidth(self.width.into()));
+  pub fn to_skfont(&self, font_mgr: &skia_safe::FontMgr) -> Option<skia_safe::Font> {
+    let style = skia_safe::FontStyle::new(self.weight.into(), self.width.into(), self.style.into());
+    let typeface = font_mgr.match_family_style(&self.family, style)?;
+    Some(skia_safe::Font::new(typeface, Some(self.size)))
   }
 }
 
@@ -153,10 +99,10 @@ impl Default for Font {
   fn default() -> Self {
     Self {
       style: FontStyle::Normal,
-      weight: FontWeight(700.0),
-      width: FontWidth(1.0),
+      weight: FontWeight(700),
+      width: FontWidth(5),
       family: "Arial".to_string(),
-      size: 16.0,
+      size: 200.0,
     }
   }
 }

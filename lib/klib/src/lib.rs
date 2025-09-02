@@ -5,34 +5,22 @@ pub mod error;
 pub mod objects;
 pub mod style;
 pub mod timecode;
+pub mod util;
 pub mod video;
 
+pub use util::rect::Rect;
+
 #[derive(Serialize, Deserialize, Clone, Copy)]
-pub struct Rect {
-  pub x0: f64,
-  pub y0: f64,
-  pub x1: f64,
-  pub y1: f64,
+pub struct Point {
+  pub x: f32,
+  pub y: f32,
 }
 
-impl From<Rect> for parley::Rect {
-  fn from(value: Rect) -> Self {
-    parley::Rect {
-      x0: value.x0,
-      x1: value.x1,
-      y0: value.y0,
-      y1: value.y1,
-    }
-  }
-}
-
-impl From<parley::Rect> for Rect {
-  fn from(value: parley::Rect) -> Self {
-    Rect {
-      x0: value.x0,
-      x1: value.x1,
-      y0: value.y0,
-      y1: value.y1,
+impl From<Point> for skia_safe::Point {
+  fn from(value: Point) -> Self {
+    skia_safe::Point {
+      x: value.x,
+      y: value.y,
     }
   }
 }

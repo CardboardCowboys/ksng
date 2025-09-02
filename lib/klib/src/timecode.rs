@@ -59,7 +59,7 @@ impl Sub for Timecode {
   type Output = Timecode;
 
   fn sub(self, rhs: Self) -> Self::Output {
-    Timecode(self.0 - rhs.0)
+    Timecode(self.0.saturating_sub(rhs.0))
   }
 }
 

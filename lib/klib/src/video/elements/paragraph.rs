@@ -1,6 +1,9 @@
-use crate::{timecode::Timecode, video::elements::VideoElement};
+use skia_safe::Matrix;
+
+use crate::{timecode::Timecode, util::rect::RectBuilder, video::elements::VideoElement, Rect};
 
 pub struct ParagraphVideoElement {
+  mat: Matrix,
   elements: Vec<Box<dyn VideoElement>>,
   start_time: Timecode,
   end_time: Timecode,
@@ -24,6 +27,7 @@ impl ParagraphVideoElement {
       .unwrap_or(Timecode(0));
 
     ParagraphVideoElement {
+      mat: Matrix::new_identity(),
       elements,
       start_time,
       end_time,
@@ -40,9 +44,33 @@ impl VideoElement for ParagraphVideoElement {
     self.end_time
   }
 
-  fn render(&self, scene: &mut vello::Scene, time: Timecode) {
-    for element in &self.elements {
-      element.render(scene, time);
+  fn transform(&self) -> Matrix {
+    self.mat
+  }
+
+  fn set_transform(&mut self, mat: Matrix) {
+    self.mat = mat;
+  }
+
+  fn bounds(&self) -> Rect {
+    if self.elements.is_empty() {
+      return Rect::default();
     }
+
+    let mut builder = RectBuilder::new();
+    for e in &self.elements {
+      builder.add_rect(e.bounds());
+    }
+
+    builder.to_rect().unwrap_or_default()
+  }
+
+  fn render(&self, canvas: &skia_safe::Canvas, time: Timecode) {
+    canvas.save();
+    canvas.concat(&self.mat);
+    for element in &self.elements {
+      element.render(canvas, time);
+    }
+    canvas.restore();
   }
 }

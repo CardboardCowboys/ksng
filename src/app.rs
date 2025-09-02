@@ -40,15 +40,15 @@ struct AppSavedData {
   project_id: Option<Uuid>,
 }
 
-impl KsngApp {
-  pub fn new_from_device(device: &wgpu::Device) -> Self {
+impl Default for KsngApp {
+  fn default() -> Self {
     let logger = Logger::default();
     Self {
       project: RefCell::new(None),
       modals: Default::default(),
       waveforms: RefCell::new(AudioWaveformProvider::new(logger.clone())),
       playback: Default::default(),
-      video: RefCell::new(VideoState::new(device).unwrap()),
+      video: RefCell::new(VideoState::new().unwrap()),
       logger,
       commands: CommandDispatcher::default(),
       selection: SelectionManager::default(),
@@ -142,7 +142,7 @@ impl KsngApp {
 impl KsngApp {
   /// Called once before the first frame.
   pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
-    let app = KsngApp::new_from_device(&cc.wgpu_render_state.as_ref().unwrap().device);
+    let app = KsngApp::default();
 
     if let Some(storage) = cc.storage {
       let data: AppSavedData = eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default();
@@ -186,14 +186,12 @@ impl eframe::App for KsngApp {
     self.logger.wrap(self.commands.process(self));
     self.modals.process(self, ctx);
 
-    if let Some(wgpu_state) = frame.wgpu_render_state() {
-      self.logger.wrap(self.video.borrow_mut().process_frame(
-        &wgpu_state.device,
-        &wgpu_state.queue,
-        &mut wgpu_state.renderer.write(),
-        self.playback.borrow().position(),
-      ));
-    }
+    self.logger.wrap(
+      self
+        .video
+        .borrow_mut()
+        .process_frame(ctx, self.playback.borrow().position()),
+    );
 
     if self.playback.borrow().state() == PlaybackState::Playing {
       ctx.request_repaint();

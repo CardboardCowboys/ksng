@@ -5,11 +5,10 @@ edition = "2021"
 
 [dependencies]
 binary_rw = "4.1.0"
+harfbuzz_rs = { version = "2.0.1", default-features = false, features = ["build-native-harfbuzz"] }
 log = "0.4.27"
-parley = "0.5.0"
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
+skia-safe = "0.87.0"
 sortedlist-rs = "0.2.5"
 uuid = { version = "1.17.0", features = ["serde", "v4"] }
-vello = { git = "https://github.com/linebender/vello.git", rev = "acd8724d1cb61a2cf509413bad9830ad65621c9b" }
-wgpu = { version = "25.0.0", default-features = false }

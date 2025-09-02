@@ -1,77 +1,59 @@
-use std::num::NonZeroUsize;
-
-use vello::{AaSupport, RendererOptions};
+use std::io::Write;
 
 use crate::{
   error::Error,
   timecode::Timecode,
-  video::{sequence::VideoSequence, VideoConfig},
+  video::{self, sequence::VideoSequence, VideoConfig},
 };
 
-pub struct VideoRenderer {
-  renderer: vello::Renderer,
-}
+pub struct VideoRenderer {}
 
 impl VideoRenderer {
-  /// Creates a new `VideoRenderer` from a wgpu device and a video config.
-  pub fn new(device: &wgpu::Device) -> Result<VideoRenderer, Error> {
-    let options = RendererOptions {
-      use_cpu: false,
-      antialiasing_support: AaSupport::all(),
-      num_init_threads: NonZeroUsize::new(1),
-      pipeline_cache: None,
-    };
-    let renderer = vello::Renderer::new(device, options)?;
-    Ok(VideoRenderer { renderer })
+  /// Creates a new `VideoRenderer`.
+  pub fn new() -> Result<VideoRenderer, Error> {
+    Ok(VideoRenderer {})
   }
 
-  /// Renders a frame of video at the given time to a wgpu texture.
+  /// Resizes the given buffer to fit the frame.
+  pub fn allocate_buffer(video_config: &VideoConfig, buffer: &mut Vec<u8>) {
+    let image_info = Self::image_info(video_config);
+    buffer.resize(
+      image_info.width() as usize * image_info.height() as usize * image_info.bytes_per_pixel(),
+      0,
+    );
+  }
+
+  /// Renders a frame of video at the given time to a buffer of RGBA8888 bytes.
   pub fn render_frame(
     &mut self,
     video_config: &VideoConfig,
-    device: &wgpu::Device,
-    queue: &wgpu::Queue,
     sequence: &VideoSequence,
     time: Timecode,
-  ) -> Result<wgpu::Texture, Error> {
-    let mut scene = vello::Scene::new();
+    buffer: &mut [u8],
+  ) -> Result<(), Error> {
+    let canvas =
+      skia_safe::Canvas::from_raster_direct(&Self::image_info(video_config), buffer, None, None)
+        .ok_or(Error::Skia("Failed to create Skia canvas".to_string()))?;
+
+    canvas.clear(video_config.base_color);
 
     for element in sequence.elements_for_time(time) {
-      element.render(&mut scene, time);
+      element.render(&canvas, time);
     }
 
-    let texture = device.create_texture(&wgpu::TextureDescriptor {
-      label: Some("klib::VideoRenderer::render_frame"),
-      size: wgpu::Extent3d {
-        width: video_config.width as u32,
-        height: video_config.height as u32,
-        depth_or_array_layers: 1,
-      },
-      mip_level_count: 1,
-      sample_count: 1,
-      dimension: wgpu::TextureDimension::D2,
-      format: wgpu::TextureFormat::Rgba8Unorm,
-      usage: wgpu::TextureUsages::TEXTURE_BINDING
-        | wgpu::TextureUsages::COPY_SRC
-        | wgpu::TextureUsages::STORAGE_BINDING,
-      view_formats: &[],
-    });
+    Ok(())
+  }
 
-    let texture_view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+  fn resolution(video_config: &VideoConfig) -> skia_safe::ISize {
+    skia_safe::ISize::new(video_config.width as i32, video_config.height as i32)
+  }
 
-    self.renderer.render_to_texture(
-      device,
-      queue,
-      &scene,
-      &texture_view,
-      &vello::RenderParams {
-        base_color: video_config.base_color.into(),
-        width: video_config.width as u32,
-        height: video_config.height as u32,
-        antialiasing_method: vello::AaConfig::Area,
-      },
-    )?;
-
-    Ok(texture)
+  fn image_info(video_config: &VideoConfig) -> skia_safe::ImageInfo {
+    skia_safe::ImageInfo::new(
+      Self::resolution(video_config),
+      skia_safe::ColorType::RGBA8888,
+      skia_safe::AlphaType::Unpremul,
+      None,
+    )
   }
 }

@@ -5,6 +5,7 @@
 		}
 	],
 	"settings": {
-		"editor.tabSize": 2
+		"editor.tabSize": 2,
+		"rust-analyzer.debug.engine": "vadimcn.vscode-lldb"
 	}
 }

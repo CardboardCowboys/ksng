@@ -7,25 +7,15 @@ use klib::timecode::Timecode;
 use crate::{playback::PlaybackState, style::icons, KsngApp};
 
 pub fn player(app: &KsngApp, ctx: &Context, ui: &mut Ui) {
+  let rect = ui.max_rect();
   TopBottomPanel::top(Id::new("player#view")).show_inside(ui, |ui| {
     if let Some(texture) = app.video.borrow().last_frame_texture() {
-      let rect = ui.max_rect();
-      let height_ratio = texture.size.y / texture.size.x;
-      let (video_width, video_height) = (rect.width(), height_ratio);
-      let (video_width, video_height) = if video_height > rect.height() {
-        (
-          video_height * (texture.size.x / texture.size.y),
-          video_height,
-        )
-      } else {
-        (video_width, video_height)
-      };
-
-      /*ui.add_sized(
-        [640.0, 360.0],
-        egui::Image::new(ImageSource::Texture(texture)),
-      );*/
-      ui.image(ImageSource::Texture(texture));
+      ui.with_layout(Layout::top_down(Align::Center), |ui| {
+        ui.add(
+          egui::Image::new(ImageSource::Texture(texture))
+            .fit_to_exact_size(Vec2::new(rect.width() - 20.0, rect.height() - 20.0)),
+        );
+      });
     }
   });
   TopBottomPanel::bottom(Id::new("player#controls")).show_inside(ui, |ui| {

@@ -1,4 +1,4 @@
-use parley::{FontContext, LayoutContext};
+use skia_safe::Arc;
 
 use crate::{style::LyricsTrackStyle, Rect};
 
@@ -6,6 +6,5 @@ use crate::{style::LyricsTrackStyle, Rect};
 pub struct LyricsTrackContext<'a> {
   pub area: Rect,
   pub style: &'a LyricsTrackStyle,
-  pub font_context: FontContext,
-  pub layout_context: LayoutContext,
+  pub font_mgr: skia_safe::FontMgr,
 }

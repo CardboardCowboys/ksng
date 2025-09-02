@@ -7,7 +7,7 @@ pub enum Error {
   Serde(String),
   Format(String),
   Layout(String),
-  Vello(String),
+  Skia(String),
 }
 
 impl std::error::Error for Error {}
@@ -20,7 +20,7 @@ impl Display for Error {
       Error::Serde(str) => f.write_str(&format!("Error::Serde ({str})")),
       Error::Format(str) => f.write_str(&format!("Error::Format ({str})")),
       Error::Layout(str) => f.write_str(&format!("Error::Layout ({str})")),
-      Error::Vello(str) => f.write_str(&format!("Error::Vello ({str})")),
+      Error::Skia(str) => f.write_str(&format!("Error::Skia ({str})")),
     }
   }
 }
@@ -36,11 +36,5 @@ impl From<serde_json::Error> for Error {
     Error::Serde(format!(
       "JSON serialization/deserialization error: {value:?}"
     ))
-  }
-}
-
-impl From<vello::Error> for Error {
-  fn from(value: vello::Error) -> Self {
-    Error::Vello(format!("Vello error: {value:?}"))
   }
 }
