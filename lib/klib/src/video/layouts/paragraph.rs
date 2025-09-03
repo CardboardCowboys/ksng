@@ -156,7 +156,7 @@ impl ParagraphLayout {
       context.area
     );
 
-    new_y_pos - rect.y0
+    new_y_pos
   }
 
   fn fill_paragraph<'a>(
@@ -257,6 +257,7 @@ impl ParagraphLayout {
               },
               text,
               blob,
+              font,
               context.style,
             ),
           ));

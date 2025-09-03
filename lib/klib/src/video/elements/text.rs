@@ -5,12 +5,18 @@ use crate::{
   video::elements::VideoElement, Point, Rect,
 };
 
+struct TextMetrics {
+  ascent: f32,
+  descent: f32,
+}
+
 pub struct TextVideoElement {
   mat: Matrix,
   start: Timecode,
   end: Timecode,
   pos: Point,
   text: String,
+  metrics: TextMetrics,
   blob: skia_safe::TextBlob,
   normal_paint: skia_safe::Paint,
   highlight_paint: skia_safe::Paint,
@@ -22,16 +28,22 @@ impl TextVideoElement {
     pos: Point,
     text: &str,
     blob: skia_safe::TextBlob,
+    font: &skia_safe::Font,
     style: &LyricsTrackStyle,
   ) -> Box<dyn VideoElement> {
     let normal_color: skia_safe::Color4f = style.colors.normal.into();
     let highlight_color: skia_safe::Color4f = style.colors.highlight.into();
+    let (_, metrics) = font.metrics();
     Box::new(TextVideoElement {
       mat: Matrix::new_identity(),
       start: event.start_timecode,
       end: event.end_timecode,
       pos,
       text: text.to_string(),
+      metrics: TextMetrics {
+        ascent: metrics.ascent,
+        descent: metrics.descent,
+      },
       blob,
       normal_paint: skia_safe::Paint::new(normal_color, None),
       highlight_paint: skia_safe::Paint::new(highlight_color, None),
@@ -51,9 +63,9 @@ impl VideoElement for TextVideoElement {
   fn bounds(&self) -> Rect {
     Rect {
       x0: self.pos.x,
-      y0: self.pos.y,
+      y0: self.pos.y + self.metrics.ascent,
       x1: self.pos.x + self.blob.bounds().width(),
-      y1: self.pos.y + self.blob.bounds().height(),
+      y1: self.pos.y + self.blob.bounds().height() + self.metrics.ascent + self.metrics.descent,
     }
   }
 
@@ -73,6 +85,11 @@ impl VideoElement for TextVideoElement {
     let draw_normal = normalized_pos < 1.0;
     let draw_highlight = normalized_pos > 0.0;
 
+    let pos = Point {
+      x: self.pos.x,
+      y: self.pos.y + self.blob.bounds().height() + self.metrics.ascent + self.metrics.descent,
+    };
+
     if draw_normal && draw_highlight {
       canvas.save();
       canvas.clip_rect(
@@ -86,7 +103,7 @@ impl VideoElement for TextVideoElement {
         true,
       );
 
-      canvas.draw_text_blob(self.blob.clone(), self.pos, &self.normal_paint);
+      canvas.draw_text_blob(self.blob.clone(), pos, &self.normal_paint);
 
       canvas.restore();
       canvas.save();
@@ -102,13 +119,13 @@ impl VideoElement for TextVideoElement {
         true,
       );
 
-      canvas.draw_text_blob(self.blob.clone(), self.pos, &self.highlight_paint);
+      canvas.draw_text_blob(self.blob.clone(), pos, &self.highlight_paint);
 
       canvas.restore();
     } else if draw_normal {
-      canvas.draw_text_blob(self.blob.clone(), self.pos, &self.normal_paint);
+      canvas.draw_text_blob(self.blob.clone(), pos, &self.normal_paint);
     } else if draw_highlight {
-      canvas.draw_text_blob(self.blob.clone(), self.pos, &self.highlight_paint);
+      canvas.draw_text_blob(self.blob.clone(), pos, &self.highlight_paint);
     }
 
     canvas.restore();

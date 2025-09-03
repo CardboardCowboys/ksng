@@ -75,7 +75,9 @@ impl VideoSequence {
     &self,
     time: Timecode,
   ) -> impl Iterator<Item = &Box<dyn VideoElement>> {
-    if time > self.duration {
+    // Fix lookup bugs before actually using the lookup table...
+
+    /*if time > self.duration {
       #[allow(clippy::iter_skip_zero)]
       return self.elements.iter().skip(0).take(0);
     }
@@ -85,6 +87,10 @@ impl VideoSequence {
       .elements
       .iter()
       .skip(start_idx)
-      .take(end_idx - start_idx)
+      .take(end_idx - start_idx)*/
+    self
+      .elements
+      .iter()
+      .filter(move |e| e.start_time() <= time && e.end_time() > time)
   }
 }
