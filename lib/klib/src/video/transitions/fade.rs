@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use skia_safe::{Color4f, Matrix};
+use skia_safe::Color4f;
 
 use crate::{
   timecode::Timecode,
@@ -16,6 +16,8 @@ pub struct FadeTransitionConfig {
   pub lead_time: Timecode,
   /// The maximum amount of time an event will be displayed for after it happens.
   pub trail_time: Timecode,
+  /// The maximum amount of time that the fade transition itself will play at the start.
+  pub transition_time: Timecode,
   /// The easing function used for the fade in.
   pub easing_in: EasingFunction,
   /// The easing function used for the fade out.
@@ -27,6 +29,7 @@ impl Default for FadeTransitionConfig {
     Self {
       lead_time: Timecode(2000),
       trail_time: Timecode(3000),
+      transition_time: Timecode(500),
       easing_in: EasingFunction::QuadIn,
       easing_out: EasingFunction::QuadOut,
     }
@@ -37,6 +40,7 @@ pub struct FadeTransitionElement {
   element: Box<dyn VideoElement>,
   start_time: Timecode,
   end_time: Timecode,
+  transition_time: Timecode,
   easing_in: EasingFunction,
   easing_out: EasingFunction,
 }
@@ -56,6 +60,7 @@ impl FadeTransitionElement {
         Box::new(FadeTransitionElement {
           start_time,
           end_time,
+          transition_time: config.transition_time,
           element: elem,
           easing_in: config.easing_in,
           easing_out: config.easing_out,
@@ -103,12 +108,16 @@ impl VideoElement for FadeTransitionElement {
     let t = if context.time < self.element.start_time() {
       self.easing_in.evaluate(
         (context.time - self.start_time).to_seconds()
-          / (self.element.start_time() - self.start_time).to_seconds(),
+          / (self.element.start_time() - self.start_time)
+            .min(self.transition_time)
+            .to_seconds(),
       )
     } else if context.time > self.element.end_time() {
       self.easing_out.evaluate(
         (self.end_time - context.time).to_seconds()
-          / (self.end_time - self.element.end_time()).to_seconds(),
+          / (self.end_time - self.element.end_time())
+            .min(self.transition_time)
+            .to_seconds(),
       )
     } else {
       1.0

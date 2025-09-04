@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use skia_safe::{Color4f, Matrix};
 
 use crate::{
   timecode::Timecode,
@@ -8,7 +7,6 @@ use crate::{
     elements::{VideoElement, VideoElementRenderContext},
     vacancy::VacancyChecker,
   },
-  Rect,
 };
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -17,6 +15,8 @@ pub struct SlideTransitionConfig {
   pub lead_time: Timecode,
   /// The maximum amount of time an event will be displayed for after it happens.
   pub trail_time: Timecode,
+  /// The maximum amount of time that the fade transition itself will play at the start.
+  pub transition_time: Timecode,
   /// The easing function used for the slide in.
   pub easing_in: EasingFunction,
   /// The easing function used for the slide out.
@@ -28,6 +28,7 @@ impl Default for SlideTransitionConfig {
     Self {
       lead_time: Timecode(2000),
       trail_time: Timecode(3000),
+      transition_time: Timecode(500),
       easing_in: EasingFunction::QuadIn,
       easing_out: EasingFunction::QuadOut,
     }
@@ -38,6 +39,7 @@ pub struct SlideTransitionElement {
   element: Box<dyn VideoElement>,
   start_time: Timecode,
   end_time: Timecode,
+  transition_time: Timecode,
   easing_in: EasingFunction,
   easing_out: EasingFunction,
 }
@@ -57,6 +59,7 @@ impl SlideTransitionElement {
         Box::new(SlideTransitionElement {
           start_time,
           end_time,
+          transition_time: config.transition_time,
           element: elem,
           easing_in: config.easing_in,
           easing_out: config.easing_out,
@@ -102,7 +105,9 @@ impl VideoElement for SlideTransitionElement {
     let clip_rect = if context.time < self.element.start_time() {
       let t = self.easing_in.evaluate(
         (context.time - self.start_time).to_seconds()
-          / (self.element.start_time() - self.start_time).to_seconds(),
+          / (self.element.start_time() - self.start_time)
+            .min(self.transition_time)
+            .to_seconds(),
       );
 
       skia_safe::Rect {
@@ -115,7 +120,9 @@ impl VideoElement for SlideTransitionElement {
       let t = 1.0
         - self.easing_out.evaluate(
           (self.end_time - context.time).to_seconds()
-            / (self.end_time - self.element.end_time()).to_seconds(),
+            / (self.end_time - self.element.end_time())
+              .min(self.transition_time)
+              .to_seconds(),
         );
 
       skia_safe::Rect {

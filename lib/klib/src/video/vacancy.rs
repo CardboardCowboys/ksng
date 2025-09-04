@@ -4,7 +4,6 @@ use crate::{timecode::Timecode, video::elements::VideoElement, Rect};
 
 struct VacancyCheckerEntry {
   element_id: Uuid,
-  element_index: usize,
   rect: Rect,
   start_time: Timecode,
   end_time: Timecode,
@@ -22,12 +21,11 @@ impl VacancyChecker {
   pub fn new(elements: &[Box<dyn VideoElement>]) -> VacancyChecker {
     // TODO: only works if events are non-overlapping. Is this a requirement?
     let mut rects = Vec::with_capacity(elements.len());
-    for (index, element) in elements.iter().enumerate() {
+    for element in elements {
       let rect: skia_safe::Rect = element.bounds().into();
       let (transformed_rect, _) = element.transform().map_rect(rect);
       rects.push(VacancyCheckerEntry {
         element_id: element.id(),
-        element_index: index,
         rect: transformed_rect.into(),
         start_time: element.start_time(),
         end_time: element.end_time(),

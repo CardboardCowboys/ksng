@@ -32,7 +32,7 @@ impl Default for VideoConfig {
     Self {
       width: 1920.0,
       height: 1080.0,
-      base_color: Color32::from_rgb(0xff, 0, 0),
+      base_color: Color32::from_rgb(0, 0, 0),
     }
   }
 }
