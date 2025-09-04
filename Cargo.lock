@@ -2155,6 +2155,7 @@ version = "0.1.0"
 dependencies = [
  "binary_rw",
  "harfbuzz_rs",
+ "klib-macros",
  "log",
  "serde",
  "serde_json",

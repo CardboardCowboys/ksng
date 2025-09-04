@@ -57,7 +57,7 @@ impl VideoElement for ParagraphVideoElement {
       return Rect::default();
     }
 
-    let mut builder = RectBuilder::new();
+    let mut builder = RectBuilder::default();
     for e in &self.elements {
       builder.add_rect(e.bounds());
     }

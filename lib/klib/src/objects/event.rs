@@ -41,13 +41,27 @@ impl EventType {
   }
 }
 
+/// Events are the core data type of a Karaoke file.
+///
+/// An event can be an audio clip, a lyric or part of a lyric, graphical elements,
+/// or any other data that has a start and end time.
 #[derive(Default, PartialEq, Eq)]
 pub struct Event {
+  /// The unique ID of this event.
   pub id: Uuid,
+  /// The ID of the event this is linked to.
+  ///
+  /// Lyrics of words with multiple syllables are represented as multiple events,
+  /// with the first event having no `linked_id` and following events having the
+  /// `linked_id` of the previous event.
   pub linked_id: Option<Uuid>,
+  /// The start time of this event.
   pub start_timecode: Timecode,
+  /// The end time of this event.
   pub end_timecode: Timecode,
+  /// The type of this event.
   pub event_type: EventType,
+  /// Any value associated with an event of this type.
   pub value: Option<EventValue>,
 }
 
@@ -160,7 +174,7 @@ impl Event {
   pub fn text(&self) -> Option<&str> {
     self.value.as_ref().map(|v| match v {
       EventValue::Lyric { text } => text.as_str(),
-      EventValue::AudioClip { .. } => "",
+      _ => "",
     })
   }
 }

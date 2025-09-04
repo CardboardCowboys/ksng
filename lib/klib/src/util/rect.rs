@@ -49,15 +49,12 @@ impl From<skia_safe::Rect> for Rect {
   }
 }
 
+#[derive(Default)]
 pub struct RectBuilder {
   rect: Option<Rect>,
 }
 
 impl RectBuilder {
-  pub fn new() -> RectBuilder {
-    RectBuilder { rect: None }
-  }
-
   pub fn add_point(&mut self, point: Point) {
     match &mut self.rect {
       None => {
