@@ -2164,6 +2164,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "klib-macros"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "static_assertions",
+ "syn",
+]
+
+[[package]]
 name = "ksng"
 version = "0.1.0"
 dependencies = [
