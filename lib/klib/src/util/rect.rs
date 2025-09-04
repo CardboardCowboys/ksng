@@ -11,19 +11,27 @@ pub struct Rect {
 }
 
 impl Rect {
+  /// Returns the width of this rect (`x1 - x0`)
   pub fn width(&self) -> f32 {
     self.x1 - self.x0
   }
 
+  /// Returns the height of this rect (`y1 - y0`)
   pub fn height(&self) -> f32 {
     self.y1 - self.y0
   }
 
+  /// Returns the center of this rect.
   pub fn center(&self) -> Point {
     Point {
       x: self.x0 + (self.x1 - self.x0) / 2.0,
       y: self.y0 + (self.y1 - self.y0) / 2.0,
     }
+  }
+
+  /// Checks if this rect intersects with `rhs`.
+  pub fn intersects(&self, rhs: &Rect) -> bool {
+    self.x0 < rhs.x1 && self.x1 > rhs.x0 && self.y0 < rhs.y1 && self.y1 > rhs.y0
   }
 }
 
@@ -49,15 +57,12 @@ impl From<skia_safe::Rect> for Rect {
   }
 }
 
+#[derive(Default)]
 pub struct RectBuilder {
   rect: Option<Rect>,
 }
 
 impl RectBuilder {
-  pub fn new() -> RectBuilder {
-    RectBuilder { rect: None }
-  }
-
   pub fn add_point(&mut self, point: Point) {
     match &mut self.rect {
       None => {

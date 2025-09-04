@@ -1,5 +1,5 @@
 use std::{
-  ops::{Add, Deref, Mul, Sub},
+  ops::{Add, Deref, Div, Mul, Sub},
   time::Duration,
 };
 
@@ -37,6 +37,16 @@ impl Timecode {
       || (b_start >= a_start && b_start < a_end)
       || (b_end >= a_start && b_end < a_end)
   }
+
+  /// Returns the minimum of `self` and `rhs`.
+  pub fn min(&self, rhs: Self) -> Timecode {
+    Timecode(self.0.min(rhs.0))
+  }
+
+  /// Returns the maximum of `self` and `rhs`.
+  pub fn max(&self, rhs: Self) -> Timecode {
+    Timecode(self.0.max(rhs.0))
+  }
 }
 
 impl Deref for Timecode {
@@ -68,6 +78,14 @@ impl Mul for Timecode {
 
   fn mul(self, rhs: Self) -> Self::Output {
     Timecode(self.0 * rhs.0)
+  }
+}
+
+impl Div for Timecode {
+  type Output = Timecode;
+
+  fn div(self, rhs: Self) -> Self::Output {
+    Timecode(self.0 / rhs.0)
   }
 }
 

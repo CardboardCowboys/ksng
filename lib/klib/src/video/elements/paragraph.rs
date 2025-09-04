@@ -1,8 +1,10 @@
 use skia_safe::Matrix;
+use uuid::Uuid;
 
 use crate::{timecode::Timecode, util::rect::RectBuilder, video::elements::VideoElement, Rect};
 
 pub struct ParagraphVideoElement {
+  id: Uuid,
   mat: Matrix,
   elements: Vec<Box<dyn VideoElement>>,
   start_time: Timecode,
@@ -27,6 +29,7 @@ impl ParagraphVideoElement {
       .unwrap_or(Timecode(0));
 
     ParagraphVideoElement {
+      id: Uuid::new_v4(),
       mat: Matrix::new_identity(),
       elements,
       start_time,
@@ -36,6 +39,10 @@ impl ParagraphVideoElement {
 }
 
 impl VideoElement for ParagraphVideoElement {
+  fn id(&self) -> Uuid {
+    self.id
+  }
+
   fn start_time(&self) -> Timecode {
     self.start_time
   }
@@ -57,9 +64,10 @@ impl VideoElement for ParagraphVideoElement {
       return Rect::default();
     }
 
-    let mut builder = RectBuilder::new();
+    let mut builder = RectBuilder::default();
     for e in &self.elements {
-      builder.add_rect(e.bounds());
+      let skrect: skia_safe::Rect = e.bounds().into();
+      builder.add_rect(skrect.into());
     }
 
     builder.to_rect().unwrap_or_default()

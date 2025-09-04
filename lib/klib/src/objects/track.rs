@@ -8,7 +8,10 @@ use crate::{
   objects::event::Event,
   style::LyricsTrackStyle,
   timecode::Timecode,
-  video::layouts::{paragraph::ParagraphMergerMode, LyricsTrackLayoutMode},
+  video::{
+    layouts::{paragraph::ParagraphMergerMode, LyricsTrackLayoutMode},
+    transitions::Transition,
+  },
   Rect,
 };
 
@@ -38,6 +41,8 @@ pub struct LyricsTrackValue {
   pub layout: LyricsTrackLayoutMode,
   /// The style of this track.
   pub style: LyricsTrackStyle,
+  /// The transition selected for this track.
+  pub transition: Transition,
 }
 
 impl Default for LyricsTrackValue {
@@ -53,6 +58,7 @@ impl Default for LyricsTrackValue {
         merger_mode: ParagraphMergerMode::Page,
       },
       style: Default::default(),
+      transition: Default::default(),
     }
   }
 }

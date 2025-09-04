@@ -1,4 +1,5 @@
 use skia_safe::Matrix;
+use uuid::Uuid;
 
 use crate::{
   objects::event::Event, style::LyricsTrackStyle, timecode::Timecode,
@@ -11,6 +12,7 @@ struct TextMetrics {
 }
 
 pub struct TextVideoElement {
+  id: Uuid,
   mat: Matrix,
   start: Timecode,
   end: Timecode,
@@ -35,6 +37,7 @@ impl TextVideoElement {
     let highlight_color: skia_safe::Color4f = style.colors.highlight.into();
     let (_, metrics) = font.metrics();
     Box::new(TextVideoElement {
+      id: event.id,
       mat: Matrix::new_identity(),
       start: event.start_timecode,
       end: event.end_timecode,
@@ -52,6 +55,10 @@ impl TextVideoElement {
 }
 
 impl VideoElement for TextVideoElement {
+  fn id(&self) -> Uuid {
+    self.id
+  }
+
   fn start_time(&self) -> Timecode {
     self.start
   }

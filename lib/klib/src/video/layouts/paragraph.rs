@@ -80,7 +80,7 @@ impl ParagraphLayout {
       );
 
       // Centrist
-      let mut page_rect_builder = RectBuilder::new();
+      let mut page_rect_builder = RectBuilder::default();
       let mut line_height: f32 = 0.0;
 
       let mut line_widths = HashMap::new();
@@ -115,14 +115,6 @@ impl ParagraphLayout {
       if let Some(info) = line_width_info {
         // handle remaining line width
         line_widths.insert(info.current_line, info.last_end - info.current_start);
-      }
-
-      log::info!(
-        "num lines: {}",
-        page_elements.iter().map(|e| e.0).max().unwrap_or_default()
-      );
-      for (line, width) in &line_widths {
-        log::info!("line {line} width {width}");
       }
 
       let page_height = page_rect_builder.to_rect().unwrap_or_default().height();
@@ -337,7 +329,7 @@ impl ParagraphLayout {
     let upem = hbfont.face().upem() as f64;
     let size = skfont.size() as f64;
 
-    let mut builder = RectBuilder::new();
+    let mut builder = RectBuilder::default();
     let mut x = 0.0;
     for (pos, info) in buffer
       .get_glyph_positions()

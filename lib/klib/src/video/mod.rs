@@ -7,6 +7,7 @@ use crate::{
     context::LyricsTrackContext,
     elements::VideoElement,
     layouts::{paragraph::ParagraphLayout, LyricsTrackLayoutMode},
+    transitions::apply_transition,
   },
   Rect,
 };
@@ -16,6 +17,8 @@ pub mod elements;
 pub mod layouts;
 pub mod renderer;
 pub mod sequence;
+pub mod transitions;
+pub mod vacancy;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct VideoConfig {
@@ -52,11 +55,13 @@ fn layout_lyrics_track(track: &Track, video_config: &VideoConfig) -> Vec<Box<dyn
     font_mgr: skia_safe::FontMgr::new(),
   };
 
-  match track_config.layout {
+  let elements = match track_config.layout {
     LyricsTrackLayoutMode::Paragraph { merger_mode } => {
       ParagraphLayout::new(merger_mode).layout_track(&mut context, track)
     }
-  }
+  };
+
+  apply_transition(&track_config.transition, elements)
 }
 
 /// Turns a track into a set of video elements that can be rendered.
