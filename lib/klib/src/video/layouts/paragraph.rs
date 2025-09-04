@@ -190,8 +190,8 @@ impl ParagraphLayout {
       match event.event_type {
         EventType::Lyric if event.text().is_some() => {
           let text = event.text().unwrap();
-          let text_buffer = UnicodeBuffer::new().add_str(text);
-          let shape = harfbuzz_rs::shape(hbfont, text_buffer, &[]);
+          let mut text_buffer = UnicodeBuffer::new().add_str(text);
+          let mut shape = harfbuzz_rs::shape(hbfont, text_buffer, &[]);
           let layout_rect = Self::compute_rect_from_glyphs(font, hbfont, &shape);
 
           let (width, height) = (layout_rect.width(), layout_rect.height());
@@ -214,7 +214,23 @@ impl ParagraphLayout {
 
           if (next_y + height) > rect.y1 {
             // Paragraph done
+            idx -= 1;
             break;
+          }
+
+          // Check if the next event is linked and will overflow, and if so hyphenate this one.
+          // This is pretty inefficient but should be fine since it's happening once per layout gen... right?
+          if idx < events.len() && events[idx].linked_id.is_some() {
+            let next_text = events[idx].text().unwrap();
+            let next_text_buffer = UnicodeBuffer::new().add_str(next_text);
+            let next_shape = harfbuzz_rs::shape(hbfont, next_text_buffer, &[]);
+            let next_layout_rect = Self::compute_rect_from_glyphs(font, hbfont, &next_shape);
+
+            if next_x + width + next_layout_rect.width() > rect.x1 {
+              let new_text = text.to_string() + "-";
+              text_buffer = UnicodeBuffer::new().add_str(&new_text);
+              shape = harfbuzz_rs::shape(hbfont, text_buffer, &[]);
+            }
           }
 
           line_y = line_y.max(next_y + height);

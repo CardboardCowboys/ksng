@@ -102,7 +102,7 @@ impl Default for Font {
       weight: FontWeight(700),
       width: FontWidth(5),
       family: "Arial".to_string(),
-      size: 200.0,
+      size: 100.0,
     }
   }
 }
