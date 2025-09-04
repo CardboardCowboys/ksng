@@ -84,4 +84,33 @@ impl VacancyChecker {
 
     None
   }
+
+  /// Calculates the start and end times of an element given the specified lead and trail times.
+  ///
+  /// If there are elements within the span of `(start_time - lead_time, end_time + trail_time)` that
+  /// overlap this element, the start and end times will be set to the midpoint between its time and
+  /// the conflicting element's time. Otherwise, it will be the maximum value.
+  pub fn calc_start_end_midpoints(
+    &self,
+    elem: &dyn VideoElement,
+    lead_time: Timecode,
+    trail_time: Timecode,
+  ) -> (Timecode, Timecode) {
+    let last_end_time = self.end_time_of_previous_occupant(elem);
+    let next_start_time = self.start_time_of_following_occupant(elem);
+    (
+      if let Some(last_end_time) = last_end_time {
+        let diff = elem.start_time() - last_end_time;
+        elem.start_time() - (diff / Timecode(2)).min(lead_time)
+      } else {
+        elem.start_time() - lead_time
+      },
+      if let Some(next_start_time) = next_start_time {
+        let diff = next_start_time - elem.end_time();
+        elem.end_time() + (diff / Timecode(2)).min(trail_time)
+      } else {
+        elem.end_time() + trail_time
+      },
+    )
+  }
 }

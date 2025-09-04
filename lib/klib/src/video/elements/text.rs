@@ -2,8 +2,11 @@ use skia_safe::Matrix;
 use uuid::Uuid;
 
 use crate::{
-  objects::event::Event, style::LyricsTrackStyle, timecode::Timecode,
-  video::elements::VideoElement, Point, Rect,
+  objects::event::Event,
+  style::LyricsTrackStyle,
+  timecode::Timecode,
+  video::elements::{VideoElement, VideoElementRenderContext},
+  Point, Rect,
 };
 
 struct TextMetrics {
@@ -84,7 +87,9 @@ impl VideoElement for TextVideoElement {
     self.mat = mat;
   }
 
-  fn render(&self, canvas: &skia_safe::Canvas, time: Timecode) {
+  fn render<'canvas>(&self, context: &mut VideoElementRenderContext<'canvas>) {
+    let canvas = context.canvas;
+    let time = context.time;
     canvas.save();
     canvas.concat(&self.mat);
     let normalized_pos =

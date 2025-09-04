@@ -1,7 +1,12 @@
 use skia_safe::Matrix;
 use uuid::Uuid;
 
-use crate::{timecode::Timecode, util::rect::RectBuilder, video::elements::VideoElement, Rect};
+use crate::{
+  timecode::Timecode,
+  util::rect::RectBuilder,
+  video::elements::{VideoElement, VideoElementRenderContext},
+  Rect,
+};
 
 pub struct ParagraphVideoElement {
   id: Uuid,
@@ -73,12 +78,12 @@ impl VideoElement for ParagraphVideoElement {
     builder.to_rect().unwrap_or_default()
   }
 
-  fn render(&self, canvas: &skia_safe::Canvas, time: Timecode) {
-    canvas.save();
-    canvas.concat(&self.mat);
+  fn render<'canvas>(&self, context: &mut VideoElementRenderContext<'canvas>) {
+    context.canvas.save();
+    context.canvas.concat(&self.mat);
     for element in &self.elements {
-      element.render(canvas, time);
+      element.render(context);
     }
-    canvas.restore();
+    context.canvas.restore();
   }
 }
