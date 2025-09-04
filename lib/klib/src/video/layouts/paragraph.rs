@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use harfbuzz_rs::{GlyphBuffer, UnicodeBuffer};
 use serde::{Deserialize, Serialize};
 use skia_safe::{GlyphId, Matrix};
@@ -30,6 +32,12 @@ pub enum ParagraphMergerMode {
 
 pub struct ParagraphLayout {
   merger_mode: ParagraphMergerMode,
+}
+
+struct LineWidthInfo {
+  current_line: usize,
+  current_start: f32,
+  last_end: f32,
 }
 
 impl ParagraphLayout {
@@ -70,6 +78,66 @@ impl ParagraphLayout {
         next_index,
         &mut page_elements,
       );
+
+      // Centrist
+      let mut page_rect_builder = RectBuilder::new();
+      let mut line_height: f32 = 0.0;
+
+      let mut line_widths = HashMap::new();
+      let mut line_width_info = None;
+      for (line, elem) in &page_elements {
+        let rect = elem.bounds();
+        page_rect_builder.add_rect(rect);
+        line_height = line_height.max(rect.height());
+        match &mut line_width_info {
+          None => {
+            line_width_info = Some(LineWidthInfo {
+              current_line: *line,
+              current_start: rect.x0,
+              last_end: rect.x1,
+            });
+          }
+          Some(info) => {
+            if *line != info.current_line {
+              line_widths.insert(info.current_line, info.last_end - info.current_start);
+              line_width_info = Some(LineWidthInfo {
+                current_line: *line,
+                current_start: rect.x0,
+                last_end: rect.x1,
+              });
+            } else {
+              info.last_end = rect.x1;
+            }
+          }
+        };
+      }
+
+      if let Some(info) = line_width_info {
+        // handle remaining line width
+        line_widths.insert(info.current_line, info.last_end - info.current_start);
+      }
+
+      log::info!(
+        "num lines: {}",
+        page_elements.iter().map(|e| e.0).max().unwrap_or_default()
+      );
+      for (line, width) in &line_widths {
+        log::info!("line {line} width {width}");
+      }
+
+      let page_height = page_rect_builder.to_rect().unwrap_or_default().height();
+      let y_offset =
+        context.area.y0 + context.area.height() / 2.0 - page_height / 2.0 - line_height / 2.0;
+      for (line, e) in &mut page_elements {
+        let Some(width) = line_widths.get(line) else {
+          continue;
+        };
+
+        e.set_transform(Matrix::translate(Point {
+          x: context.area.x0 + context.area.width() / 2.0 - width / 2.0,
+          y: y_offset,
+        }));
+      }
 
       match self.merger_mode {
         ParagraphMergerMode::None => {
@@ -122,41 +190,7 @@ impl ParagraphLayout {
       }
     }
 
-    // Centrist
-    let y_offset = Self::calc_y_offset(context, &elements);
-    log::info!("new y offset: {y_offset}");
-    let translation = Point {
-      x: 0.0,
-      y: y_offset,
-    };
-
-    for e in &mut elements {
-      e.set_transform(Matrix::translate(translation));
-    }
-
     elements
-  }
-
-  fn calc_y_offset<'a>(
-    context: &LyricsTrackContext<'a>,
-    elements: &[Box<dyn VideoElement>],
-  ) -> f32 {
-    let mut builder = RectBuilder::new();
-    for e in elements {
-      builder.add_rect(e.bounds());
-    }
-
-    let rect = builder.to_rect().unwrap_or_default();
-    let height = rect.height();
-    let area_height = context.area.height();
-    let new_y_pos = context.area.y0 + area_height / 2.0 - height / 2.0;
-
-    log::info!(
-      "area height: {area_height}, rect height: {height}, area: {:?}, rect: {rect:?}",
-      context.area
-    );
-
-    new_y_pos
   }
 
   fn fill_paragraph<'a>(

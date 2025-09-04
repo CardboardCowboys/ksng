@@ -12,8 +12,10 @@ pub fn player(app: &KsngApp, ctx: &Context, ui: &mut Ui) {
     if let Some(texture) = app.video.borrow().last_frame_texture() {
       ui.with_layout(Layout::top_down(Align::Center), |ui| {
         ui.add(
-          egui::Image::new(ImageSource::Texture(texture))
-            .fit_to_exact_size(Vec2::new(rect.width() - 20.0, rect.height() - 20.0)),
+          egui::Image::new(ImageSource::Texture(texture)).fit_to_exact_size(Vec2::new(
+            (rect.width() - 20.0).max(1.0),
+            (rect.height() - 20.0).max(1.0),
+          )),
         );
       });
     }
