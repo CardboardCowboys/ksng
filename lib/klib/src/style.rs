@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use crate::util::editable_config::{EditableConfig, EditableConfigUi};
+
 /// A 32-bit RGBA color.
 #[derive(Serialize, Deserialize, Copy, Clone)]
 pub struct Color32(u32);

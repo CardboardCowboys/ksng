@@ -1,6 +1,7 @@
 use harfbuzz_rs::{Face, Font};
 
 pub mod easing;
+pub mod editable_config;
 pub mod rect;
 
 pub fn skfont_to_harfbuzz_font(skfont: &skia_safe::Font) -> harfbuzz_rs::Owned<Font<'_>> {
