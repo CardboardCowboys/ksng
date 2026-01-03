@@ -1,7 +1,6 @@
 use serde::{Deserialize, Serialize};
 
 pub mod config;
-pub mod editable_config;
 pub mod error;
 pub mod objects;
 pub mod style;

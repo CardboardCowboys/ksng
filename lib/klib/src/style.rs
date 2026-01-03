@@ -1,3 +1,4 @@
+use klib_macros::EditableConfig;
 use serde::{Deserialize, Serialize};
 
 use crate::util::editable_config::{EditableConfig, EditableConfigUi};
@@ -109,7 +110,7 @@ impl Default for Font {
   }
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, EditableConfig)]
 pub struct Colors {
   pub normal: Color32,
   pub highlight: Color32,
@@ -126,9 +127,10 @@ impl Default for Colors {
   }
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, EditableConfig)]
 pub struct Stroke {
   pub color: Color32,
+  #[float(0.0)]
   pub width: f32,
 }
 
@@ -141,7 +143,7 @@ impl Default for Stroke {
   }
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, EditableConfig)]
 pub struct LyricsTrackStyle {
   pub font: Font,
   pub colors: Colors,

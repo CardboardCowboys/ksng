@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use harfbuzz_rs::{GlyphBuffer, UnicodeBuffer};
+use klib_macros::EditableConfig;
 use serde::{Deserialize, Serialize};
 use skia_safe::{GlyphId, Matrix};
 
@@ -18,7 +19,7 @@ use crate::{
 };
 
 /// How video elements are combined together to form paragraphs.
-#[derive(Serialize, Deserialize, Clone, Copy)]
+#[derive(Serialize, Deserialize, Clone, Copy, EditableConfig)]
 pub enum ParagraphMergerMode {
   /// Each lyric is its own element and is handled independently.
   None,

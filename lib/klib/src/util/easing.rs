@@ -1,6 +1,7 @@
+use klib_macros::EditableConfig;
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Copy, Deserialize, Serialize)]
+#[derive(Clone, Copy, Deserialize, Serialize, EditableConfig)]
 pub enum EasingFunction {
   None,
   BackIn,

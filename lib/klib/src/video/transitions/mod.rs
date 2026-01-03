@@ -1,3 +1,4 @@
+use klib_macros::EditableConfig;
 use serde::{Deserialize, Serialize};
 
 use crate::video::{
@@ -13,7 +14,7 @@ pub mod fade;
 pub mod none;
 pub mod slide;
 
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize, EditableConfig)]
 pub enum Transition {
   /// Lyrics will appear and disappear without transition.
   None(NoneTransitionConfig),

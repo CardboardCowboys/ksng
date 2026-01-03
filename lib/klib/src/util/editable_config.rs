@@ -11,8 +11,10 @@ pub trait EditableConfig {
 /// Contains pointers to functions for rendering UI elements
 /// for editing config.
 ///
-/// Every method takes at least a key (the name of the config item),
-/// and most take a mutable boolean to specify that it has been changed.
+/// Most methods takes at least a key (the name of the config item),
+/// and a mutable boolean to specify that it has been changed.
+///
+/// If a blank string is specified for a key, the field will be rendered inline.
 pub struct EditableConfigUi {
   /// Draws a checkbox.
   /// Params: (key, changed, value)
@@ -20,9 +22,12 @@ pub struct EditableConfigUi {
   /// Draws a slider.
   /// Params: (key, changed, min, max, value)
   pub slider: fn(&str, &mut bool, f32, f32, f32) -> f32,
-  /// Draws a number editor.
+  /// Draws a float editor.
   /// Params: (key, changed, min?, max?, value)
-  pub number: fn(&str, &mut bool, Option<f32>, Option<f32>, f32) -> f32,
+  pub float: fn(&str, &mut bool, Option<f32>, Option<f32>, f32) -> f32,
+  /// Draws a integer editor.
+  /// Params: (key, changed, min?, max?, value)
+  pub integer: fn(&str, &mut bool, Option<i64>, Option<i64>, i64) -> i64,
   /// Draws a normalized rect editor (all values from 0 to 1).
   /// Params: (key, changed, value)
   pub normalized_rect: fn(&str, &mut bool, Rect) -> Rect,
@@ -30,11 +35,11 @@ pub struct EditableConfigUi {
   /// Params: (key, inner)
   pub section: fn(&str, fn() -> ()) -> (),
   /// Draws an editor for the given EditableConfig.
-  /// Params: (key, inner, original, changed)
-  pub config: fn(&str, &mut bool, Box<dyn EditableConfig>, &mut dyn EditableConfig) -> (),
-  /// Draws a dropdown.
-  /// Params: (key, changed, options)
-  pub dropdown: for<'a> fn(&str, &mut bool, &[&'a str]) -> &'a str,
+  /// Params: (key, changed, new)
+  pub config: fn(&str, &mut bool, &mut dyn EditableConfig) -> (),
+  /// Draws an inline dropdown.
+  /// Params: (changed, options, current_option)
+  pub dropdown: for<'a> fn(&str, &mut bool, &[&'a str], &'a str) -> &'a str,
   /// Draws a timecode editor.
   /// Params: (key, changed, value)
   pub timecode: fn(&str, &mut bool, Timecode) -> Timecode,

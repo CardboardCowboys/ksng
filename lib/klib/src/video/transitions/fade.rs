@@ -1,3 +1,4 @@
+use klib_macros::EditableConfig;
 use serde::{Deserialize, Serialize};
 use skia_safe::Color4f;
 
@@ -10,7 +11,7 @@ use crate::{
   },
 };
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, EditableConfig)]
 pub struct FadeTransitionConfig {
   /// The maximum amount of time an event will be displayed for before it happens.
   pub lead_time: Timecode,

@@ -1,4 +1,5 @@
 use binary_rw::{BinaryReader, BinaryWriter};
+use klib_macros::EditableConfig;
 use serde::{Deserialize, Serialize};
 use sortedlist_rs::SortedList;
 use uuid::Uuid;
@@ -16,11 +17,12 @@ use crate::{
 };
 
 /// Settings for an audio track.
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, EditableConfig)]
 pub struct AudioTrackValue {
   /// Whether this track should be muted.
   pub muted: bool,
   /// The volume of this track, between 0 and 1.
+  #[slider(0.0, 1.0)]
   pub volume: f32,
 }
 
@@ -33,7 +35,7 @@ impl Default for AudioTrackValue {
   }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, EditableConfig)]
 pub struct LyricsTrackValue {
   /// The bounds of this lyrics track within the frame, normalized from 0.0-1.0.
   pub bounds: Rect,
