@@ -259,7 +259,7 @@ impl ParagraphLayout {
             }
           }
 
-          line_y = line_y.max(next_y + height);
+          line_y = line_y.max(next_y + height * context.style.line_height_multiplier);
 
           char_positions.clear();
           glyphs.clear();

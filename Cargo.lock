@@ -2155,6 +2155,7 @@ version = "0.1.0"
 dependencies = [
  "binary_rw",
  "harfbuzz_rs",
+ "klib-macros",
  "log",
  "serde",
  "serde_json",
@@ -2162,6 +2163,16 @@ dependencies = [
  "skia-safe",
  "sortedlist-rs",
  "uuid",
+]
+
+[[package]]
+name = "klib-macros"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "static_assertions",
+ "syn",
 ]
 
 [[package]]
