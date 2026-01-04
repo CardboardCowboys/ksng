@@ -1,6 +1,6 @@
 use std::hash::{DefaultHasher, Hash, Hasher};
 
-use egui::{Button, Id, Modal, Sides, Window};
+use egui::{Button, Sides, Window};
 use klib::objects::track::{AudioTrackValue, LyricsTrackValue, TrackType, TrackValue};
 use uuid::Uuid;
 

@@ -4,7 +4,7 @@ use klib::objects::file::File;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{project::Project, util::error::UiError};
+use crate::{preferences::Preferences, project::Project, util::error::UiError};
 
 #[derive(Serialize, Deserialize)]
 pub struct ProjectEntry {
@@ -21,6 +21,34 @@ pub struct ProjectManifest {
 pub struct Data {}
 
 impl Data {
+  pub fn load_preferences() -> Result<Preferences, UiError> {
+    use std::io::Read;
+    let root_dir = Data::root_dir()?;
+
+    std::fs::File::open(root_dir.join("config.json"))
+      .map_err(UiError::from)
+      .and_then(|mut f| {
+        let mut s = String::new();
+        f.read_to_string(&mut s)?;
+        Ok(s)
+      })
+      .and_then(|s| serde_json::from_str::<Preferences>(&s).map_err(|e| e.into()))
+      .or(Ok(Preferences::default()))
+  }
+
+  pub fn save_preferences(preferences: &Preferences) -> Result<(), UiError> {
+    let root_dir = Data::root_dir()?;
+    std::fs::File::create(root_dir.join("config.json"))
+      .map_err(|e| e.into())
+      .and_then(|mut f| {
+        use std::io::Write;
+
+        let str = serde_json::to_string(&preferences)?;
+        f.write_all(str.as_bytes())?;
+        Ok(())
+      })
+  }
+
   pub fn list_projects() -> Result<ProjectManifest, UiError> {
     let root_dir = Data::root_dir()?;
     let manifest = Data::load_or_create_manifest(&root_dir)?;

@@ -6,6 +6,7 @@ use crate::{
   commands::{event::AddAudioEventCommand, track::AddTrackCommand},
   modals::{alert::AlertModal, open_file::OpenFileModal},
   util::ui_event::KsngEvent,
+  windows::preferences::PreferencesWindow,
   KsngApp,
 };
 
@@ -83,7 +84,6 @@ pub fn menu_bar(app: &KsngApp, ctx: &Context, ui: &mut Ui) {
             ui.close();
           }
 
-          // NOTE: no File->Quit on web pages!
           if !is_web && button_with_shortcut(ui, "Quit", Key::Q, Modifiers::COMMAND) {
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
             ui.close();
@@ -120,6 +120,14 @@ pub fn menu_bar(app: &KsngApp, ctx: &Context, ui: &mut Ui) {
             Modifiers::COMMAND,
           ) {
             app.dispatch(KsngEvent::Redo);
+            ui.close();
+          }
+
+          ui.separator();
+          if button_with_shortcut(ui, "Preferences...", Key::P, Modifiers::CTRL) {
+            app
+              .windows
+              .add(PreferencesWindow::new(app.preferences.borrow().clone()));
             ui.close();
           }
         });

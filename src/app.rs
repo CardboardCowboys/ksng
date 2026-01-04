@@ -14,6 +14,7 @@ use crate::{
     save_project::SaveProjectModal, ModalManager,
   },
   playback::{Playback, PlaybackState},
+  preferences::Preferences,
   project::Project,
   selection::SelectionManager,
   util::{logger::Logger, ui_event::KsngEvent},
@@ -31,6 +32,8 @@ pub struct KsngApp {
   pub waveforms: RefCell<AudioWaveformProvider>,
   pub playback: RefCell<Playback>,
   pub video: RefCell<VideoState>,
+
+  pub preferences: RefCell<Preferences>,
 
   event_queue: RefCell<VecDeque<KsngEvent>>,
   close_allowed: RefCell<bool>,
@@ -58,6 +61,7 @@ impl Default for KsngApp {
       event_queue: Default::default(),
       close_allowed: RefCell::new(false),
       timeline: Default::default(),
+      preferences: Default::default(),
     }
   }
 }
@@ -157,6 +161,11 @@ impl KsngApp {
         app.project.replace(project);
         app.on_project_change(&cc.egui_ctx);
       }
+      let preferences = app
+        .logger
+        .wrap(Data::load_preferences())
+        .unwrap_or_default();
+      app.preferences.replace(preferences);
     }
 
     egui_extras::install_image_loaders(&cc.egui_ctx);
@@ -180,7 +189,7 @@ impl eframe::App for KsngApp {
   }
 
   /// Called each time the UI needs repainting, which may be many times per second.
-  fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+  fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
     let mut queue = self.event_queue.borrow_mut();
     while let Some(event) = queue.pop_front() {
       self.on_event(ctx, event);

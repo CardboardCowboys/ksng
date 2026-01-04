@@ -127,6 +127,10 @@ fn editor_for_field(
     quote! { #field_name }
   };
 
+  if find_attr_named(&field.attrs, "hidden").is_some() {
+    return Ok(quote! {});
+  }
+
   match &field.ty {
     syn::Type::Path(type_path) => {
       let type_name = type_path.path.segments.last().ok_or(MacroError::Message(
@@ -383,10 +387,11 @@ fn editor_for_enum(item: &DeriveInput, enum_val: &DataEnum) -> Result<TokenStrea
 /// #[derive(EditableConfig)]
 ///
 /// possible attributes:
+/// #[hidden]
 /// #[slider(min, max)]
 /// #[float] or #[float(min)] or #[float(min, max)]
 /// #[integer] or #[integer(min)] or #[integer(min, max)]
-#[proc_macro_derive(EditableConfig, attributes(slider, float, integer))]
+#[proc_macro_derive(EditableConfig, attributes(slider, float, integer, hidden))]
 pub fn editable_config(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
   let item: DeriveInput = syn::parse(input).unwrap();
   match editable_config_impl(item) {

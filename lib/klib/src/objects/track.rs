@@ -20,6 +20,7 @@ use crate::{
 #[derive(Serialize, Deserialize, Clone, EditableConfig)]
 pub struct AudioTrackValue {
   /// Whether this track should be muted.
+  #[hidden]
   pub muted: bool,
   /// The volume of this track, between 0 and 1.
   #[slider(0.0, 1.0)]

@@ -1,6 +1,6 @@
 use std::cell::RefCell;
 
-use egui::{Context, Ui};
+use egui::Context;
 
 use crate::KsngApp;
 
@@ -65,4 +65,5 @@ impl WindowManager {
   }
 }
 
+pub mod preferences;
 pub mod track_config;

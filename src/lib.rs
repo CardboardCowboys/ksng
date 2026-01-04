@@ -6,6 +6,7 @@ mod components;
 mod fs;
 mod modals;
 mod playback;
+mod preferences;
 mod project;
 mod selection;
 mod style;
