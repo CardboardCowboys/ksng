@@ -101,6 +101,10 @@ impl AudioMixerStream {
     Timecode::from_seconds_f64(self.position as f64 / self.sample_rate as f64)
   }
 
+  pub fn duration_timecode(&self) -> Timecode {
+    Timecode::from_seconds_f64(self.duration as f64 / self.sample_rate as f64)
+  }
+
   pub fn seek(&mut self, new_timecode: Timecode) {
     let new_position = (new_timecode.to_seconds_f64() * self.sample_rate as f64) as usize;
     self.position = new_position;
@@ -350,7 +354,7 @@ impl AudioMixerStream {
         }
       } else {
         for i in 0..es.channels {
-          es.read_buffer[i].copy_from_slice(data.read_channel(i));
+          es.read_buffer[i][0..data.num_frames()].copy_from_slice(data.read_channel(i));
         }
       }
 

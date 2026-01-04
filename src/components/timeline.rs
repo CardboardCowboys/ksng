@@ -348,7 +348,7 @@ impl Timeline {
               let cursor_pos_s = content_pos_x / pixels_per_second;
               app
                 .playback
-                .borrow()
+                .borrow_mut()
                 .seek(Timecode::from_seconds(cursor_pos_s));
             }
           }

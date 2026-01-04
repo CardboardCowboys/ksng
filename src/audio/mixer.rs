@@ -63,6 +63,15 @@ impl AudioMixer {
     )
   }
 
+  pub fn duration(&self) -> Timecode {
+    self
+      .shared_context
+      .mixer_stream
+      .lock()
+      .unwrap()
+      .duration_timecode()
+  }
+
   pub fn seek(&self, time: Timecode) {
     self.shared_context.mixer_stream.lock().unwrap().seek(time);
     self.shared_context.buffer.write().unwrap().clear();
@@ -142,6 +151,10 @@ impl AudioMixer {
             else {
               return;
             };
+
+            if frames_written == 0 {
+              return;
+            }
 
             buffer.extend_from_slice(&read_buffer[0..frames_written]);
           }

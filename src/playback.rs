@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use klib::timecode::Timecode;
 
 use crate::{
@@ -17,6 +19,8 @@ pub struct Playback {
   state: PlaybackState,
   mixer: AudioMixer,
   logger: Logger,
+  last_started: Instant,
+  last_position: Timecode,
 }
 
 impl Playback {
@@ -25,6 +29,8 @@ impl Playback {
       state: PlaybackState::Stopped,
       mixer: AudioMixer::new(config, logger.clone()).unwrap(),
       logger,
+      last_started: Instant::now(),
+      last_position: Timecode(0),
     }
   }
 
@@ -54,7 +60,12 @@ impl Playback {
   }
 
   pub fn position(&self) -> Timecode {
-    self.mixer.position()
+    match self.state {
+      PlaybackState::Stopped => self.mixer.position(),
+      PlaybackState::Playing => {
+        self.last_position + Timecode((Instant::now() - self.last_started).as_millis() as u32)
+      }
+    }
   }
 
   pub fn toggle_state(&mut self) {
@@ -71,10 +82,17 @@ impl Playback {
       PlaybackState::Playing => self.mixer.play(),
     }
 
+    if PlaybackState::Playing == new_state {
+      self.last_position = self.mixer.position();
+      self.last_started = Instant::now();
+    }
+
     self.state = new_state;
   }
 
-  pub fn seek(&self, time: Timecode) {
+  pub fn seek(&mut self, time: Timecode) {
     self.mixer.seek(time);
+    self.last_position = time;
+    self.last_started = Instant::now();
   }
 }

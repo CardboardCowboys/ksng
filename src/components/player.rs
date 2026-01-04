@@ -39,7 +39,7 @@ pub fn player(app: &KsngApp, _ctx: &Context, ui: &mut Ui) {
         );
 
         if slider_position != position.0 {
-          app.playback.borrow().seek(Timecode(slider_position));
+          app.playback.borrow_mut().seek(Timecode(slider_position));
         }
 
         ui.columns(3, |columns| {
