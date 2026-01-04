@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 use crate::{
   commands::track::EditTrackConfigCommand, components::config_editor::config_editor,
-  windows::KWindow,
+  util::ui_event::KsngEvent, windows::KWindow,
 };
 
 pub struct TrackConfigWindow {
@@ -96,6 +96,9 @@ impl KWindow for TrackConfigWindow {
               self.track_id,
               self.new_value.clone(),
             ));
+            if let TrackValue::Audio(..) = self.new_value {
+              app.dispatch(KsngEvent::AudioChanged);
+            }
           }
 
           if ui.add_enabled(self.dirty, Button::new("OK")).clicked() {
@@ -104,6 +107,9 @@ impl KWindow for TrackConfigWindow {
               self.track_id,
               self.new_value.clone(),
             ));
+            if let TrackValue::Audio(..) = self.new_value {
+              app.dispatch(KsngEvent::AudioChanged);
+            }
             self.open = false;
           }
         },

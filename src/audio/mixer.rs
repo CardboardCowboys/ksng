@@ -46,20 +46,26 @@ impl AudioMixer {
   }
 
   pub fn pause(&self) {
+    // TODO: handle play state in stream or cpal
     self.output_stream.pause();
   }
 
   pub fn position(&self) -> Timecode {
-    self
-      .shared_context
-      .mixer_stream
-      .lock()
-      .unwrap()
-      .position_timecode()
+    let mixer = self.shared_context.mixer_stream.lock().unwrap();
+    let timecode = mixer.position_timecode();
+    let sample_rate = mixer.sample_rate();
+    let channels = mixer.channels();
+    drop(mixer);
+
+    Timecode::from_seconds_f64(
+      timecode.to_seconds_f64()
+        - self.shared_context.buffer.read().unwrap().len() as f64 / (sample_rate * channels) as f64,
+    )
   }
 
   pub fn seek(&self, time: Timecode) {
-    self.shared_context.mixer_stream.lock().unwrap().seek(time)
+    self.shared_context.mixer_stream.lock().unwrap().seek(time);
+    self.shared_context.buffer.write().unwrap().clear();
   }
 
   pub fn reset(&mut self) {

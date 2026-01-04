@@ -89,6 +89,14 @@ impl AudioMixerStream {
     })
   }
 
+  pub fn sample_rate(&self) -> usize {
+    self.sample_rate
+  }
+
+  pub fn channels(&self) -> usize {
+    self.channels
+  }
+
   pub fn position_timecode(&self) -> Timecode {
     Timecode::from_seconds_f64(self.position as f64 / self.sample_rate as f64)
   }
@@ -128,7 +136,7 @@ impl AudioMixerStream {
       let track_volume = if track_audio.muted {
         0.0
       } else {
-        track_audio.volume
+        track_audio.volume.powf(2.0)
       };
 
       for ev in track.events.iter() {
@@ -169,6 +177,10 @@ impl AudioMixerStream {
           stream
             .cache(0, (offset.to_seconds_f64() * sample_rate as f64) as usize)
             .map_err(|e| UiError::Audio(e.to_string()))?;
+
+          stream.seek(0, creek::SeekMode::Auto).unwrap();
+
+          stream.block_until_ready().unwrap();
 
           // If there are more than two channels, we pretend there's only two.
           let num_channels = stream.info().num_channels.max(2) as usize;
