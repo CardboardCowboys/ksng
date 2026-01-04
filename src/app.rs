@@ -48,12 +48,13 @@ struct AppSavedData {
 impl Default for KsngApp {
   fn default() -> Self {
     let logger = Logger::default();
+    let preferences = Preferences::default();
     Self {
       project: RefCell::new(None),
       modals: Default::default(),
       windows: Default::default(),
       waveforms: RefCell::new(AudioWaveformProvider::new(logger.clone())),
-      playback: Default::default(),
+      playback: Playback::new(&preferences.audio_config, logger.clone()).into(),
       video: RefCell::new(VideoState::new().unwrap()),
       logger,
       commands: CommandDispatcher::default(),
@@ -61,7 +62,7 @@ impl Default for KsngApp {
       event_queue: Default::default(),
       close_allowed: RefCell::new(false),
       timeline: Default::default(),
-      preferences: Default::default(),
+      preferences: RefCell::new(preferences),
     }
   }
 }
@@ -122,6 +123,9 @@ impl KsngApp {
       KsngEvent::AudioChanged => {
         self.playback.borrow_mut().on_audio_change(self);
       }
+      KsngEvent::AudioDeviceChanged => {
+        self.playback.borrow_mut().on_audio_device_change(self);
+      }
     }
   }
 
@@ -166,6 +170,7 @@ impl KsngApp {
         .wrap(Data::load_preferences())
         .unwrap_or_default();
       app.preferences.replace(preferences);
+      app.playback.borrow_mut().on_audio_device_change(&app);
     }
 
     egui_extras::install_image_loaders(&cc.egui_ctx);

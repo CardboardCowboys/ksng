@@ -121,7 +121,7 @@ impl KWindow for PreferencesWindow {
             app
               .logger
               .wrap(Data::save_preferences(&app.preferences.borrow()));
-            app.dispatch(KsngEvent::AudioChanged);
+            app.dispatch(KsngEvent::AudioDeviceChanged);
           }
 
           if ui.add_enabled(self.dirty, Button::new("OK")).clicked() {
@@ -131,7 +131,7 @@ impl KWindow for PreferencesWindow {
             app
               .logger
               .wrap(Data::save_preferences(&app.preferences.borrow()));
-            app.dispatch(KsngEvent::AudioChanged);
+            app.dispatch(KsngEvent::AudioDeviceChanged);
           }
         },
       )

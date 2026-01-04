@@ -35,7 +35,6 @@ symphonia = { version = "0.5.4", features = ["mp3", "aac"] }
 infer = "0.19.0"
 tiny-skia = "0.11.4"
 image = { version = "0.25.6", features = ["png"], default-features = false }
-rodio = { git = "https://github.com/azrogers/rodio.git", branch = "mixer-seek", features = ["playback"] }
 egui_flex = "0.4.0"
 egui-wgpu = "0.32.0"
 wgpu = "25.0.0"
@@ -43,7 +42,7 @@ regex = "1.12.2"
 cpal = { version = "0.17.0" }
 rubato = "1.0.0"
 creek = { version = "1.2.3", features = ["decode-all"] }
-bungee-rs = "0.1.1"
+#bungee-rs = "0.1.1"
 circular-buffer = "1.2.0"
 audioadapter-buffers = "2.0.0"
 

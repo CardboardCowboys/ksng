@@ -7,7 +7,7 @@ use cpal::{
 use serde::{Deserialize, Serialize};
 use serde_json::Map;
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct AudioConfig {
   pub host: String,
   pub device: Option<String>,
@@ -51,5 +51,12 @@ impl AudioConfig {
       .and_then(|h| h.device_by_id(&device_id))
       .and_then(|d| d.description().ok())
       .map(|d| format!("{} ({})", d.name(), d.driver().unwrap_or("")))
+  }
+
+  pub fn to_device(&self) -> Option<Device> {
+    let host_id = HostId::from_str(&self.host).ok()?;
+    let host = cpal::host_from_id(host_id).ok()?;
+    let device_id = DeviceId(host_id, self.device.as_ref()?.clone());
+    host.device_by_id(&device_id)
   }
 }

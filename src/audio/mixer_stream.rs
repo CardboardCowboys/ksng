@@ -33,6 +33,15 @@ struct AudioMixerEventStream {
   read_buffer: Vec<Vec<f32>>,
 }
 
+impl AudioMixerEventStream {
+  /// Computes the location of `position` within this event in frames.
+  fn position_to_frame(&self, pos_sample_rate: usize, position: usize) -> usize {
+    (position as f64 * (self.sample_rate as f64 / pos_sample_rate as f64)
+      - (self.start_timecode.to_seconds_f64() * self.sample_rate as f64
+        + self.offset.to_seconds_f64() * self.sample_rate as f64)) as usize
+  }
+}
+
 /// The `AudioMixerStream` performs the raw audio processing necessary for
 /// playback. It:
 ///
@@ -45,7 +54,7 @@ pub struct AudioMixerStream {
   channels: usize,
   sample_rate: usize,
 
-  time_stretch_stream: bungee_rs::Stream,
+  // time_stretch_stream: bungee_rs::Stream,
   // Buffer of samples after timestretching.
   stretched_buffer: Vec<Vec<f32>>,
   /// `channels` numbers of `BLOCK_SIZE` buffers.
@@ -58,7 +67,7 @@ pub struct AudioMixerStream {
 }
 
 impl AudioMixerStream {
-  fn new(channels: usize, sample_rate: usize) -> Result<Self, UiError> {
+  pub fn new(channels: usize, sample_rate: usize) -> Result<Self, UiError> {
     let mut planar_buffers = Vec::new();
     for _ in 0..channels {
       let mut buffer = Vec::with_capacity(BLOCK_SIZE);
@@ -75,9 +84,35 @@ impl AudioMixerStream {
       position: 0,
       planar_buffers,
       stretched_buffer: Default::default(),
-      time_stretch_stream: bungee_rs::Stream::new(sample_rate, channels, BLOCK_SIZE)
-        .map_err(|e| UiError::Audio(e.to_string()))?,
+      // time_stretch_stream: bungee_rs::Stream::new(sample_rate, channels, BLOCK_SIZE)
+      //   .map_err(|e| UiError::Audio(e.to_string()))?,
     })
+  }
+
+  pub fn position_timecode(&self) -> Timecode {
+    Timecode::from_seconds_f64(self.position as f64 / self.sample_rate as f64)
+  }
+
+  pub fn seek(&mut self, new_timecode: Timecode) {
+    let new_position = (new_timecode.to_seconds_f64() * self.sample_rate as f64) as usize;
+    self.position = new_position;
+    // Seek immediately in all of the events we can to start buffering them.
+    for es in &mut self.event_streams {
+      if new_timecode < es.start_timecode || new_timecode >= es.end_timecode {
+        continue;
+      }
+
+      let _ = es.read_stream.seek(
+        es.position_to_frame(self.sample_rate, new_position),
+        creek::SeekMode::Auto,
+      );
+    }
+  }
+
+  /// Resets the position to zero and clears all loaded streams.
+  pub fn reset(&mut self) {
+    self.position = 0;
+    self.event_streams.clear();
   }
 
   pub fn update_from_tracks(&mut self, tracks: &[Track]) -> Result<(), UiError> {
@@ -239,7 +274,7 @@ impl AudioMixerStream {
       interleave_buffers(&self.planar_buffers, BLOCK_SIZE, buffer);
       BLOCK_SIZE
     } else {
-      self.process_raw()?;
+      /*self.process_raw()?;
       let output_frames = self.time_stretch_stream.process(
         Some(&self.planar_buffers),
         &mut self.stretched_buffer,
@@ -249,10 +284,12 @@ impl AudioMixerStream {
       );
       interleave_buffers(&self.stretched_buffer, output_frames, buffer);
       output_frames
+      */
+      0
     };
 
     self.position += frame_count;
-    Ok(frame_count)
+    Ok(frame_count * self.channels)
   }
 
   // Obtain samples before time stretching.
@@ -268,18 +305,16 @@ impl AudioMixerStream {
 
     for es in &mut self.event_streams {
       // Event is not relevant.
-      if es.start_timecode > timecode || es.end_timecode < timecode {
+      if es.start_timecode > timecode || es.end_timecode <= timecode {
         continue;
       }
 
       // Number of frames we are into the audio file.
-      let frame_pos = position
-        - (es.start_timecode.to_seconds_f64() * es.sample_rate as f64
-          + es.offset.to_seconds_f64() * es.sample_rate as f64) as usize;
+      let frame_pos = es.position_to_frame(self.sample_rate, position);
 
-      es.read_stream
-        .seek(frame_pos, creek::SeekMode::Auto)
-        .map_err(|e| UiError::Audio(e.to_string()))?;
+      /*es.read_stream
+      .seek(frame_pos, creek::SeekMode::Auto)
+      .map_err(|e| UiError::Audio(e.to_string()))?;*/
 
       let data = es
         .read_stream
@@ -308,10 +343,30 @@ impl AudioMixerStream {
       }
 
       let frames = data.num_frames().min(BLOCK_SIZE);
-      for i in 0..es.channels {
-        for j in 0..frames {
-          self.planar_buffers[i][j] += es.read_buffer[i][j] * es.volume;
+      if es.channels == 2 {
+        for i in 0..es.channels {
+          for j in 0..frames {
+            self.planar_buffers[i][j] += es.read_buffer[i][j] * es.volume;
+          }
         }
+      } else if es.channels == 1 && self.channels == 2 {
+        for i in 0..self.channels {
+          for j in 0..frames {
+            self.planar_buffers[i][j] += es.read_buffer[0][j] * es.volume;
+          }
+        }
+      } else if self.channels == 1 && es.channels == 2 {
+        for i in 0..es.channels {
+          for j in 0..frames {
+            self.planar_buffers[0][j] += es.read_buffer[i][j] * es.volume;
+          }
+        }
+      } else {
+        log::warn!(
+          "unknown channel combination, mixer {} event {}",
+          self.channels,
+          es.channels
+        );
       }
     }
 
