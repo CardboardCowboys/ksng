@@ -60,6 +60,7 @@ pub fn menu_bar(app: &KsngApp, ctx: &Context, ui: &mut Ui) {
       |ui| {
         let is_web = cfg!(target_arch = "wasm32");
         ui.menu_button("File", |ui| {
+          ui.set_min_width(150.0);
           if button_with_shortcut(ui, "New", Key::N, Modifiers::COMMAND) {
             app.dispatch_warn_dirty(KsngEvent::ProjectNew);
             ui.close();
@@ -91,6 +92,7 @@ pub fn menu_bar(app: &KsngApp, ctx: &Context, ui: &mut Ui) {
         });
 
         ui.menu_button("Edit", |ui| {
+          ui.set_min_width(200.0);
           let undo_desc = app.commands.undo_description();
           let undo_label = undo_desc
             .as_ref()
@@ -134,6 +136,7 @@ pub fn menu_bar(app: &KsngApp, ctx: &Context, ui: &mut Ui) {
 
         ui.add_enabled_ui(project.is_some(), |ui| {
           ui.menu_button("Track", |ui| {
+            ui.set_min_width(150.0);
             ui.menu_button("Add", |ui| {
               if ui.button("Lyrics").clicked() {
                 app
@@ -152,6 +155,7 @@ pub fn menu_bar(app: &KsngApp, ctx: &Context, ui: &mut Ui) {
           });
 
           ui.menu_button("Event", |ui| {
+            ui.set_min_width(150.0);
             ui.add_enabled_ui(app.selection.selected_tracks().len() == 1, |ui| {
               ui.menu_button("Add", |ui| {
                 let audio_track = project.as_ref().and_then(|p| {
