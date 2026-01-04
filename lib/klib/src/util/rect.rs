@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::Point;
 
-#[derive(Default, Debug, Serialize, Deserialize, Clone, Copy)]
+#[derive(Default, Debug, Serialize, Deserialize, Clone, Copy, PartialEq)]
 pub struct Rect {
   pub x0: f32,
   pub y0: f32,
@@ -32,6 +32,17 @@ impl Rect {
   /// Checks if this rect intersects with `rhs`.
   pub fn intersects(&self, rhs: &Rect) -> bool {
     self.x0 < rhs.x1 && self.x1 > rhs.x0 && self.y0 < rhs.y1 && self.y1 > rhs.y0
+  }
+
+  /// Returns a new Rect where x0 is guaranteed to be <= x1
+  /// and y0 is guaranteed to be <= y1
+  pub fn conform(&self) -> Rect {
+    Rect {
+      x0: self.x0.min(self.x1),
+      y0: self.y0.min(self.y1),
+      x1: self.x1.max(self.x0),
+      y1: self.y1.max(self.y1),
+    }
   }
 }
 

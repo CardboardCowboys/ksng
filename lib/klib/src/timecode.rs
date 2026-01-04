@@ -15,6 +15,11 @@ impl Timecode {
     Timecode((seconds * 1000.0) as u32)
   }
 
+  /// Creates a timecode from a floating point seconds value.
+  pub fn from_seconds_f64(seconds: f64) -> Self {
+    Timecode((seconds * 1000.0) as u32)
+  }
+
   /// Converts the timecode to a floating point seconds value.
   pub fn to_seconds(&self) -> f32 {
     self.0 as f32 / 1000.0
@@ -26,6 +31,15 @@ impl Timecode {
     let minutes = seconds / 60;
     let seconds = seconds - (minutes * 60);
     format!("{minutes:02}:{seconds:02}")
+  }
+
+  /// Converts the timecode to a string in the form MM:SS.MMM
+  pub fn to_string_seconds_frac(&self) -> String {
+    let seconds = self.0 / 1000;
+    let minutes = seconds / 60;
+    let frac = self.0 - (seconds * 1000);
+    let seconds = seconds - (minutes * 60);
+    format!("{minutes:02}:{seconds:02}.{frac:03}")
   }
 
   /// Compares two (start, end) pairs and returns true if they overlap.

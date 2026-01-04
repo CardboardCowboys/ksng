@@ -35,7 +35,7 @@ impl Default for AudioTrackValue {
   }
 }
 
-#[derive(Serialize, Deserialize, EditableConfig)]
+#[derive(Serialize, Deserialize, EditableConfig, Clone)]
 pub struct LyricsTrackValue {
   /// The bounds of this lyrics track within the frame, normalized from 0.0-1.0.
   pub bounds: Rect,
@@ -66,7 +66,7 @@ impl Default for LyricsTrackValue {
 }
 
 /// Type-specific data for a track.
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub enum TrackValue {
   /// Settings for an audio track.
   Audio(AudioTrackValue),

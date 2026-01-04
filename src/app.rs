@@ -18,11 +18,13 @@ use crate::{
   selection::SelectionManager,
   util::{logger::Logger, ui_event::KsngEvent},
   video::VideoState,
+  windows::WindowManager,
 };
 
 pub struct KsngApp {
   pub project: RefCell<Option<Project>>,
   pub modals: ModalManager,
+  pub windows: WindowManager,
   pub logger: Logger,
   pub commands: CommandDispatcher,
   pub selection: SelectionManager,
@@ -46,6 +48,7 @@ impl Default for KsngApp {
     Self {
       project: RefCell::new(None),
       modals: Default::default(),
+      windows: Default::default(),
       waveforms: RefCell::new(AudioWaveformProvider::new(logger.clone())),
       playback: Default::default(),
       video: RefCell::new(VideoState::new().unwrap()),
@@ -62,6 +65,7 @@ impl Default for KsngApp {
 impl KsngApp {
   fn on_project_change(&self, ctx: &Context) {
     self.selection.clear();
+    self.windows.clear();
     *self.timeline.borrow_mut() = Timeline::default();
     self.waveforms.borrow_mut().clear(ctx);
     self.playback.borrow_mut().on_audio_change(self);
@@ -185,6 +189,7 @@ impl eframe::App for KsngApp {
 
     self.logger.wrap(self.commands.process(self));
     self.modals.process(self, ctx);
+    self.windows.process(self, ctx);
 
     self.logger.wrap(
       self

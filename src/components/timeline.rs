@@ -12,7 +12,6 @@ use klib::{
   },
   timecode::Timecode,
 };
-use log::info;
 use uuid::Uuid;
 
 use crate::{
@@ -22,6 +21,7 @@ use crate::{
     icons,
   },
   util::ui::KsngUiExt,
+  windows::track_config::TrackConfigWindow,
   KsngApp,
 };
 
@@ -154,7 +154,7 @@ impl Timeline {
                     .add_sized(Vec2::new(20.0, 20.0), settings_button)
                     .clicked()
                   {
-                    info!("settings clicked!");
+                    app.windows.add(TrackConfigWindow::new(track));
                     buttons_clicked = true;
                   }
 

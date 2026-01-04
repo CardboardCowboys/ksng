@@ -7,16 +7,35 @@ extern crate syn;
 
 mod error;
 
-use std::str::FromStr;
-
-use proc_macro2::{Literal, TokenStream};
+use proc_macro2::TokenStream;
 use quote::{ToTokens, quote};
 use syn::{
-  Attribute, DataEnum, DataStruct, DeriveInput, Field, Fields, FieldsNamed, Ident, LitFloat,
-  LitInt, Token, parse::Parse, punctuated::Punctuated, spanned::Spanned, token::Comma,
+  Attribute, DataEnum, DataStruct, DeriveInput, Field, Fields, Ident, LitFloat, LitInt,
+  parse::Parse, punctuated::Punctuated, spanned::Spanned, token::Comma,
 };
 
 use crate::error::MacroError;
+
+fn format_name(name: &str) -> String {
+  let mut s = String::with_capacity(name.len());
+  let mut next_caps = true;
+  for c in name.chars() {
+    if next_caps {
+      s.push_str(&c.to_uppercase().to_string());
+      next_caps = false;
+    } else if c.is_uppercase() {
+      s.push(' ');
+      s.push(c);
+    } else if c == '_' {
+      s.push(' ');
+      next_caps = true;
+    } else {
+      s.push(c);
+    }
+  }
+
+  s
+}
 
 struct SliderArgs(LitFloat, LitFloat);
 
@@ -91,7 +110,7 @@ fn editor_for_field(
   field_ident: Ident,
   field: &Field,
 ) -> Result<TokenStream, MacroError> {
-  let field_name = field_ident.to_string();
+  let field_name = format_name(&field_ident.to_string());
   let access = if redeclare {
     quote! { #field_ident }
   } else {
@@ -118,7 +137,7 @@ fn editor_for_field(
       let type_name = type_name.ident.to_string();
       if type_name == "bool" {
         return Ok(quote! {
-          #set = (ui.checkbox)(#key, &mut changed, #access);
+          #set = ui.checkbox(#key, &mut changed, #access);
         });
       } else if type_name == "f32" {
         if let Some(slider) = find_attr_named(&field.attrs, "slider") {
@@ -126,19 +145,19 @@ fn editor_for_field(
           let min = args.0;
           let max = args.1;
           return Ok(quote! {
-            #set = (ui.slider)(#key, &mut changed, #min, #max, #access);
+            #set = ui.slider(#key, &mut changed, #min, #max, #access);
           });
         } else if let Some(float) = find_attr_named(&field.attrs, "float") {
           let args: FloatArgs = float.parse_args()?;
           let min = args.0;
           let max = args.1;
           return Ok(quote! {
-            #set = (ui.float)(#key, &mut changed, #min, #max, #access);
+            #set = ui.float(#key, &mut changed, #min, #max, #access);
           });
         }
 
         return Ok(quote! {
-          #set = (ui.float)(#key, &mut changed, None, None, #access);
+          #set = ui.float(#key, &mut changed, None, None, #access);
         });
       } else if type_name == "i32" || type_name == "i64" || type_name == "usize" {
         if let Some(integer) = find_attr_named(&field.attrs, "integer") {
@@ -146,37 +165,37 @@ fn editor_for_field(
           let min = args.0;
           let max = args.1;
           return Ok(quote! {
-            #set = (ui.integer)(#key, &mut changed, #min, #max, #access as i64) as #type_ident;
+            #set = ui.integer(#key, &mut changed, #min, #max, #access as i64) as #type_ident;
           });
         }
 
         return Ok(quote! {
-          #set = (ui.integer)(#key, &mut changed, None, None, #access as i64) as #type_ident;
+          #set = ui.integer(#key, &mut changed, None, None, #access as i64) as #type_ident;
         });
       } else if type_name == "Rect" {
         return Ok(quote! {
-          #set = (ui.normalized_rect)(#key, &mut changed, #access);
+          #set = ui.normalized_rect(#key, &mut changed, #access);
         });
       } else if type_name == "Timecode" {
         return Ok(quote! {
-          #set = (ui.timecode)(#key, &mut changed, #access);
+          #set = ui.timecode(#key, &mut changed, #access);
         });
       } else if type_name == "Font" {
         return Ok(quote! {
-          #set = (ui.font)(#key, &mut changed, #access.clone());
+          #set = ui.font(#key, &mut changed, #access.clone());
         });
       } else if type_name == "Color32" {
         return Ok(quote! {
-          #set = (ui.color)(#key, &mut changed, #access);
+          #set = ui.color(#key, &mut changed, #access);
         });
       }
 
-      let new_name = format!("new_{}", field_name);
+      let new_name = format!("new_{}", field_ident);
       let new_name = Ident::new(&new_name, field_ident.span());
 
       Ok(quote! {
         let mut #new_name = #access.clone();
-        (ui.config)(#key, &mut changed, &mut #new_name);
+        ui.config(#key, &mut changed, &mut #new_name);
         #set = #new_name;
       })
     }
@@ -212,7 +231,7 @@ fn editor_for_struct(item: &DeriveInput, s: &DataStruct) -> Result<TokenStream, 
 
   Ok(quote! {
     impl crate::util::editable_config::EditableConfig for #name {
-      fn edit(&mut self, ui: &crate::util::editable_config::EditableConfigUi) -> bool {
+      fn edit(&mut self, ui: &mut dyn crate::util::editable_config::EditableConfigUi) -> bool {
         let mut changed = false;
         #( #fields )*
         changed
@@ -283,10 +302,20 @@ fn editor_for_enum(item: &DeriveInput, enum_val: &DataEnum) -> Result<TokenStrea
           .iter()
           .map(|f| f.ident.clone().unwrap())
           .collect();
+        let field_defaults = fields_named.named.iter().map(|f| {
+          let ident = f.ident.clone().unwrap();
+          let t = &f.ty;
+          quote! { let #ident = #t::default(); }
+        });
 
         quote! {
           match &self {
             #name::#variant_ident { #(#field_idents,)* } => {
+              #(#fields)*
+              #name::#variant_ident { #(#field_idents,)* }
+            },
+            _ => {
+              #(#field_defaults)*
               #(#fields)*
               #name::#variant_ident { #(#field_idents,)* }
             }
@@ -301,6 +330,8 @@ fn editor_for_enum(item: &DeriveInput, enum_val: &DataEnum) -> Result<TokenStrea
           ));
         }
 
+        let t = &fields_unnamed.unnamed[0].ty;
+
         let ident = syn::Ident::new("val", fields_unnamed.span());
         let editor = editor_for_field(true, true, ident, &fields_unnamed.unnamed[0])?;
 
@@ -311,7 +342,11 @@ fn editor_for_enum(item: &DeriveInput, enum_val: &DataEnum) -> Result<TokenStrea
               #editor
               #name::#variant_ident(val)
             },
-            _ => panic!("Unexpected current value")
+            _ => {
+              let val = #t::default();
+              #editor
+              #name::#variant_ident(val)
+            }
           }
         }
       }
@@ -331,13 +366,13 @@ fn editor_for_enum(item: &DeriveInput, enum_val: &DataEnum) -> Result<TokenStrea
 
   Ok(quote! {
     impl crate::util::editable_config::EditableConfig for #name {
-      fn edit(&mut self, ui: &crate::util::editable_config::EditableConfigUi) -> bool {
+      fn edit(&mut self, ui: &mut dyn crate::util::editable_config::EditableConfigUi) -> bool {
         let mut changed = false;
         let names = vec![#( #item_names, )*];
         let current_name = match &self {
           #( #match_arms, )*
         };
-        let new_name = (ui.dropdown)("", &mut changed, &names, current_name);
+        let new_name = ui.dropdown("", &mut changed, &names, current_name);
         *self = #( #if_statements )* else { panic!("Invalid enum value"); };
         changed
       }

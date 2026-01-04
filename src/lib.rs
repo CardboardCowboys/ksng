@@ -11,6 +11,7 @@ mod selection;
 mod style;
 mod util;
 mod video;
+mod windows;
 
 mod app;
 pub use app::KsngApp;
