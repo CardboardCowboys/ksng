@@ -6,10 +6,12 @@ use crate::{
 
 const LOOKUP_DURATION: Timecode = Timecode(1000);
 
-/// A sequence contains a set of video elements and information about when to show them.
+/// A sequence contains a set of video elements and information about when to
+/// show them.
 pub struct VideoSequence {
   elements: Vec<Box<dyn VideoElement>>,
-  /// Contains the start and end index of the relevant events for every `LOOKUP_DURATION` ms in this sequence.
+  /// Contains the start and end index of the relevant events for every
+  /// `LOOKUP_DURATION` ms in this sequence.
   lookup: Vec<(usize, usize)>,
   duration: Timecode,
 }

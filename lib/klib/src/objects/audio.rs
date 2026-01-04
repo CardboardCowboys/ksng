@@ -8,8 +8,8 @@ use uuid::Uuid;
 pub enum AudioFileSource {
   /// A file path on the disk.
   Path(PathBuf),
-  /// The audio data is managed by the consumer of the library and can be looked up
-  /// solely based on the ID and file type.
+  /// The audio data is managed by the consumer of the library and can be looked
+  /// up solely based on the ID and file type.
   Managed,
 }
 

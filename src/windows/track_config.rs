@@ -58,7 +58,8 @@ impl KWindow for TrackConfigWindow {
       .next();
 
     let Some(track_idx) = track_idx else {
-      // if there's no track_idx we have no track to work on (perhaps deleted or addition undone)
+      // if there's no track_idx we have no track to work on (perhaps deleted or
+      // addition undone)
       self.open = false;
       return;
     };

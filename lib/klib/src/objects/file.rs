@@ -68,7 +68,8 @@ impl File {
     File::read(&mut stream)
   }
 
-  /// Calculates the length of this file (the end timecode of the last event on any track)
+  /// Calculates the length of this file (the end timecode of the last event on
+  /// any track)
   pub fn calculate_length(&self) -> Timecode {
     self
       .tracks

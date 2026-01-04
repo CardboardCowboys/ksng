@@ -15,11 +15,13 @@ pub struct VideoElementRenderContext<'canvas> {
   pub scratch_surface: Option<&'canvas mut skia_safe::Surface>,
 }
 
-/// A video element is an renderable item with a position and a start and end time.
+/// A video element is an renderable item with a position and a start and end
+/// time.
 pub trait VideoElement {
   /// The ID of this video element.
   ///
-  /// This might be equivalent to the ID of an event, or may be an entirely unique ID.
+  /// This might be equivalent to the ID of an event, or may be an entirely
+  /// unique ID.
   fn id(&self) -> Uuid;
   fn start_time(&self) -> Timecode;
   fn end_time(&self) -> Timecode;

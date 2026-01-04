@@ -210,7 +210,8 @@ impl Timeline {
             .scroll_source(scroll_source)
             .horizontal_scroll_offset(self.horiz_scroll_offset)
             .show_viewport(ui, |ui, viewport_rect| {
-              // Set playhead rect and check for interactions before checking event interactions.
+              // Set playhead rect and check for interactions before checking event
+              // interactions.
               let playhead_rect = ui.max_rect();
               let playhead_pos = app.playback.borrow().position().to_seconds() * pixels_per_second;
               let playhead_pos2 =
@@ -333,7 +334,8 @@ impl Timeline {
 
           self.horiz_scroll_offset = res.state.offset.x;
 
-          // Try repositioning the scroll area to put the cursor where it was before the zoom.
+          // Try repositioning the scroll area to put the cursor where it was before the
+          // zoom.
           if let Some(cursor_pos) = ui.input(|input| input.pointer.latest_pos()) {
             let content_pos_x = cursor_pos.x - res.inner_rect.min.x + self.horiz_scroll_offset;
             if (self.zoom.x - prev_zoom.x).abs() > 0.0 && res.inner_rect.contains(cursor_pos) {

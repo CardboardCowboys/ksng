@@ -188,7 +188,8 @@ impl eframe::App for KsngApp {
     eframe::set_value(storage, eframe::APP_KEY, &data);
   }
 
-  /// Called each time the UI needs repainting, which may be many times per second.
+  /// Called each time the UI needs repainting, which may be many times per
+  /// second.
   fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
     let mut queue = self.event_queue.borrow_mut();
     while let Some(event) = queue.pop_front() {
@@ -211,8 +212,8 @@ impl eframe::App for KsngApp {
       ctx.request_repaint();
     }
 
-    // Put your widgets into a `SidePanel`, `TopBottomPanel`, `CentralPanel`, `Window` or `Area`.
-    // For inspiration and more examples, go to https://emilk.github.io/egui
+    // Put your widgets into a `SidePanel`, `TopBottomPanel`, `CentralPanel`,
+    // `Window` or `Area`. For inspiration and more examples, go to https://emilk.github.io/egui
 
     egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
       components::menu_bar::menu_bar(self, ctx, ui);

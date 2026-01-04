@@ -13,11 +13,14 @@ use crate::{
 
 #[derive(Clone, Serialize, Deserialize, EditableConfig)]
 pub struct FadeTransitionConfig {
-  /// The maximum amount of time an event will be displayed for before it happens.
+  /// The maximum amount of time an event will be displayed for before it
+  /// happens.
   pub lead_time: Timecode,
-  /// The maximum amount of time an event will be displayed for after it happens.
+  /// The maximum amount of time an event will be displayed for after it
+  /// happens.
   pub trail_time: Timecode,
-  /// The maximum amount of time that the fade transition itself will play at the start.
+  /// The maximum amount of time that the fade transition itself will play at
+  /// the start.
   pub transition_time: Timecode,
   /// The easing function used for the fade in.
   pub easing_in: EasingFunction,

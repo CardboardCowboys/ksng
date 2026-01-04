@@ -87,7 +87,8 @@ pub enum TrackType {
 }
 
 impl TrackType {
-  /// Reads this `TrackType` from the `BinaryReader` along with the corresponding value, if any.
+  /// Reads this `TrackType` from the `BinaryReader` along with the
+  /// corresponding value, if any.
   pub fn read(reader: &mut BinaryReader) -> Result<(TrackType, Option<TrackValue>), Error> {
     let type_byte = reader.read_u8()?;
     let track_type = match type_byte {
@@ -190,7 +191,8 @@ impl Track {
     Ok(track)
   }
 
-  /// Returns the timecode representing the length of this track (the end of the last event on the track).
+  /// Returns the timecode representing the length of this track (the end of the
+  /// last event on the track).
   pub fn calculate_length(&self) -> Timecode {
     self
       .events

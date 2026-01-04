@@ -9,7 +9,8 @@ pub trait KWindow {
   fn should_cleanup(&self) -> bool;
   fn process(&mut self, app: &KsngApp, context: &Context);
   /// A window can optionally provide a hash of its unique properties.
-  /// If an existing window is present with the same hash, a new one will not be created.
+  /// If an existing window is present with the same hash, a new one will not be
+  /// created.
   fn unique_value(&self) -> Option<u64> {
     None
   }
@@ -25,7 +26,8 @@ pub struct WindowManager {
 
 impl WindowManager {
   pub fn add(&self, window: impl KWindow + 'static) {
-    // If there already exists a window with this unique value, focus that one instead of creating a new one.
+    // If there already exists a window with this unique value, focus that one
+    // instead of creating a new one.
     if let Some(unique_value) = window.unique_value() {
       for window in self.windows.borrow().iter() {
         if let Some(other_unique) = window.borrow().unique_value() {

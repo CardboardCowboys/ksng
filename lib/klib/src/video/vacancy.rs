@@ -37,7 +37,8 @@ impl VacancyChecker {
     }
   }
 
-  /// Returns the end time of the first previous element to the provided element, if any.
+  /// Returns the end time of the first previous element to the provided
+  /// element, if any.
   pub fn end_time_of_previous_occupant(&self, element: &dyn VideoElement) -> Option<Timecode> {
     let element_id = element.id();
     let (index, entry) = self
@@ -60,7 +61,8 @@ impl VacancyChecker {
     None
   }
 
-  /// Returns the start time of the first following element to the provided element, if any.
+  /// Returns the start time of the first following element to the provided
+  /// element, if any.
   pub fn start_time_of_following_occupant(&self, element: &dyn VideoElement) -> Option<Timecode> {
     let element_id = element.id();
     let (index, entry) = self
@@ -83,11 +85,13 @@ impl VacancyChecker {
     None
   }
 
-  /// Calculates the start and end times of an element given the specified lead and trail times.
+  /// Calculates the start and end times of an element given the specified lead
+  /// and trail times.
   ///
-  /// If there are elements within the span of `(start_time - lead_time, end_time + trail_time)` that
-  /// overlap this element, the start and end times will be set to the midpoint between its time and
-  /// the conflicting element's time. Otherwise, it will be the maximum value.
+  /// If there are elements within the span of `(start_time - lead_time,
+  /// end_time + trail_time)` that overlap this element, the start and end
+  /// times will be set to the midpoint between its time and the conflicting
+  /// element's time. Otherwise, it will be the maximum value.
   pub fn calc_start_end_midpoints(
     &self,
     elem: &dyn VideoElement,

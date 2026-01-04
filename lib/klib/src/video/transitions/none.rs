@@ -11,9 +11,11 @@ use crate::{
 
 #[derive(Clone, Serialize, Deserialize, EditableConfig)]
 pub struct NoneTransitionConfig {
-  /// The maximum amount of time an event will be displayed for before it happens.
+  /// The maximum amount of time an event will be displayed for before it
+  /// happens.
   pub lead_time: Timecode,
-  /// The maximum amount of time an event will be displayed for after it happens.
+  /// The maximum amount of time an event will be displayed for after it
+  /// happens.
   pub trail_time: Timecode,
 }
 

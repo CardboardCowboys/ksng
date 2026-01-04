@@ -246,8 +246,9 @@ impl ParagraphLayout {
             break;
           }
 
-          // Check if the next event is linked and will overflow, and if so hyphenate this one.
-          // This is pretty inefficient but should be fine since it's happening once per layout gen... right?
+          // Check if the next event is linked and will overflow, and if so hyphenate this
+          // one. This is pretty inefficient but should be fine since it's
+          // happening once per layout gen... right?
           if idx < events.len() && events[idx].linked_id.is_some() {
             let next_text = events[idx].text().unwrap();
             let next_text_buffer = UnicodeBuffer::new().add_str(next_text);
