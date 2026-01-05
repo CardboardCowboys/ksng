@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 /// Where the audio data is located.
-#[derive(Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub enum AudioFileSource {
   /// A file path on the disk.
   Path(PathBuf),
@@ -22,7 +22,7 @@ pub enum AudioFileType {
   Ogg,
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub struct AudioFile {
   pub id: Uuid,
   pub file_type: AudioFileType,

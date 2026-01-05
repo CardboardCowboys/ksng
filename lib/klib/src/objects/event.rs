@@ -6,7 +6,7 @@ use crate::{error::Error, objects::audio::AudioFile, timecode::Timecode};
 
 use super::audio::AudioFileSource;
 
-#[derive(Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub enum EventValue {
   Lyric { text: String },
   AudioClip { offset: Timecode, file: AudioFile },
@@ -45,7 +45,7 @@ impl EventType {
 ///
 /// An event can be an audio clip, a lyric or part of a lyric, graphical
 /// elements, or any other data that has a start and end time.
-#[derive(Default, PartialEq, Eq)]
+#[derive(Default, PartialEq, Eq, Clone)]
 pub struct Event {
   /// The unique ID of this event.
   pub id: Uuid,

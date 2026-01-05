@@ -3,7 +3,7 @@ use std::{
   str::FromStr,
 };
 
-use cpal::{traits::DeviceTrait, HostId};
+use cpal::{HostId, traits::DeviceTrait};
 use egui::{Button, ComboBox, Sides, Window};
 
 use crate::{

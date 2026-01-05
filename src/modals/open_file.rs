@@ -1,4 +1,4 @@
-use crate::{modals::KModal, KsngApp};
+use crate::{KsngApp, modals::KModal};
 use egui_file_dialog::{DialogState, FileDialog};
 use std::path::PathBuf;
 

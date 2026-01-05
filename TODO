@@ -1,2 +1,13 @@
 ☐ fix other layout modes
-☐ replace audio engine
+☐ fix lyrics reappearing after transitioning out (the 10, 9, 8... etc for example)
+
+✔ replace audio engine @done(26-01-04 10:23)
+☐ lyrics editor
+☐ moving and resizing events on timeline
+☐ lyrics sync wizard
+☐ lyrics sync model
+	☐ syllabification model
+☐ video graphics
+☐ video transitions
+☐ video... videos
+☐ video export

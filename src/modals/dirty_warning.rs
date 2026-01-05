@@ -1,9 +1,9 @@
 use egui::{Context, Id, Modal, Sides};
 
 use crate::{
-  modals::{save_project::SaveProjectModal, KModal},
-  util::ui_event::KsngEvent,
   KsngApp,
+  modals::{KModal, save_project::SaveProjectModal},
+  util::ui_event::KsngEvent,
 };
 
 pub struct DirtyWarningModal {

@@ -4,7 +4,7 @@ use std::{
   ops::BitOr,
 };
 
-use crate::{util::error::UiError, KsngApp};
+use crate::{KsngApp, util::error::UiError};
 
 pub mod event;
 pub mod track;

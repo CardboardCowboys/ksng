@@ -1,24 +1,18 @@
 use egui::{
-  Align, Context, Id, ImageButton, ImageSource, Layout, Slider, TopBottomPanel, Ui, Vec2,
+  Align, Context, Id, ImageButton, ImageSource, Layout, Rect, Slider, TopBottomPanel, Ui, Vec2,
 };
 use klib::timecode::Timecode;
 
-use crate::{playback::PlaybackState, style::icons, KsngApp};
+use crate::{KsngApp, playback::PlaybackState, style::icons};
+
+fn calculate_video_size(available_size: Vec2, video_size: Vec2) -> Vec2 {
+  let x_scale = available_size.x / video_size.x;
+  let y_scale = available_size.y / video_size.y;
+  let scale = x_scale.min(y_scale);
+  Vec2::new(scale * video_size.x, scale * video_size.y)
+}
 
 pub fn player(app: &KsngApp, _ctx: &Context, ui: &mut Ui) {
-  let rect = ui.max_rect();
-  TopBottomPanel::top(Id::new("player#view")).show_inside(ui, |ui| {
-    if let Some(texture) = app.video.borrow().last_frame_texture() {
-      ui.with_layout(Layout::top_down(Align::Center), |ui| {
-        ui.add(
-          egui::Image::new(ImageSource::Texture(texture)).fit_to_exact_size(Vec2::new(
-            (rect.width() - 20.0).max(1.0),
-            (rect.height() - 20.0).max(1.0),
-          )),
-        );
-      });
-    }
-  });
   TopBottomPanel::bottom(Id::new("player#controls")).show_inside(ui, |ui| {
     ui.add_enabled_ui(app.project.borrow().is_some(), |ui| {
       ui.vertical_centered(|ui| {
@@ -64,5 +58,19 @@ pub fn player(app: &KsngApp, _ctx: &Context, ui: &mut Ui) {
         }
       });
     });
+  });
+  let size = ui.available_size();
+  TopBottomPanel::top(Id::new("player#view")).show_inside(ui, |ui| {
+    if let Some(texture) = app.video.borrow().last_frame_texture() {
+      let size = calculate_video_size(size, texture.size);
+      ui.with_layout(Layout::top_down(Align::Center), |ui| {
+        ui.add(
+          egui::Image::new(ImageSource::Texture(texture)).fit_to_exact_size(Vec2::new(
+            (size.x - 20.0).max(1.0),
+            (size.y - 20.0).max(1.0),
+          )),
+        );
+      });
+    }
   });
 }

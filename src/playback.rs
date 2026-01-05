@@ -3,9 +3,9 @@ use std::time::Instant;
 use klib::timecode::Timecode;
 
 use crate::{
+  KsngApp,
   audio::{config::AudioConfig, mixer::AudioMixer},
   util::logger::Logger,
-  KsngApp,
 };
 
 #[derive(Default, Clone, Copy, PartialEq, Eq)]

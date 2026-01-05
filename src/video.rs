@@ -1,8 +1,8 @@
-use egui::{load::SizedTexture, TextureHandle, TextureOptions};
+use egui::{TextureHandle, TextureOptions, load::SizedTexture};
 use klib::{
   objects::file::File,
   timecode::Timecode,
-  video::{renderer::VideoRenderer, sequence::VideoSequence, VideoConfig},
+  video::{VideoConfig, renderer::VideoRenderer, sequence::VideoSequence},
 };
 
 use crate::util::error::UiError;

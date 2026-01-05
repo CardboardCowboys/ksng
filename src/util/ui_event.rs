@@ -13,4 +13,5 @@ pub enum KsngEvent {
   Redo,
   AudioChanged,
   AudioDeviceChanged,
+  LyricsChanged,
 }

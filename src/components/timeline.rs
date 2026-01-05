@@ -1,9 +1,9 @@
-use std::collections::{hash_map::Entry, HashMap};
+use std::collections::{HashMap, hash_map::Entry};
 
 use egui::{
-  scroll_area::ScrollSource, Align2, CentralPanel, Color32, Context, FontId, Frame, Id,
-  ImageButton, ImageSource, Margin, PointerButton, Pos2, Rect, ScrollArea, Sense, SidePanel, Sides,
-  Stroke, StrokeKind, TextureOptions, Ui, UiBuilder, Vec2,
+  Align2, CentralPanel, Color32, Context, FontId, Frame, Id, ImageButton, ImageSource, Margin,
+  PointerButton, Pos2, Rect, ScrollArea, Sense, SidePanel, Sides, Stroke, StrokeKind,
+  TextureOptions, Ui, UiBuilder, Vec2, scroll_area::ScrollSource,
 };
 use klib::{
   objects::{
@@ -15,6 +15,7 @@ use klib::{
 use uuid::Uuid;
 
 use crate::{
+  KsngApp,
   commands::track::MuteTrackCommand,
   style::{
     colors::{self, color_for_track_type},
@@ -22,7 +23,6 @@ use crate::{
   },
   util::ui::KsngUiExt,
   windows::track_config::TrackConfigWindow,
-  KsngApp,
 };
 
 pub const TRACK_HEIGHT: f32 = 50.0;

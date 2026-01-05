@@ -2,8 +2,8 @@ use std::sync::{Arc, Mutex, RwLock};
 
 use circular_buffer::CircularBuffer;
 use cpal::{
-  traits::{DeviceTrait, HostTrait, StreamTrait},
   SampleFormat,
+  traits::{DeviceTrait, HostTrait, StreamTrait},
 };
 use klib::timecode::Timecode;
 

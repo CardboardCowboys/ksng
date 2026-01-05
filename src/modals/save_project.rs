@@ -1,6 +1,6 @@
 use egui::{Button, Id, Modal, Sides};
 
-use crate::{fs::Data, modals::KModal, util::ui_event::KsngEvent, KsngApp};
+use crate::{KsngApp, fs::Data, modals::KModal, util::ui_event::KsngEvent};
 
 pub struct SaveProjectModal {
   open: bool,

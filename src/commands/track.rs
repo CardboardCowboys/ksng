@@ -4,9 +4,9 @@ use klib::objects::track::{Track, TrackType, TrackValue};
 use uuid::Uuid;
 
 use crate::{
+  KsngApp,
   commands::{Command, UpdateFlags},
   util::{error::UiError, ui_event::KsngEvent},
-  KsngApp,
 };
 
 pub struct AddTrackCommand {

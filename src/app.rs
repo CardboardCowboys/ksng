@@ -7,11 +7,11 @@ use uuid::Uuid;
 use crate::{
   audio::waveform::AudioWaveformProvider,
   commands::CommandDispatcher,
-  components::{self, timeline::Timeline},
+  components::{self, lyrics_editor::LyricsEditor, timeline::Timeline},
   fs::Data,
   modals::{
-    dirty_warning::DirtyWarningModal, open_project::OpenProjectModal,
-    save_project::SaveProjectModal, ModalManager,
+    ModalManager, dirty_warning::DirtyWarningModal, open_project::OpenProjectModal,
+    save_project::SaveProjectModal,
   },
   playback::{Playback, PlaybackState},
   preferences::Preferences,
@@ -38,6 +38,7 @@ pub struct KsngApp {
   event_queue: RefCell<VecDeque<KsngEvent>>,
   close_allowed: RefCell<bool>,
   timeline: RefCell<Timeline>,
+  lyrics_editor: RefCell<LyricsEditor>,
 }
 
 #[derive(Serialize, Deserialize, Default)]
@@ -63,6 +64,7 @@ impl Default for KsngApp {
       close_allowed: RefCell::new(false),
       timeline: Default::default(),
       preferences: RefCell::new(preferences),
+      lyrics_editor: Default::default(),
     }
   }
 }
@@ -79,6 +81,7 @@ impl KsngApp {
     } else {
       self.video.borrow_mut().clear();
     }
+    self.lyrics_editor.borrow_mut().on_project_change(self);
   }
 
   fn on_event(&self, ctx: &Context, event: KsngEvent) {
@@ -126,6 +129,9 @@ impl KsngApp {
       KsngEvent::AudioDeviceChanged => {
         self.playback.borrow_mut().on_audio_device_change(self);
       }
+      KsngEvent::LyricsChanged => {
+        self.lyrics_editor.borrow_mut().on_lyrics_change(self);
+      }
     }
   }
 
@@ -134,11 +140,11 @@ impl KsngApp {
   }
 
   pub fn dispatch_warn_dirty(&self, event: KsngEvent) {
-    if let Some(project) = &*self.project.borrow() {
-      if project.dirty {
-        self.modals.add(DirtyWarningModal::new(event));
-        return;
-      }
+    if let Some(project) = &*self.project.borrow()
+      && project.dirty
+    {
+      self.modals.add(DirtyWarningModal::new(event));
+      return;
     }
 
     self.dispatch(event);
@@ -234,20 +240,24 @@ impl eframe::App for KsngApp {
       egui::CentralPanel::default().show_inside(ui, |ui| {
         egui::SidePanel::right(Id::new("player"))
           .default_width(300.0)
+          .max_width(ui.available_width() - 100.0)
           .resizable(true)
           .show_inside(ui, |ui| {
             components::player::player(self, ctx, ui);
           });
+        egui::CentralPanel::default().show_inside(ui, |ui| {
+          self.lyrics_editor.borrow_mut().show(self, ui);
+        });
       });
     });
 
-    if ctx.input(|i| i.viewport().close_requested()) {
-      if let Some(project) = self.project.borrow().as_ref() {
-        if project.dirty && !*self.close_allowed.borrow() {
-          ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
-          self.dispatch_warn_dirty(KsngEvent::Quit);
-        }
-      }
+    if ctx.input(|i| i.viewport().close_requested())
+      && let Some(project) = self.project.borrow().as_ref()
+      && project.dirty
+      && !*self.close_allowed.borrow()
+    {
+      ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+      self.dispatch_warn_dirty(KsngEvent::Quit);
     }
   }
 }

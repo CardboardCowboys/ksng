@@ -1,8 +1,8 @@
 use std::str::FromStr;
 
 use cpal::{
-  traits::{DeviceTrait, HostTrait},
   Device, DeviceId, HostId,
+  traits::{DeviceTrait, HostTrait},
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Map;

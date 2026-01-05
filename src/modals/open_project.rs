@@ -4,7 +4,7 @@ use uuid::Uuid;
 
 use crate::{
   fs::Data,
-  modals::{alert::AlertModal, confirm::ConfirmModal, KModal},
+  modals::{KModal, alert::AlertModal, confirm::ConfirmModal},
   style::icons,
   util::{ui::KsngUiExt, ui_event::KsngEvent},
 };

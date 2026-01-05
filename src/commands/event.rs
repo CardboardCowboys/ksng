@@ -11,10 +11,10 @@ use klib::{
 use uuid::Uuid;
 
 use crate::{
+  KsngApp,
   audio::info::AudioFileInfo,
   commands::Command,
   util::{error::UiError, ui_event::KsngEvent},
-  KsngApp,
 };
 
 pub struct AddAudioEventCommand {
