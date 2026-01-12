@@ -1,5 +1,5 @@
 use egui::{
-  Align, Context, Id, ImageButton, ImageSource, Layout, Rect, Slider, TopBottomPanel, Ui, Vec2,
+  Align, Context, Id, ImageButton, ImageSource, Layout, Slider, TopBottomPanel, Ui, Vec2,
 };
 use klib::timecode::Timecode;
 

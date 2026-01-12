@@ -42,12 +42,12 @@ impl AudioMixer {
   }
 
   pub fn play(&self) {
-    self.output_stream.play();
+    let _ = self.output_stream.play();
   }
 
   pub fn pause(&self) {
     // TODO: handle play state in stream or cpal
-    self.output_stream.pause();
+    let _ = self.output_stream.pause();
   }
 
   pub fn position(&self) -> Timecode {

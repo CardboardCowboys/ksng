@@ -30,11 +30,11 @@ impl WindowManager {
     // instead of creating a new one.
     if let Some(unique_value) = window.unique_value() {
       for window in self.windows.borrow().iter() {
-        if let Some(other_unique) = window.borrow().unique_value() {
-          if other_unique == unique_value {
-            window.borrow_mut().request_focus();
-            return;
-          }
+        if let Some(other_unique) = window.borrow().unique_value()
+          && other_unique == unique_value
+        {
+          window.borrow_mut().request_focus();
+          return;
         }
       }
     }

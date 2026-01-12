@@ -1,4 +1,4 @@
-use std::{hash::Hash, thread::current};
+use std::hash::Hash;
 
 use klib::{
   objects::event::{Event, EventType, EventValue},

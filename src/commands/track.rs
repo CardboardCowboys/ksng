@@ -9,7 +9,7 @@ use uuid::Uuid;
 use crate::{
   KsngApp,
   commands::{Command, UpdateFlags},
-  util::{error::UiError, ui_event::KsngEvent},
+  util::error::UiError,
 };
 
 pub struct AddTrackCommand {

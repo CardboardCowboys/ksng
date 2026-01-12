@@ -283,13 +283,13 @@ impl Timeline {
 
                   ui.painter().rect_filled(rect, 0, color);
 
-                  if ev.event_type == EventType::AudioClip {
-                    if let Some(image) = app.waveforms.borrow().get_image(ev) {
-                      let image = egui::Image::new(ImageSource::Uri(image.as_ref().into()))
-                        .texture_options(TextureOptions::NEAREST)
-                        .tint(Color32::from_black_alpha(127));
-                      image.paint_at(ui, rect);
-                    }
+                  if ev.event_type == EventType::AudioClip
+                    && let Some(image) = app.waveforms.borrow().get_image(ev)
+                  {
+                    let image = egui::Image::new(ImageSource::Uri(image.as_ref().into()))
+                      .texture_options(TextureOptions::NEAREST)
+                      .tint(Color32::from_black_alpha(127));
+                    image.paint_at(ui, rect);
                   }
 
                   ui.painter().rect_stroke(

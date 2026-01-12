@@ -1,13 +1,9 @@
-use std::{
-  fmt::{Display, Write},
-  hash::Hash,
-};
+use std::fmt::{Display, Write};
 
 use klib::{
-  objects::event::{Event, EventType, EventValue},
+  objects::event::{Event, EventType},
   timecode::Timecode,
 };
-use uuid::Uuid;
 
 use crate::components::lyrics_editor::psuedo_event::PsuedoEvent;
 

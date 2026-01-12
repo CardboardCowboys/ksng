@@ -1,6 +1,6 @@
 use std::{collections::HashSet, fmt::Write};
 
-use egui::{Button, FontId, ImageButton, MenuBar, Sides, Ui};
+use egui::{Button, FontId, MenuBar, Sides, Ui};
 use klib::{
   objects::{
     event::{Event, EventType},

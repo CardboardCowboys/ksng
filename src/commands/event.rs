@@ -14,7 +14,7 @@ use crate::{
   KsngApp,
   audio::info::AudioFileInfo,
   commands::{Command, UpdateFlags},
-  util::{error::UiError, ui_event::KsngEvent},
+  util::error::UiError,
 };
 
 pub struct AddAudioEventCommand {

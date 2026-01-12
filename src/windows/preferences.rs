@@ -137,11 +137,11 @@ impl KWindow for PreferencesWindow {
       )
     });
 
-    if let Some(window) = window {
-      if self.should_request_focus {
-        window.response.request_focus();
-        self.should_request_focus = false;
-      }
+    if let Some(window) = window
+      && self.should_request_focus
+    {
+      window.response.request_focus();
+      self.should_request_focus = false;
     }
   }
 

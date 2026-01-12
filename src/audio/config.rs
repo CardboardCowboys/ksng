@@ -5,7 +5,6 @@ use cpal::{
   traits::{DeviceTrait, HostTrait},
 };
 use serde::{Deserialize, Serialize};
-use serde_json::Map;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct AudioConfig {

@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 use crate::{
   commands::track::EditTrackConfigCommand, components::config_editor::config_editor,
-  util::ui_event::KsngEvent, windows::KWindow,
+  windows::KWindow,
 };
 
 pub struct TrackConfigWindow {

@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 use audioadapter_buffers::number_to_float::SequentialNumbers;
 use creek::{OpenError, ReadDiskStream, SymphoniaDecoder};
@@ -326,9 +326,9 @@ impl AudioMixerStream {
       }
 
       // Number of frames we are into the audio file.
-      let frame_pos = es.position_to_frame(self.sample_rate, position);
+      /*let frame_pos = es.position_to_frame(self.sample_rate, position);
 
-      /*es.read_stream
+      es.read_stream
       .seek(frame_pos, creek::SeekMode::Auto)
       .map_err(|e| UiError::Audio(e.to_string()))?;*/
 
