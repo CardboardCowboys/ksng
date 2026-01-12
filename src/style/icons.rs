@@ -7,3 +7,4 @@ pub const VOLUME: ImageSource<'static> = egui::include_image!("../../assets/icon
 pub const VOLUME_OFF: ImageSource<'static> =
   egui::include_image!("../../assets/icons/volume_off.svg");
 pub const GEAR: ImageSource<'static> = egui::include_image!("../../assets/icons/gear.svg");
+pub const CHECKS: ImageSource<'static> = egui::include_image!("../../assets/icons/checks.svg");

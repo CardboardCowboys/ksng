@@ -23,6 +23,8 @@ impl BitOr for UpdateFlags {
 impl UpdateFlags {
   pub const MAKE_DIRTY: UpdateFlags = UpdateFlags(1 << 0);
   pub const INVALIDATE_VIDEO: UpdateFlags = UpdateFlags(1 << 1);
+  pub const AUDIO_CHANGED: UpdateFlags = UpdateFlags(1 << 2);
+  pub const LYRICS_CHANGED: UpdateFlags = UpdateFlags(1 << 3);
 
   pub fn has_flag(&self, flag: UpdateFlags) -> bool {
     (self.0 & flag.0) == flag.0
@@ -125,6 +127,12 @@ impl CommandDispatcher {
       } else {
         app.video.borrow_mut().clear();
       }
+    }
+    if flags.has_flag(UpdateFlags::AUDIO_CHANGED) {
+      app.playback.borrow_mut().on_audio_change(app);
+    }
+    if flags.has_flag(UpdateFlags::LYRICS_CHANGED) {
+      app.lyrics_editor.borrow_mut().on_lyrics_change(app);
     }
   }
 }

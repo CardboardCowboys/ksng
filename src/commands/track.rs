@@ -1,6 +1,9 @@
 use std::cell::RefCell;
 
-use klib::objects::track::{Track, TrackType, TrackValue};
+use klib::objects::{
+  event::Event,
+  track::{Track, TrackType, TrackValue},
+};
 use uuid::Uuid;
 
 use crate::{
@@ -97,6 +100,10 @@ impl Command for MuteTrackCommand {
     true
   }
 
+  fn update_flags(&self) -> UpdateFlags {
+    UpdateFlags::AUDIO_CHANGED | UpdateFlags::MAKE_DIRTY
+  }
+
   fn description(&self) -> String {
     if self.to_mute_state {
       "Mute Audio Track"
@@ -127,8 +134,6 @@ impl Command for MuteTrackCommand {
       audio_value.muted = self.to_mute_state;
     }
 
-    app.dispatch(KsngEvent::AudioChanged);
-
     Ok(())
   }
 
@@ -153,8 +158,6 @@ impl Command for MuteTrackCommand {
       audio_value.muted = !self.to_mute_state;
     }
 
-    app.dispatch(KsngEvent::AudioChanged);
-
     Ok(())
   }
 }
@@ -163,14 +166,16 @@ pub struct EditTrackConfigCommand {
   track_id: Uuid,
   prev_config: RefCell<Option<TrackValue>>,
   new_config: TrackValue,
+  is_audio: bool,
 }
 
 impl EditTrackConfigCommand {
-  pub fn new(track_id: Uuid, new_config: TrackValue) -> Self {
+  pub fn new(track_id: Uuid, new_config: TrackValue, is_audio: bool) -> Self {
     EditTrackConfigCommand {
       track_id,
       new_config,
       prev_config: RefCell::new(None),
+      is_audio,
     }
   }
 }
@@ -181,7 +186,12 @@ impl Command for EditTrackConfigCommand {
   }
 
   fn update_flags(&self) -> UpdateFlags {
-    UpdateFlags::MAKE_DIRTY | UpdateFlags::INVALIDATE_VIDEO
+    let flags = UpdateFlags::MAKE_DIRTY | UpdateFlags::INVALIDATE_VIDEO;
+    if self.is_audio {
+      flags | UpdateFlags::AUDIO_CHANGED
+    } else {
+      flags
+    }
   }
 
   fn description(&self) -> String {
@@ -232,6 +242,87 @@ impl Command for EditTrackConfigCommand {
       ))?;
 
     track.track_value = self.prev_config.borrow().clone();
+
+    Ok(())
+  }
+}
+
+pub struct ApplyLyricsTrackChangesCommand {
+  track_id: Uuid,
+  prev_events: RefCell<Vec<Event>>,
+  events: Vec<Event>,
+}
+
+impl ApplyLyricsTrackChangesCommand {
+  pub fn new(track_id: Uuid, new_events: Vec<Event>) -> Self {
+    ApplyLyricsTrackChangesCommand {
+      track_id,
+      events: new_events,
+      prev_events: Default::default(),
+    }
+  }
+}
+
+impl Command for ApplyLyricsTrackChangesCommand {
+  fn can_undo(&self) -> bool {
+    true
+  }
+
+  fn update_flags(&self) -> UpdateFlags {
+    UpdateFlags::MAKE_DIRTY | UpdateFlags::INVALIDATE_VIDEO | UpdateFlags::LYRICS_CHANGED
+  }
+
+  fn description(&self) -> String {
+    "Apply Changes to Lyrics".to_string()
+  }
+
+  fn execute(&self, app: &KsngApp) -> Result<(), UiError> {
+    let mut project = app.project.borrow_mut();
+    let file = project
+      .as_mut()
+      .map(|p| &mut p.file)
+      .ok_or(UiError::InvalidCommand(
+        "ApplyLyricsTrackChangesCommand without project".to_string(),
+      ))?;
+
+    let track = file
+      .tracks
+      .iter_mut()
+      .find(|t| t.id == self.track_id)
+      .ok_or(UiError::InvalidCommand(
+        "ApplyLyricsTrackChangesCommand can't find target track".to_string(),
+      ))?;
+
+    self.prev_events.replace(track.events.to_vec());
+    track.events.clear();
+    for ev in &self.events {
+      track.events.insert(ev.clone());
+    }
+
+    Ok(())
+  }
+
+  fn undo(&self, app: &KsngApp) -> Result<(), UiError> {
+    let mut project = app.project.borrow_mut();
+    let file = project
+      .as_mut()
+      .map(|p| &mut p.file)
+      .ok_or(UiError::InvalidCommand(
+        "ApplyLyricsTrackChangesCommand without project".to_string(),
+      ))?;
+
+    let track = file
+      .tracks
+      .iter_mut()
+      .find(|t| t.id == self.track_id)
+      .ok_or(UiError::InvalidCommand(
+        "ApplyLyricsTrackChangesCommand can't find target track".to_string(),
+      ))?;
+
+    track.events.clear();
+    for ev in self.prev_events.borrow().iter() {
+      track.events.insert(ev.clone());
+    }
 
     Ok(())
   }

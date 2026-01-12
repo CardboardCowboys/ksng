@@ -45,6 +45,7 @@ creek = { version = "1.2.3", features = ["decode-all"] }
 #bungee-rs = "0.1.1"
 circular-buffer = "1.2.0"
 audioadapter-buffers = "2.0.0"
+similar = { version = "2.7.0", default-features = false }
 
 # native:
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]

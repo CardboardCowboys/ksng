@@ -13,7 +13,7 @@ use uuid::Uuid;
 use crate::{
   KsngApp,
   audio::info::AudioFileInfo,
-  commands::Command,
+  commands::{Command, UpdateFlags},
   util::{error::UiError, ui_event::KsngEvent},
 };
 
@@ -44,6 +44,10 @@ impl Command for AddAudioEventCommand {
     "Add Audio Event".to_string()
   }
 
+  fn update_flags(&self) -> UpdateFlags {
+    UpdateFlags::MAKE_DIRTY | UpdateFlags::AUDIO_CHANGED
+  }
+
   fn execute(&self, app: &KsngApp) -> Result<(), UiError> {
     let mut project = app.project.borrow_mut();
     let file = project
@@ -72,7 +76,6 @@ impl Command for AddAudioEventCommand {
     track.events.insert(event);
 
     (*self.added_event_id.borrow_mut()) = Some(event_id);
-    app.dispatch(KsngEvent::AudioChanged);
 
     Ok(())
   }
@@ -98,8 +101,6 @@ impl Command for AddAudioEventCommand {
       app.selection.remove_event(added_event_id);
       track.events.remove_id(added_event_id);
     }
-
-    app.dispatch(KsngEvent::AudioChanged);
 
     Ok(())
   }

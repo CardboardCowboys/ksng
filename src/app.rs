@@ -32,13 +32,13 @@ pub struct KsngApp {
   pub waveforms: RefCell<AudioWaveformProvider>,
   pub playback: RefCell<Playback>,
   pub video: RefCell<VideoState>,
+  pub lyrics_editor: RefCell<LyricsEditor>,
 
   pub preferences: RefCell<Preferences>,
 
   event_queue: RefCell<VecDeque<KsngEvent>>,
   close_allowed: RefCell<bool>,
   timeline: RefCell<Timeline>,
-  lyrics_editor: RefCell<LyricsEditor>,
 }
 
 #[derive(Serialize, Deserialize, Default)]
@@ -123,14 +123,8 @@ impl KsngApp {
       KsngEvent::Redo => {
         self.logger.wrap(self.commands.redo(self));
       }
-      KsngEvent::AudioChanged => {
-        self.playback.borrow_mut().on_audio_change(self);
-      }
       KsngEvent::AudioDeviceChanged => {
         self.playback.borrow_mut().on_audio_device_change(self);
-      }
-      KsngEvent::LyricsChanged => {
-        self.lyrics_editor.borrow_mut().on_lyrics_change(self);
       }
     }
   }
@@ -245,9 +239,11 @@ impl eframe::App for KsngApp {
           .show_inside(ui, |ui| {
             components::player::player(self, ctx, ui);
           });
-        egui::CentralPanel::default().show_inside(ui, |ui| {
-          self.lyrics_editor.borrow_mut().show(self, ui);
-        });
+        egui::CentralPanel::default()
+          .frame(egui::Frame::new().inner_margin(0.0))
+          .show_inside(ui, |ui| {
+            self.lyrics_editor.borrow_mut().show(self, ui);
+          });
       });
     });
 

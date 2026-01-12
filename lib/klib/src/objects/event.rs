@@ -13,7 +13,7 @@ pub enum EventValue {
 }
 
 #[repr(u8)]
-#[derive(Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Default, PartialEq, Eq, Hash)]
 pub enum EventType {
   #[default]
   Lyric = 0,

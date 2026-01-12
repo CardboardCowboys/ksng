@@ -90,15 +90,15 @@ impl KWindow for TrackConfigWindow {
             self.open = false;
           }
 
+          let is_audio = matches!(self.new_value, TrackValue::Audio(..));
+
           if ui.add_enabled(self.dirty, Button::new("Apply")).clicked() {
             self.dirty = false;
             app.commands.dispatch(EditTrackConfigCommand::new(
               self.track_id,
               self.new_value.clone(),
+              is_audio,
             ));
-            if let TrackValue::Audio(..) = self.new_value {
-              app.dispatch(KsngEvent::AudioChanged);
-            }
           }
 
           if ui.add_enabled(self.dirty, Button::new("OK")).clicked() {
@@ -106,21 +106,19 @@ impl KWindow for TrackConfigWindow {
             app.commands.dispatch(EditTrackConfigCommand::new(
               self.track_id,
               self.new_value.clone(),
+              is_audio,
             ));
-            if let TrackValue::Audio(..) = self.new_value {
-              app.dispatch(KsngEvent::AudioChanged);
-            }
             self.open = false;
           }
         },
       )
     });
 
-    if let Some(window) = window {
-      if self.should_request_focus {
-        window.response.request_focus();
-        self.should_request_focus = false;
-      }
+    if let Some(window) = window
+      && self.should_request_focus
+    {
+      window.response.request_focus();
+      self.should_request_focus = false;
     }
   }
 

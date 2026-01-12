@@ -1,8 +1,12 @@
 ☐ fix other layout modes
 ☐ fix lyrics reappearing after transitioning out (the 10, 9, 8... etc for example)
+☐ fix various UI weirdness
+	☐ being able to scrub the timeline while dragging the panel divider handle
+	☐ not being able to scroll the lyrics editor
+	☐ not being able to click to set scrub position
 
 ✔ replace audio engine @done(26-01-04 10:23)
-☐ lyrics editor
+✔ lyrics editor @done(26-01-12 04:41)
 ☐ moving and resizing events on timeline
 ☐ lyrics sync wizard
 ☐ lyrics sync model
