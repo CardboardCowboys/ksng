@@ -207,10 +207,14 @@ pub trait EventList {
   /// Removes an event with the given ID from the event list.
   /// Returns true if the event was removed, false if not.
   fn remove_id(&mut self, id: Uuid) -> bool;
+  /// Returns an interator of events in the range (start, end)
   fn events_in_range<'s>(
     &'s self,
     range: (Timecode, Timecode),
   ) -> Box<dyn Iterator<Item = &'s Event> + 's>;
+  fn find_id(&self, id: Uuid) -> Option<&Event>;
+  /// Finds an event with the given ID and removes it from the list.
+  fn take_id(&mut self, id: Uuid) -> Option<Event>;
 }
 
 impl EventList for SortedList<Event> {
@@ -235,5 +239,21 @@ impl EventList for SortedList<Event> {
     range: (Timecode, Timecode),
   ) -> Box<dyn Iterator<Item = &'s Event> + 's> {
     Box::new(self.iter().filter(move |ev| ev.is_in_range(range)))
+  }
+
+  fn find_id(&self, id: Uuid) -> Option<&Event> {
+    self.iter().find(|e| e.id == id)
+  }
+
+  fn take_id(&mut self, id: Uuid) -> Option<Event> {
+    let mut idx = None;
+    for (i, ev) in self.iter().enumerate() {
+      if ev.id == id {
+        idx = Some(i);
+        break;
+      }
+    }
+
+    idx.map(|idx| self.remove(idx))
   }
 }

@@ -10,6 +10,11 @@ use serde::{Deserialize, Serialize};
 pub struct Timecode(pub u32);
 
 impl Timecode {
+  /// The minimum timecode value.
+  pub const MIN: Timecode = Timecode(0);
+  /// The maximum timecode value.
+  pub const MAX: Timecode = Timecode(u32::MAX);
+
   /// Creates a timecode from a floating point seconds value.
   pub fn from_seconds(seconds: f32) -> Self {
     Timecode((seconds * 1000.0) as u32)

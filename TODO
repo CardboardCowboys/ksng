@@ -3,11 +3,12 @@
 ☐ fix various UI weirdness
 	☐ being able to scrub the timeline while dragging the panel divider handle
 	☐ not being able to scroll the lyrics editor
-	☐ not being able to click to set scrub position
+	✔ not being able to click to set scrub position @done(26-02-05 23:20)
+	☐ multi-event moving should use per-track min-max len (moving audio event and lyric event at same time issues)
 
 ✔ replace audio engine @done(26-01-04 10:23)
 ✔ lyrics editor @done(26-01-12 04:41)
-☐ moving and resizing events on timeline
+✔ moving and resizing events on timeline @done(26-02-05 23:20)
 ☐ lyrics sync wizard
 ☐ lyrics sync model
 	☐ syllabification model
@@ -15,3 +16,4 @@
 ☐ video transitions
 ☐ video... videos
 ☐ video export
+☐ thumbnail generator
