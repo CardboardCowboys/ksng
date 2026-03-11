@@ -8,7 +8,7 @@ use egui::{
 use klib::{
   objects::{
     event::{Event, EventType},
-    track::{EventList, TrackValue},
+    track::{EventList, TrackType, TrackValue},
   },
   timecode::Timecode,
 };
@@ -23,7 +23,7 @@ use crate::{
     icons,
   },
   util::ui::KsngUiExt,
-  windows::track_config::TrackConfigWindow,
+  windows::{sync::SyncWindow, track_config::TrackConfigWindow},
 };
 
 pub const TRACK_HEIGHT: f32 = 50.0;
@@ -165,6 +165,8 @@ impl Timeline {
     let track_height = TRACK_HEIGHT * self.zoom.y;
     let pixels_per_second = PIXELS_PER_SECOND * self.zoom.x;
 
+    let mut track_clicked = false;
+
     ScrollArea::vertical().auto_shrink(false).show(ui, |ui| {
       let project = app.project.borrow();
       if project.is_none() {
@@ -238,6 +240,15 @@ impl Timeline {
                       buttons_clicked = true;
                     }
                   }
+
+                  if track.track_type == TrackType::Lyrics
+                    && ui
+                      .add_sized(Vec2::new(20.0, 20.0), ImageButton::new(icons::SYNC))
+                      .clicked()
+                  {
+                    app.windows.add(SyncWindow::new(track.id));
+                    buttons_clicked = true;
+                  }
                 },
               );
             });
@@ -254,6 +265,7 @@ impl Timeline {
             if header_clicked {
               let single = !ui.input(|i| i.modifiers.shift);
               app.selection.select_track(track.id, single);
+              track_clicked = true;
             }
           }
         });
@@ -298,7 +310,7 @@ impl Timeline {
                   });
                 } else if self.state == TimelineUiState::Idle {
                   ui.input(|input| {
-                    if input.pointer.primary_down() {
+                    if input.pointer.primary_down() && ui.max_rect().contains(mouse_pos) {
                       self.state = TimelineUiState::Pending;
                       self.mouse_down_last_pos = mouse_pos;
                     }
@@ -463,15 +475,17 @@ impl Timeline {
                         app.selection.select_event(over_id, !is_shift);
                         self.state = TimelineUiState::Idle;
                       } else {
-                        app.selection.clear();
-                        // scrub to pos
-                        self.state = TimelineUiState::Scrubbing;
+                        app.selection.clear_events();
+                        if ui.max_rect().contains(mouse_pos) {
+                          // scrub to pos
+                          self.state = TimelineUiState::Scrubbing;
+                        }
                       }
                     } else {
                       self.state = TimelineUiState::Idle;
                     }
                   } else if self.state == TimelineUiState::Multiselect {
-                    app.selection.clear();
+                    app.selection.clear_events();
                     for ev in multiselect_events {
                       app.selection.select_event(ev, false);
                     }
@@ -533,6 +547,7 @@ impl Timeline {
 
           if self.state == TimelineUiState::Pending
             && let Some(mouse_pos) = mouse_pos
+            && ui.max_rect().contains(mouse_pos)
           {
             let dist = mouse_pos.distance(self.mouse_down_last_pos);
             if dist > 1.5 {
@@ -560,7 +575,7 @@ impl Timeline {
               let new_pos_s = content_pos_x / pixels_per_second;
               let diff_pixels = (new_pos_s - prev_pos_s) * pixels_per_second;
               self.horiz_scroll_offset -= diff_pixels;
-            } else if self.state == TimelineUiState::Scrubbing {
+            } else if self.state == TimelineUiState::Scrubbing && !track_clicked {
               app
                 .playback
                 .borrow_mut()

@@ -68,4 +68,5 @@ impl WindowManager {
 }
 
 pub mod preferences;
+pub mod sync;
 pub mod track_config;

@@ -74,6 +74,14 @@ impl SelectionManager {
     self.selected_events.borrow_mut().clear();
   }
 
+  pub fn clear_events(&self) {
+    self.selected_events.borrow_mut().clear();
+  }
+
+  pub fn clear_tracks(&self) {
+    self.selected_tracks.borrow_mut().clear();
+  }
+
   pub fn remove_track(&self, id: Uuid) {
     self.selected_tracks.borrow_mut().remove(&id);
   }

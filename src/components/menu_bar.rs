@@ -7,7 +7,7 @@ use crate::{
   commands::{event::AddAudioEventCommand, track::AddTrackCommand},
   modals::{alert::AlertModal, open_file::OpenFileModal},
   util::ui_event::KsngEvent,
-  windows::preferences::PreferencesWindow,
+  windows::{preferences::PreferencesWindow, sync::SyncWindow},
 };
 
 fn button_with_shortcut(
@@ -85,6 +85,8 @@ pub fn menu_bar(app: &KsngApp, ctx: &Context, ui: &mut Ui) {
             ui.close();
           }
 
+          ui.separator();
+
           if !is_web && button_with_shortcut(ui, "Quit", Key::Q, Modifiers::COMMAND) {
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
             ui.close();
@@ -150,6 +152,19 @@ pub fn menu_bar(app: &KsngApp, ctx: &Context, ui: &mut Ui) {
                   .commands
                   .dispatch(AddTrackCommand::new(TrackType::Audio));
                 ui.close();
+              }
+            });
+            ui.separator();
+            let lyrics_track = project.as_ref().and_then(|p| {
+              p.file.tracks.iter().find(|t| {
+                t.track_type == TrackType::Lyrics && app.selection.is_track_selected(t.id)
+              })
+            });
+            ui.add_enabled_ui(lyrics_track.is_some(), |ui| {
+              if ui.button("Sync Lyrics...").clicked() {
+                app.windows.add(SyncWindow::new(
+                  lyrics_track.map(|t| t.id).unwrap_or_default(),
+                ));
               }
             });
           });
