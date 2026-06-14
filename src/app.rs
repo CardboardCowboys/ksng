@@ -126,6 +126,9 @@ impl KsngApp {
       KsngEvent::AudioDeviceChanged => {
         self.playback.borrow_mut().on_audio_device_change(self);
       }
+      KsngEvent::CloseWindow(unique) => {
+        self.windows.close_window(unique);
+      }
     }
   }
 

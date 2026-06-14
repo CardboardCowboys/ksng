@@ -1,21 +1,38 @@
 use egui::{
-  Color32, FontId, TextFormat, Ui,
-  text::{LayoutJob, LayoutSection},
+  Button, Color32, FontId, Id, Key, Sides, TextFormat, Ui,
+  text::{CCursor, CCursorRange, LayoutJob, LayoutSection},
 };
-use klib::objects::{
-  event::{Event, EventType, EventValue},
-  track::Track,
+use klib::{
+  objects::{
+    event::{Event, EventType, EventValue},
+    track::Track,
+  },
+  timecode::Timecode,
 };
 use uuid::Uuid;
 
-use crate::windows::KWindow;
+use crate::{
+  KsngApp, commands::event::SetEventTimingsCommand, modals::confirm::ConfirmModal,
+  util::ui_event::KsngEvent, windows::KWindow,
+};
 
 pub struct SyncWindow {
   open: bool,
   should_request_focus: bool,
   track_id: Uuid,
   layout_job: Option<LayoutJob>,
+  layout_cursor: CCursor,
   current_idx: usize,
+  last_idx: Option<usize>,
+  finished_last_syllable: bool,
+  event_ids: Vec<Uuid>,
+  event_timings: Vec<(Timecode, Timecode)>,
+  events_need_repositioning: Vec<usize>,
+  undo_context: Vec<(usize, Timecode)>,
+  min_time: Timecode,
+  pending_scroll: bool,
+  unique_value: u64,
+  is_dirty: bool,
 }
 
 impl SyncWindow {
@@ -24,17 +41,26 @@ impl SyncWindow {
       open: true,
       should_request_focus: false,
       track_id,
-      current_idx: 0,
       layout_job: None,
+      layout_cursor: CCursor::new(0),
+      current_idx: 0,
+      last_idx: None,
+      finished_last_syllable: true,
+      event_ids: Vec::new(),
+      event_timings: Vec::new(),
+      events_need_repositioning: Vec::new(),
+      undo_context: Vec::new(),
+      min_time: Timecode(0),
+      pending_scroll: true,
+      unique_value: egui::util::hash("sync_window"),
+      is_dirty: false,
     }
   }
 
-  fn layout_lyrics(track: Option<&Track>, current_idx: usize) -> LayoutJob {
+  fn layout_lyrics(track: Option<&Track>, current_idx: usize) -> (LayoutJob, CCursor) {
     let Some(track) = track else {
-      return LayoutJob::default();
+      return (LayoutJob::default(), CCursor::new(0));
     };
-
-    assert!(current_idx < track.events.len());
 
     let mut s = String::new();
     let mut needs_space = false;
@@ -45,16 +71,21 @@ impl SyncWindow {
     }
 
     let before_len = s.len();
-    if let Some(ev) = track.events.get(current_idx) {
+    if current_idx < track.events.len()
+      && let Some(ev) = track.events.get(current_idx)
+    {
       Self::add_event_to_string(&mut s, ev, &mut needs_space);
     }
 
     let current_len = s.len() - before_len;
+    let cursor = CCursor::new(s.len());
     let final_start = s.len();
 
-    for idx in (current_idx + 1)..track.events.len() {
-      if let Some(ev) = track.events.get(idx) {
-        Self::add_event_to_string(&mut s, ev, &mut needs_space);
+    if current_idx < track.events.len() {
+      for idx in (current_idx + 1)..track.events.len() {
+        if let Some(ev) = track.events.get(idx) {
+          Self::add_event_to_string(&mut s, ev, &mut needs_space);
+        }
       }
     }
 
@@ -99,7 +130,7 @@ impl SyncWindow {
       });
     }
 
-    job
+    (job, cursor)
   }
 
   fn add_event_to_string(s: &mut String, ev: &Event, needs_space: &mut bool) {
@@ -126,6 +157,85 @@ impl SyncWindow {
       _ => {}
     }
   }
+
+  fn handle_sync(&mut self, app: &KsngApp, track: Option<&Track>) {
+    let Some(track) = track else {
+      return;
+    };
+
+    if self.current_idx >= track.events.len() {
+      return;
+    }
+
+    let time = app.playback.borrow().position().max(self.min_time);
+    if !self.finished_last_syllable
+      && let Some(last_idx) = self.last_idx
+    {
+      self.event_timings[last_idx] = (self.event_timings[last_idx].0, time);
+    }
+
+    let length = self.event_timings[self.current_idx].1 - self.event_timings[self.current_idx].0;
+    let end_time = time + length;
+
+    if !self.events_need_repositioning.is_empty() {
+      let mut repos_start = match self.last_idx {
+        Some(last_idx) => self.event_timings[last_idx].1,
+        None => Timecode(0),
+      };
+      let total_length = time - repos_start;
+      let repos_length = Timecode::from_seconds_f64(
+        (total_length.to_seconds_f64() / self.events_need_repositioning.len() as f64).min(0.05),
+      );
+
+      for event_idx in &self.events_need_repositioning {
+        self.event_timings[*event_idx] = (repos_start, repos_start + repos_length);
+        repos_start += repos_length;
+      }
+
+      self.events_need_repositioning.clear();
+      self.min_time = self.min_time.max(repos_start);
+    }
+
+    let time = time.max(self.min_time);
+    self.event_timings[self.current_idx] = (time, end_time);
+    self.undo_context.push((self.current_idx, time));
+
+    self.last_idx = Some(self.current_idx);
+    self.finished_last_syllable = false;
+
+    self.current_idx += 1;
+    while self.current_idx < track.events.len()
+      && track.events[self.current_idx].event_type != EventType::Lyric
+    {
+      self.events_need_repositioning.push(self.current_idx);
+      self.current_idx += 1;
+    }
+
+    self.layout_job = None;
+    // Make sure we don't place another event too soon after this one, even if
+    // that's not the "proper" timing.
+    self.min_time = time + Timecode::from_seconds(0.05);
+    self.pending_scroll = true;
+    self.is_dirty = true;
+  }
+
+  fn handle_break(&mut self, app: &KsngApp) {
+    let Some(last_idx) = self.last_idx else {
+      return;
+    };
+
+    if self.finished_last_syllable {
+      return;
+    }
+
+    let time = app.playback.borrow().position().max(self.min_time);
+    self.event_timings[last_idx] = (self.event_timings[last_idx].0, time);
+    self.finished_last_syllable = true;
+
+    self.layout_job = None;
+    self.pending_scroll = true;
+    self.min_time = time + Timecode::from_seconds(0.05);
+  }
 }
 
 impl KWindow for SyncWindow {
@@ -138,6 +248,8 @@ impl KWindow for SyncWindow {
       return;
     }
 
+    // TODO: handle track change
+
     let window = egui::Window::new("Sync Lyrics")
       .min_width(200.0)
       .min_height(200.0)
@@ -148,25 +260,130 @@ impl KWindow for SyncWindow {
           .flat_map(|p| p.file.tracks.iter().find(|t| t.id == self.track_id))
           .next();
 
-        if self.layout_job.is_none() {
-          self.layout_job = Some(Self::layout_lyrics(track, self.current_idx));
+        if let Some(track) = track
+          && !track.events.is_empty()
+          && self.event_timings.is_empty()
+        {
+          self.event_timings = track
+            .events
+            .iter()
+            .map(|t| (t.start_timecode, t.end_timecode))
+            .collect();
+					self.event_ids = track.events.iter().map(|t| t.id).collect();
         }
 
-        egui::ScrollArea::both().auto_shrink(false).show(ui, |ui| {
-          let mut layout = self.layout_job.as_ref().unwrap().clone();
-          let mut text = layout.text.clone();
-          let mut layouter = |ui: &egui::Ui, _buf: &dyn egui::TextBuffer, wrap_width: f32| {
-            layout.wrap.max_width = wrap_width;
-            ui.fonts(|f| f.layout_job(layout.clone()))
-          };
+        if let Some(track) = track
+          && self.current_idx == 0
+          && !track.events.is_empty()
+          && track.events[self.current_idx].event_type != EventType::Lyric
+        {
+          self.current_idx += 1;
+          while self.current_idx < track.events.len()
+            && track.events[self.current_idx].event_type != EventType::Lyric
+          {
+            self.events_need_repositioning.push(self.current_idx);
+            self.current_idx += 1;
+          }
+        }
 
-          egui::TextEdit::multiline(&mut text)
-            .frame(false)
-            .interactive(false)
-            .desired_width(ui.available_width() - 20.0)
-            .font(FontId::proportional(20.0))
-            .layouter(&mut layouter)
-            .show(ui);
+        let is_at_end = track.is_none() || self.current_idx >= track.as_ref().unwrap().events.len();
+
+				let mut handle_sync = false;
+				let mut handle_break = false;
+
+        if ui.input_mut(|i| {
+          i.consume_key(egui::Modifiers::NONE, Key::Z)
+            || i.consume_key(egui::Modifiers::NONE, Key::X)
+        }) {
+          handle_sync = true;
+        }
+
+        if ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::Space)) {
+          handle_break = true;
+        }
+
+        egui::TopBottomPanel::bottom("sync#buttons").show_inside(ui, |ui| {
+          ui.add_space(5.0);
+          Sides::new().show(
+            ui,
+            |ui| {
+              if ui
+                .add_enabled(!is_at_end, Button::new("Sync (Z/X)"))
+                .clicked()
+              {
+                handle_sync = true;
+              }
+
+              if ui
+                .add_enabled(!self.finished_last_syllable, Button::new("Break (Space)"))
+                .clicked()
+              {
+                handle_break = true;
+              }
+            },
+            |ui| {
+              if ui.button("Cancel").clicked() {
+								if self.is_dirty {
+									// We have changes.
+									app.modals.add(ConfirmModal::new(
+										"Discard sync changes?".to_string(),
+										"You have made changes to event synchronization. If you cancel, these changes will be discarded. Are you sure?".to_string(),
+										KsngEvent::CloseWindow(self.unique_value)
+									));
+								} else {
+									self.open = false;
+								}
+							}
+              if ui.button("Save").clicked() {
+								app.commands.dispatch(SetEventTimingsCommand::new_with_title("Sync timings".to_string(), &self.event_ids, &self.event_timings));
+								self.is_dirty = false;
+							}
+            },
+          );
+        });
+
+				if handle_sync {
+					self.handle_sync(app, track);
+				}
+
+				if handle_break {
+					self.handle_break(app);
+				}
+
+        if self.layout_job.is_none() {
+          let (job, cursor) = Self::layout_lyrics(track, self.current_idx);
+          self.layout_job = Some(job);
+          self.layout_cursor = cursor;
+        }
+
+        egui::CentralPanel::default().show_inside(ui, |ui| {
+          egui::ScrollArea::both().auto_shrink(false).show(ui, |ui| {
+            let mut layout = self.layout_job.as_ref().unwrap().clone();
+            let mut text = layout.text.clone();
+            let mut layouter = |ui: &egui::Ui, _buf: &dyn egui::TextBuffer, wrap_width: f32| {
+              layout.wrap.max_width = wrap_width;
+              ui.fonts(|f| f.layout_job(layout.clone()))
+            };
+
+            let text_edit_id = Id::new("sync#lyrics_text");
+
+            let response = egui::TextEdit::multiline(&mut text)
+              .id(text_edit_id)
+              .frame(false)
+              .interactive(false)
+              .desired_width(ui.available_width() - 20.0)
+              .font(FontId::proportional(20.0))
+              .layouter(&mut layouter)
+              .show(ui);
+
+            if self.pending_scroll {
+              // Scroll to current position every time sync is clicked
+              let rect = response.galley.pos_from_cursor(self.layout_cursor);
+              let rect = rect.translate(response.galley_pos.to_vec2());
+              ui.scroll_to_rect(rect, Some(egui::Align::Center));
+              self.pending_scroll = false;
+            }
+          });
         });
       });
 
@@ -179,6 +396,10 @@ impl KWindow for SyncWindow {
   }
 
   fn request_focus(&mut self) {
-    todo!()
+    self.should_request_focus = true;
+  }
+
+  fn unique_value(&self) -> Option<u64> {
+    Some(self.unique_value)
   }
 }

@@ -12,4 +12,5 @@ pub enum KsngEvent {
   Undo,
   Redo,
   AudioDeviceChanged,
+  CloseWindow(u64),
 }

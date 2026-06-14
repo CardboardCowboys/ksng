@@ -107,6 +107,7 @@ impl Command for AddAudioEventCommand {
 }
 
 pub struct SetEventTimingsCommand {
+  title: String,
   event_ids: Vec<Uuid>,
   new_timings: Vec<(Timecode, Timecode)>,
   old_timings: RefCell<Vec<(Timecode, Timecode)>>,
@@ -114,7 +115,24 @@ pub struct SetEventTimingsCommand {
 
 impl SetEventTimingsCommand {
   pub fn new(event_ids: &[Uuid], timings: &[(Timecode, Timecode)]) -> SetEventTimingsCommand {
+    Self::new_with_title(
+      if event_ids.len() == 1 {
+        "Set event timing".to_string()
+      } else {
+        "Set event timings".to_string()
+      },
+      event_ids,
+      timings,
+    )
+  }
+
+  pub fn new_with_title(
+    title: String,
+    event_ids: &[Uuid],
+    timings: &[(Timecode, Timecode)],
+  ) -> SetEventTimingsCommand {
     SetEventTimingsCommand {
+      title,
       event_ids: event_ids.into(),
       new_timings: timings.into(),
       old_timings: Default::default(),
@@ -128,11 +146,7 @@ impl Command for SetEventTimingsCommand {
   }
 
   fn description(&self) -> String {
-    if self.event_ids.len() > 1 {
-      "Set event timings".to_string()
-    } else {
-      "Set event timing".to_string()
-    }
+    self.title.clone()
   }
 
   fn update_flags(&self) -> UpdateFlags {

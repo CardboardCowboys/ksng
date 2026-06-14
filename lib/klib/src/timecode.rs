@@ -1,5 +1,5 @@
 use std::{
-  ops::{Add, Deref, Div, Mul, Sub},
+  ops::{Add, AddAssign, Deref, Div, Mul, Sub},
   time::Duration,
 };
 
@@ -86,6 +86,12 @@ impl Add for Timecode {
 
   fn add(self, rhs: Self) -> Self::Output {
     Timecode(self.0 + rhs.0)
+  }
+}
+
+impl AddAssign for Timecode {
+  fn add_assign(&mut self, rhs: Self) {
+    self.0 += rhs.0;
   }
 }
 

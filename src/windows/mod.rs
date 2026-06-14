@@ -65,6 +65,17 @@ impl WindowManager {
     self.windows.borrow_mut().clear();
     self.new_windows.borrow_mut().clear();
   }
+
+  pub fn close_window(&self, unique_to_close: u64) {
+    self.windows.borrow_mut().retain(|w| {
+      let unique = w.borrow().unique_value();
+      if let Some(unique) = unique {
+        return unique != unique_to_close;
+      }
+
+      return true;
+    });
+  }
 }
 
 pub mod preferences;
