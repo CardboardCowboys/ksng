@@ -168,33 +168,73 @@ impl SyncWindow {
     }
 
     let time = app.playback.borrow().position().max(self.min_time);
+    let mut last_event_end = time;
+
+    if !self.events_need_repositioning.is_empty() {
+      let mut repos_start = match self.last_idx {
+        Some(last_idx) => {
+          if self.finished_last_syllable {
+            self.event_timings[last_idx].1
+          } else {
+            self.min_time
+          }
+        }
+        None => Timecode(0),
+      };
+      let orig_start = self
+        .events_need_repositioning
+        .iter()
+        .map(|idx| self.event_timings[*idx].0)
+        .min()
+        .unwrap();
+      let orig_end = self
+        .events_need_repositioning
+        .iter()
+        .map(|idx| self.event_timings[*idx].1)
+        .max()
+        .unwrap();
+      let orig_length = orig_end - orig_start;
+      let mut available_length = time - repos_start;
+      // If we have a previous event we still need to end, give it half the length.
+      if !self.finished_last_syllable {
+        available_length = Timecode::from_seconds_f64(available_length.to_seconds_f64() / 2.0);
+        repos_start += available_length;
+        last_event_end = repos_start;
+      }
+
+      if orig_length <= available_length {
+        // We have enough room to fit the events without changing their duration.
+        let mut next_end = time;
+        for event_idx in &self.events_need_repositioning {
+          let len = self.event_timings[*event_idx].1 - self.event_timings[*event_idx].0;
+          self.event_timings[*event_idx] = (next_end - len, next_end);
+          next_end -= len;
+        }
+      } else {
+        // We need to change the event length to fit the available duration.
+        let repos_length = Timecode::from_seconds_f64(
+          (available_length.to_seconds_f64() / self.events_need_repositioning.len() as f64)
+            .min(0.05),
+        );
+
+        for event_idx in &self.events_need_repositioning {
+          self.event_timings[*event_idx] = (repos_start, repos_start + repos_length);
+          repos_start += repos_length;
+        }
+        self.min_time = self.min_time.max(repos_start);
+      }
+
+      self.events_need_repositioning.clear();
+    }
+
     if !self.finished_last_syllable
       && let Some(last_idx) = self.last_idx
     {
-      self.event_timings[last_idx] = (self.event_timings[last_idx].0, time);
+      self.event_timings[last_idx] = (self.event_timings[last_idx].0, last_event_end);
     }
 
     let length = self.event_timings[self.current_idx].1 - self.event_timings[self.current_idx].0;
     let end_time = time + length;
-
-    if !self.events_need_repositioning.is_empty() {
-      let mut repos_start = match self.last_idx {
-        Some(last_idx) => self.event_timings[last_idx].1,
-        None => Timecode(0),
-      };
-      let total_length = time - repos_start;
-      let repos_length = Timecode::from_seconds_f64(
-        (total_length.to_seconds_f64() / self.events_need_repositioning.len() as f64).min(0.05),
-      );
-
-      for event_idx in &self.events_need_repositioning {
-        self.event_timings[*event_idx] = (repos_start, repos_start + repos_length);
-        repos_start += repos_length;
-      }
-
-      self.events_need_repositioning.clear();
-      self.min_time = self.min_time.max(repos_start);
-    }
 
     let time = time.max(self.min_time);
     self.event_timings[self.current_idx] = (time, end_time);

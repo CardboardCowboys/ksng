@@ -1,5 +1,5 @@
 use std::{
-  ops::{Add, AddAssign, Deref, Div, Mul, Sub},
+  ops::{Add, AddAssign, Deref, Div, Mul, Sub, SubAssign},
   time::Duration,
 };
 
@@ -100,6 +100,12 @@ impl Sub for Timecode {
 
   fn sub(self, rhs: Self) -> Self::Output {
     Timecode(self.0.saturating_sub(rhs.0))
+  }
+}
+
+impl SubAssign for Timecode {
+  fn sub_assign(&mut self, rhs: Self) {
+    self.0 = self.0.saturating_sub(rhs.0)
   }
 }
 
