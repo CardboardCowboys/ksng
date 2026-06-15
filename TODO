@@ -8,6 +8,7 @@
 	✔ fix no longer being able to select tracks @done(26-03-11 02:12)
 ✔ fix CI @done(26-06-14 22:45)
 ☐ handle event delete / add in the sync window
+☐ figure out why audio broke
 
 ✔ replace audio engine @done(26-01-04 10:23)
 ✔ lyrics editor @done(26-01-12 04:41)
