@@ -188,10 +188,10 @@ impl Timeline {
               .fill(color_for_track_type(track.track_type));
 
             if app.selection.is_track_selected(track.id) {
-              frame = frame.stroke(Stroke::new(1.0, Color32::WHITE));
+              frame = frame.stroke(Stroke::new(1.0_f32, Color32::WHITE));
             } else {
               frame = frame.stroke(Stroke::new(
-                1.0,
+                1.0_f32,
                 Color32::from_rgba_premultiplied(0, 0, 0, 0),
               ));
             }
@@ -450,7 +450,7 @@ impl Timeline {
                   ui.painter().rect_stroke(
                     rect,
                     0,
-                    Stroke::new(1.0, stroke_color),
+                    Stroke::new(1.0_f32, stroke_color),
                     StrokeKind::Inside,
                   );
 
@@ -537,7 +537,7 @@ impl Timeline {
                 ui.painter().rect_stroke(
                   Rect::from_points(&[self.mouse_down_last_pos, mouse_pos]),
                   0,
-                  Stroke::new(2.0, colors::SELECTED_COLOR),
+                  Stroke::new(2.0_f32, colors::SELECTED_COLOR),
                   StrokeKind::Middle,
                 );
               }
