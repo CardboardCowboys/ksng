@@ -5,6 +5,7 @@ name: CI
 env:
   RUSTFLAGS: -D warnings
   RUSTDOCFLAGS: -D warnings
+  UBUNTU_DEPS: libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libxkbcommon-dev libssl-dev libasound2-dev libfreetype-dev libfontconfig-dev
 
 jobs:
   check:
@@ -19,7 +20,7 @@ jobs:
           override: true
       - name: Install Dependencies (Ubuntu)
         run: |
-          sudo apt install libasound2-dev libfreetype-dev libfontconfig-dev
+          sudo apt install ${{ env.UBUNTU_DEPS }}
       - uses: actions-rs/cargo@v1
         with:
           command: check
@@ -35,7 +36,7 @@ jobs:
           profile: minimal
           toolchain: stable
           override: true
-      - run: sudo apt-get install libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libxkbcommon-dev libssl-dev
+      - run: sudo apt-get install ${{ env.UBUNTU_DEPS }}
       - uses: actions-rs/cargo@v1
         with:
           command: test
@@ -70,7 +71,7 @@ jobs:
           components: clippy
       - name: Install Dependencies (Ubuntu)
         run: |
-          sudo apt install libasound2-dev libfreetype-dev libfontconfig-dev
+          sudo apt install ${{ env.UBUNTU_DEPS }}
       - uses: actions-rs/cargo@v1
         with:
           command: clippy
@@ -109,7 +110,7 @@ jobs:
     - name: Install Dependencies (Ubuntu)
       if: contains(matrix.TARGET, 'linux')
       run: |
-        sudo apt install libasound2-dev libfreetype-dev libfontconfig-dev
+        sudo apt install ${{ env.UBUNTU_DEPS }}
 
     - name: Build
       run: |
