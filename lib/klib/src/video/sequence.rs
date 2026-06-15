@@ -22,7 +22,7 @@ impl VideoSequence {
   pub fn from_file(file: &File, video_config: &VideoConfig) -> VideoSequence {
     let mut elements = Vec::new();
     for track in &file.tracks {
-      elements.extend(layout_track(track, video_config).into_iter());
+      elements.extend(layout_track(track, video_config));
     }
 
     elements.sort_by_key(|e| e.start_time());

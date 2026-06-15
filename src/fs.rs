@@ -74,7 +74,7 @@ impl Data {
 
     manifest
       .entries
-      .sort_by(|a, b| b.last_modified.cmp(&a.last_modified));
+      .sort_by_key(|b| std::cmp::Reverse(b.last_modified));
 
     Data::save_manifest(&root_dir, &manifest)?;
 
