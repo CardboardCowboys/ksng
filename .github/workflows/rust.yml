@@ -19,7 +19,7 @@ jobs:
           override: true
       - name: Install Dependencies (Ubuntu)
         run: |
-          sudo apt install libasound2-dev libfreetype-dev
+          sudo apt install libasound2-dev libfreetype-dev libfontconfig-dev
       - uses: actions-rs/cargo@v1
         with:
           command: check
@@ -70,7 +70,7 @@ jobs:
           components: clippy
       - name: Install Dependencies (Ubuntu)
         run: |
-          sudo apt install libasound2-dev libfreetype-dev
+          sudo apt install libasound2-dev libfreetype-dev libfontconfig-dev
       - uses: actions-rs/cargo@v1
         with:
           command: clippy
@@ -109,7 +109,7 @@ jobs:
     - name: Install Dependencies (Ubuntu)
       if: contains(matrix.TARGET, 'linux')
       run: |
-        sudo apt install libasound2-dev libfreetype-dev
+        sudo apt install libasound2-dev libfreetype-dev libfontconfig-dev
 
     - name: Build
       run: |
