@@ -28,7 +28,7 @@ pub struct SyncWindow {
   event_ids: Vec<Uuid>,
   event_timings: Vec<(Timecode, Timecode)>,
   events_need_repositioning: Vec<usize>,
-  undo_context: Vec<(usize, Timecode)>,
+  undo_context: Vec<(usize, Option<usize>, Timecode, Timecode)>,
   min_time: Timecode,
   pending_scroll: bool,
   unique_value: u64,
@@ -244,7 +244,12 @@ impl SyncWindow {
 
     let time = time.max(self.min_time);
     self.event_timings[self.current_idx] = (time, end_time);
-    self.undo_context.push((self.current_idx, time));
+    self.undo_context.push((
+      self.current_idx,
+      self.last_idx,
+      app.playback.borrow().position(),
+      self.min_time,
+    ));
 
     self.last_idx = Some(self.current_idx);
     self.finished_last_syllable = false;
@@ -281,6 +286,21 @@ impl SyncWindow {
     self.layout_job = None;
     self.pending_scroll = true;
     self.min_time = time + Timecode::from_seconds(0.05);
+  }
+
+  fn handle_back(&mut self, app: &KsngApp) {
+    let Some((idx, last_idx, pos, min_time)) = self.undo_context.pop() else {
+      return;
+    };
+
+    self.events_need_repositioning.clear();
+    self.min_time = min_time;
+    self.last_idx = last_idx;
+    self.current_idx = idx;
+    app.playback.borrow_mut().seek(pos);
+    self.finished_last_syllable = true;
+    self.layout_job = None;
+    self.pending_scroll = true;
   }
 
   fn handle_save(&mut self, app: &KsngApp, track: Option<&Track>) {
@@ -379,6 +399,7 @@ impl KWindow for SyncWindow {
 
 				let mut handle_sync = false;
 				let mut handle_break = false;
+				let mut handle_back = false;
 				let mut handle_save = false;
 
         if ui.input_mut(|i| {
@@ -391,6 +412,10 @@ impl KWindow for SyncWindow {
         if ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::Space)) {
           handle_break = true;
         }
+
+				if ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::Backspace)) {
+					handle_back = true;
+				}
 
         egui::TopBottomPanel::bottom("sync#buttons").show_inside(ui, |ui| {
           ui.add_space(5.0);
@@ -409,6 +434,13 @@ impl KWindow for SyncWindow {
                 .clicked()
               {
                 handle_break = true;
+              }
+
+              if ui
+                .add_enabled(self.last_idx.is_some(), Button::new("Back (Backspace)"))
+                .clicked()
+              {
+                handle_back = true;
               }
             },
             |ui| {
@@ -437,6 +469,10 @@ impl KWindow for SyncWindow {
 
 				if handle_break {
 					self.handle_break(app);
+				}
+
+				if handle_back {
+					self.handle_back(app);
 				}
 
 				if handle_save {

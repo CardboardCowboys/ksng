@@ -6,7 +6,7 @@
 	✔ not being able to click to set scrub position @done(26-02-05 23:20)
 	☐ multi-event moving should use per-track min-max len (moving audio event and lyric event at same time issues)
 	✔ fix no longer being able to select tracks @done(26-03-11 02:12)
-☐ fix CI
+✔ fix CI @done(26-06-14 22:45)
 ☐ handle event delete / add in the sync window
 
 ✔ replace audio engine @done(26-01-04 10:23)
