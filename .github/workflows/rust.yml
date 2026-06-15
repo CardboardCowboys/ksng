@@ -17,6 +17,10 @@ jobs:
           profile: minimal
           toolchain: stable
           override: true
+      - name: Install Dependencies (Ubuntu)
+        if: contains(matrix.TARGET, 'linux')
+        run: |
+          sudo apt install libasound2-dev freetype
       - uses: actions-rs/cargo@v1
         with:
           command: check
@@ -65,6 +69,10 @@ jobs:
           toolchain: stable
           override: true
           components: clippy
+      - name: Install Dependencies (Ubuntu)
+        if: contains(matrix.TARGET, 'linux')
+        run: |
+          sudo apt install libasound2-dev freetype
       - uses: actions-rs/cargo@v1
         with:
           command: clippy
@@ -103,7 +111,7 @@ jobs:
     - name: Install Dependencies (Ubuntu)
       if: contains(matrix.TARGET, 'linux')
       run: |
-        sudo apt install libasound2-dev
+        sudo apt install libasound2-dev freetype
 
     - name: Build
       run: |
