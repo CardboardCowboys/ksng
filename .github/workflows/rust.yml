@@ -103,7 +103,7 @@ jobs:
 
     - uses: actions/upload-artifact@master
       with:
-        name: ksng-${{ matrix.TARGET }}${{ matrix.EXTENSION }}
+        name: ksng-${{ matrix.TARGET }}
         path: ksng-${{ matrix.TARGET }}${{ matrix.EXTENSION }}
 #
 #    - uses: svenstaro/upload-release-action@v2
