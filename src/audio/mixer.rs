@@ -63,15 +63,6 @@ impl AudioMixer {
     )
   }
 
-  pub fn duration(&self) -> Timecode {
-    self
-      .shared_context
-      .mixer_stream
-      .lock()
-      .unwrap()
-      .duration_timecode()
-  }
-
   pub fn seek(&self, time: Timecode) {
     self.shared_context.mixer_stream.lock().unwrap().seek(time);
     self.shared_context.buffer.write().unwrap().clear();
@@ -109,7 +100,7 @@ impl AudioMixer {
     let output_config = device
       .supported_output_configs()
       .ok()
-      .and_then(|d| d.filter(|d| d.sample_format() == SampleFormat::F32).next())
+      .and_then(|d| d.clone().find(|d| d.sample_format() == SampleFormat::F32))
       .ok_or(UiError::Audio(
         "Failed to get supported output configs for audio device.".into(),
       ))?;
@@ -142,7 +133,7 @@ impl AudioMixer {
     let stream = device
       .build_output_stream::<f32, _, _>(
         &output_config.config(),
-        move |buf, info| {
+        move |buf, _info| {
           let need_samples = buf.len();
           let mut mixer_stream = context.mixer_stream.lock().unwrap();
           let mut buffer = context.buffer.write().unwrap();

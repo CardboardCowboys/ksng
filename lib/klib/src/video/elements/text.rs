@@ -20,6 +20,7 @@ pub struct TextVideoElement {
   start: Timecode,
   end: Timecode,
   pos: Point,
+  #[allow(dead_code)]
   text: String,
   metrics: TextMetrics,
   blob: skia_safe::TextBlob,

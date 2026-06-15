@@ -18,6 +18,7 @@ use crate::util::error::UiError;
 pub const BLOCK_SIZE: usize = 1024;
 
 struct AudioMixerEventStream {
+  #[allow(dead_code)]
   track_id: Uuid,
   event_id: Uuid,
   start_timecode: Timecode,
@@ -56,6 +57,7 @@ pub struct AudioMixerStream {
 
   // time_stretch_stream: bungee_rs::Stream,
   // Buffer of samples after timestretching.
+  #[allow(dead_code)]
   stretched_buffer: Vec<Vec<f32>>,
   /// `channels` numbers of `BLOCK_SIZE` buffers.
   planar_buffers: Vec<Vec<f32>>,
@@ -67,7 +69,7 @@ pub struct AudioMixerStream {
 }
 
 impl AudioMixerStream {
-  pub fn new(channels: usize, sample_rate: usize) -> Result<Self, UiError> {
+  pub fn new(channels: usize, _sample_rate: usize) -> Result<Self, UiError> {
     let mut planar_buffers = Vec::new();
     for _ in 0..channels {
       let mut buffer = Vec::with_capacity(BLOCK_SIZE);
@@ -99,10 +101,6 @@ impl AudioMixerStream {
 
   pub fn position_timecode(&self) -> Timecode {
     Timecode::from_seconds_f64(self.position as f64 / self.sample_rate as f64)
-  }
-
-  pub fn duration_timecode(&self) -> Timecode {
-    Timecode::from_seconds_f64(self.duration as f64 / self.sample_rate as f64)
   }
 
   pub fn seek(&mut self, new_timecode: Timecode) {
@@ -311,7 +309,7 @@ impl AudioMixerStream {
   // Obtain samples before time stretching.
   fn process_raw(&mut self) -> Result<(), UiError> {
     // Obtain the actual position in the stream from the timestretched position.
-    let position = (self.position as f64 / self.time_factor).ceil() as usize;
+    let _position = (self.position as f64 / self.time_factor).ceil() as usize;
     let timecode =
       Timecode::from_seconds_f64(self.position as f64 / self.time_factor / self.sample_rate as f64);
     // Initialize to zero.

@@ -1,5 +1,3 @@
-use skia_safe::Arc;
-
 use crate::{style::LyricsTrackStyle, Rect};
 
 #[derive(Clone)]

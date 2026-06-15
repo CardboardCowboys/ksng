@@ -14,8 +14,6 @@ use crate::util::error::UiError;
 pub struct AudioFileInfo {
   pub audio_type: AudioFileType,
   pub length: Timecode,
-  pub sample_rate: u32,
-  pub channels: usize,
 }
 
 impl AudioFileInfo {
@@ -59,8 +57,6 @@ impl AudioFileInfo {
     Some(AudioFileInfo {
       audio_type,
       length: Timecode(len_ms),
-      sample_rate: codec_params.sample_rate?,
-      channels: codec_params.channels.iter().len(),
     })
   }
 

@@ -115,31 +115,31 @@ impl KModal for OpenProjectModal {
             ui,
             |ui| {
               let button = ImageButton::new(icons::DELETE);
-              if ui.add_enabled(self.selected_id.is_some(), button).clicked() {
-                if let Some(selected_id) = self.selected_id {
-                  if app
-                    .project
-                    .borrow()
-                    .as_ref()
-                    .map(|p| p.id == selected_id)
-                    .unwrap_or(false)
-                  {
-                    app.modals.add(AlertModal::new(
-                      "You can't delete the currently opened project. Close the project first!"
-                        .to_string(),
+              if ui.add_enabled(self.selected_id.is_some(), button).clicked()
+                && let Some(selected_id) = self.selected_id
+              {
+                if app
+                  .project
+                  .borrow()
+                  .as_ref()
+                  .map(|p| p.id == selected_id)
+                  .unwrap_or(false)
+                {
+                  app.modals.add(AlertModal::new(
+                    "You can't delete the currently opened project. Close the project first!"
+                      .to_string(),
+                  ));
+                } else {
+                  let project = manifest.entries.iter().find(|p| p.id == selected_id);
+                  if let Some(project) = project {
+                    app.modals.add(ConfirmModal::new(
+                      "Delete project?".to_string(),
+                      format!(
+                        "The project {} will be permanently deleted! Are you sure?",
+                        project.name
+                      ),
+                      KsngEvent::ProjectDelete(selected_id),
                     ));
-                  } else {
-                    let project = manifest.entries.iter().find(|p| p.id == selected_id);
-                    if let Some(project) = project {
-                      app.modals.add(ConfirmModal::new(
-                        "Delete project?".to_string(),
-                        format!(
-                          "The project {} will be permanently deleted! Are you sure?",
-                          project.name
-                        ),
-                        KsngEvent::ProjectDelete(selected_id),
-                      ));
-                    }
                   }
                 }
               }

@@ -363,7 +363,7 @@ impl LyricsEditor {
             if e.linked_to_prev {
               need_to_be_linked.insert(e.id);
             }
-            current_start = current_start + duration_per_event;
+            current_start += duration_per_event;
           }
         }
         similar::DiffOp::Insert {
@@ -393,7 +393,7 @@ impl LyricsEditor {
             if e.linked_to_prev {
               need_to_be_linked.insert(e.id);
             }
-            current_start = current_start + duration_per_event;
+            current_start += duration_per_event;
           }
         }
       }

@@ -73,7 +73,7 @@ impl WindowManager {
         return unique != unique_to_close;
       }
 
-      return true;
+      true
     });
   }
 }

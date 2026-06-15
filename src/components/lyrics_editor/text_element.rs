@@ -7,6 +7,7 @@ use klib::{
 
 use crate::components::lyrics_editor::psuedo_event::PsuedoEvent;
 
+#[allow(dead_code)]
 pub struct LyricsEditorTextElement {
   pub event_type: EventType,
   pub start_timecode: Timecode,

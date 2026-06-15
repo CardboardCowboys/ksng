@@ -1,6 +1,6 @@
 use egui::{
-  Button, Color32, FontId, Id, Key, Sides, TextFormat, Ui,
-  text::{CCursor, CCursorRange, LayoutJob, LayoutSection},
+  Button, Color32, FontId, Id, Key, Sides, TextFormat,
+  text::{CCursor, LayoutJob, LayoutSection},
 };
 use klib::{
   objects::{

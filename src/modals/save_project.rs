@@ -52,15 +52,15 @@ impl KModal for SaveProjectModal {
         ui,
         |_ui| {},
         |ui| {
-          if ui.add_enabled(validate_name, Button::new("Save")).clicked() {
-            if let Some(project) = &mut *app.project.borrow_mut() {
-              project.name = Some(self.name.clone());
-              app.logger.wrap(Data::save_project(project));
-              project.dirty = false;
-              self.open = false;
-              if let Some(after) = self.after {
-                app.dispatch(after);
-              }
+          if ui.add_enabled(validate_name, Button::new("Save")).clicked()
+            && let Some(project) = &mut *app.project.borrow_mut()
+          {
+            project.name = Some(self.name.clone());
+            app.logger.wrap(Data::save_project(project));
+            project.dirty = false;
+            self.open = false;
+            if let Some(after) = self.after {
+              app.dispatch(after);
             }
           }
 
