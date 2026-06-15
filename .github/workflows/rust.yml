@@ -97,10 +97,7 @@ jobs:
       run: echo "${{ matrix.TARGET }}"
 
     - uses: actions/checkout@master
-    - name: Install build dependencies - Rustup
-      run: |
-        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain nightly --profile default --target ${{ matrix.TARGET }} -y
-        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+    - uses: actions-rust-lang/setup-rust-toolchain@v1
 
     # For linux, it's necessary to use cross from the git repository to avoid glibc problems
     # Ref: https://github.com/cross-rs/cross/issues/1510
@@ -119,20 +116,20 @@ jobs:
         cross build --verbose --release --target=${{ matrix.TARGET }}
 
     - name: Rename
-      run: cp target/${{ matrix.TARGET }}/release/eframe_template${{ matrix.EXTENSION }} eframe_template-${{ matrix.TARGET }}${{ matrix.EXTENSION }}
+      run: cp target/${{ matrix.TARGET }}/release/ksng${{ matrix.EXTENSION }} ksng-${{ matrix.TARGET }}${{ matrix.EXTENSION }}
 
     - uses: actions/upload-artifact@master
       with:
-        name: eframe_template-${{ matrix.TARGET }}${{ matrix.EXTENSION }}
-        path: eframe_template-${{ matrix.TARGET }}${{ matrix.EXTENSION }}
-
-    - uses: svenstaro/upload-release-action@v2
-      name: Upload binaries to release
-      if: ${{ github.event_name == 'push' }}
-      with:
-        repo_token: ${{ secrets.GITHUB_TOKEN }}
-        file: eframe_template-${{ matrix.TARGET }}${{ matrix.EXTENSION }}
-        asset_name: eframe_template-${{ matrix.TARGET }}${{ matrix.EXTENSION }}
-        tag: ${{ github.ref }}
-        prerelease: ${{ !startsWith(github.ref, 'refs/tags/') }}
-        overwrite: true
+        name: ksng-${{ matrix.TARGET }}${{ matrix.EXTENSION }}
+        path: ksng-${{ matrix.TARGET }}${{ matrix.EXTENSION }}
+#
+#    - uses: svenstaro/upload-release-action@v2
+#      name: Upload binaries to release
+#      if: ${{ github.event_name == 'push' }}
+#      with:
+#        repo_token: ${{ secrets.GITHUB_TOKEN }}
+#        file: ksng-${{ matrix.TARGET }}${{ matrix.EXTENSION }}
+#        asset_name: ksng-${{ matrix.TARGET }}${{ matrix.EXTENSION }}
+#        tag: ${{ github.ref }}
+#        prerelease: ${{ !startsWith(github.ref, 'refs/tags/') }}
+#        overwrite: true
