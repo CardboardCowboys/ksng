@@ -5,13 +5,11 @@ use cpal::{
   SampleFormat,
   traits::{DeviceTrait, HostTrait, StreamTrait},
 };
+use klib::audio::mixer_stream::{self, AudioMixerStream};
 use klib::timecode::Timecode;
 
 use crate::{
-  audio::{
-    config::AudioConfig,
-    mixer_stream::{self, AudioMixerStream},
-  },
+  audio::config::AudioConfig,
   project::Project,
   util::{
     error::UiError,
@@ -73,12 +71,14 @@ impl AudioMixer {
   }
 
   pub fn update_streams(&mut self, project: &Project) -> Result<(), UiError> {
-    self
-      .shared_context
-      .mixer_stream
-      .lock()
-      .unwrap()
-      .update_from_tracks(&project.file.tracks)
+    Ok(
+      self
+        .shared_context
+        .mixer_stream
+        .lock()
+        .unwrap()
+        .update_from_tracks(&project.file.tracks)?,
+    )
   }
 
   pub fn update_audio_device(&mut self, config: &AudioConfig) -> Result<(), UiError> {

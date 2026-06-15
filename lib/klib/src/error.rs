@@ -8,6 +8,7 @@ pub enum Error {
   Format(String),
   Layout(String),
   Skia(String),
+  Audio(String),
 }
 
 impl std::error::Error for Error {}
@@ -21,6 +22,7 @@ impl Display for Error {
       Error::Format(str) => f.write_str(&format!("Error::Format ({str})")),
       Error::Layout(str) => f.write_str(&format!("Error::Layout ({str})")),
       Error::Skia(str) => f.write_str(&format!("Error::Skia ({str})")),
+      Error::Audio(str) => f.write_str(&format!("Error::Audio ({str})")),
     }
   }
 }
@@ -36,5 +38,18 @@ impl From<serde_json::Error> for Error {
     Error::Serde(format!(
       "JSON serialization/deserialization error: {value:?}"
     ))
+  }
+}
+
+impl From<std::io::Error> for Error {
+  fn from(value: std::io::Error) -> Self {
+    Error::Io(format!("{value:?}"))
+  }
+}
+
+#[cfg(feature = "audio")]
+impl From<symphonia::core::errors::Error> for Error {
+  fn from(value: symphonia::core::errors::Error) -> Self {
+    Error::Audio(format!("Symphonia error: {value:?}"))
   }
 }

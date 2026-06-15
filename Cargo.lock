@@ -2364,15 +2364,20 @@ checksum = "e2db585e1d738fc771bf08a151420d3ed193d9d895a36df7f6f8a9456b911ddc"
 name = "klib"
 version = "0.1.0"
 dependencies = [
+ "audioadapter-buffers",
  "binary_rw",
+ "creek",
  "harfbuzz_rs",
+ "infer",
  "klib-macros",
  "log",
+ "rubato",
  "serde",
  "serde_json",
  "simple-easing",
  "skia-safe",
  "sortedlist-rs",
+ "symphonia",
  "uuid",
 ]
 
@@ -2390,12 +2395,10 @@ dependencies = [
 name = "ksng"
 version = "0.1.0"
 dependencies = [
- "audioadapter-buffers",
  "chrono",
  "circular-buffer",
  "colog",
  "cpal",
- "creek",
  "directories",
  "eframe",
  "egui",
@@ -2404,12 +2407,10 @@ dependencies = [
  "egui_extras",
  "egui_flex",
  "image",
- "infer",
  "klib",
  "log",
  "once_cell",
  "regex",
- "rubato",
  "serde",
  "serde_json",
  "similar",

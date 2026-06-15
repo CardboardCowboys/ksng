@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+#[cfg(feature = "audio")]
+pub mod audio;
 pub mod config;
 pub mod error;
 pub mod objects;

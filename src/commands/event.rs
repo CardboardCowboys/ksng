@@ -1,6 +1,7 @@
 use std::{cell::RefCell, path::PathBuf};
 
 use klib::{
+  audio::info::AudioFileInfo,
   objects::{
     audio::{AudioFile, AudioFileSource},
     event::Event,
@@ -12,7 +13,6 @@ use uuid::Uuid;
 
 use crate::{
   KsngApp,
-  audio::info::AudioFileInfo,
   commands::{Command, UpdateFlags},
   util::error::UiError,
 };

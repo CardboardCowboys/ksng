@@ -1,9 +1,8 @@
 use egui::{Button, Context, Key, MenuBar, Modifiers, Sides, Ui};
-use klib::objects::track::TrackType;
+use klib::{audio::info::AudioFileInfo, objects::track::TrackType};
 
 use crate::{
   KsngApp,
-  audio::info::AudioFileInfo,
   commands::{event::AddAudioEventCommand, track::AddTrackCommand},
   modals::{alert::AlertModal, open_file::OpenFileModal},
   util::ui_event::KsngEvent,

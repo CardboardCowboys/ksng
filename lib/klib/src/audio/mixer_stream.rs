@@ -1,8 +1,6 @@
 use std::collections::HashSet;
 
-use audioadapter_buffers::number_to_float::SequentialNumbers;
-use creek::{OpenError, ReadDiskStream, SymphoniaDecoder};
-use klib::{
+use crate::{
   objects::{
     audio::AudioFileSource,
     event::EventValue,
@@ -10,10 +8,10 @@ use klib::{
   },
   timecode::Timecode,
 };
+use audioadapter_buffers::number_to_float::SequentialNumbers;
+use creek::{OpenError, ReadDiskStream, SymphoniaDecoder};
 use rubato::Resampler;
 use uuid::Uuid;
-
-use crate::util::error::UiError;
 
 pub const BLOCK_SIZE: usize = 1024;
 
@@ -69,7 +67,7 @@ pub struct AudioMixerStream {
 }
 
 impl AudioMixerStream {
-  pub fn new(channels: usize, _sample_rate: usize) -> Result<Self, UiError> {
+  pub fn new(channels: usize, _sample_rate: usize) -> Result<Self, crate::error::Error> {
     let mut planar_buffers = Vec::new();
     for _ in 0..channels {
       let mut buffer = Vec::with_capacity(BLOCK_SIZE);
@@ -87,7 +85,7 @@ impl AudioMixerStream {
       planar_buffers,
       stretched_buffer: Default::default(),
       // time_stretch_stream: bungee_rs::Stream::new(sample_rate, channels, BLOCK_SIZE)
-      //   .map_err(|e| UiError::Audio(e.to_string()))?,
+      //   .map_err(|e| crate::error::Error::Audio(e.to_string()))?,
     })
   }
 
@@ -125,7 +123,7 @@ impl AudioMixerStream {
     self.event_streams.clear();
   }
 
-  pub fn update_from_tracks(&mut self, tracks: &[Track]) -> Result<(), UiError> {
+  pub fn update_from_tracks(&mut self, tracks: &[Track]) -> Result<(), crate::error::Error> {
     let current_event_ids: HashSet<Uuid> =
       self.event_streams.iter().map(|es| es.event_id).collect();
     let mut new_event_ids: HashSet<Uuid> = Default::default();
@@ -166,19 +164,19 @@ impl AudioMixerStream {
           // We don't know about this event yet, we need to load it.
           let mut stream: ReadDiskStream<SymphoniaDecoder> = match &file.source {
             AudioFileSource::Path(path_buf) => ReadDiskStream::new(path_buf, 0, Default::default())
-              .map_err(|e: OpenError| UiError::Audio(e.to_string()))?,
+              .map_err(|e: OpenError| crate::error::Error::Audio(e.to_string()))?,
             // TODO: handle managed files
             AudioFileSource::Managed => todo!(),
           };
 
-          let sample_rate = stream.info().sample_rate.ok_or(UiError::Audio(
+          let sample_rate = stream.info().sample_rate.ok_or(crate::error::Error::Audio(
             "Tried to load audio file without sample rate".into(),
           ))? as usize;
 
           // Cache the start of the stream.
           stream
             .cache(0, (offset.to_seconds_f64() * sample_rate as f64) as usize)
-            .map_err(|e| UiError::Audio(e.to_string()))?;
+            .map_err(|e| crate::error::Error::Audio(e.to_string()))?;
 
           stream.seek(0, creek::SeekMode::Auto).unwrap();
 
@@ -229,7 +227,7 @@ impl AudioMixerStream {
                   1,
                   rubato::FixedSync::Both,
                 )
-                .map_err(|e| UiError::Audio(e.to_string()))?,
+                .map_err(|e| crate::error::Error::Audio(e.to_string()))?,
               )
             } else {
               None
@@ -274,7 +272,7 @@ impl AudioMixerStream {
 
   /// Fills `buffer` with up to `BLOCK_SIZE * self.channels` of interleaved
   /// audio.
-  pub fn process(&mut self, buffer: &mut [f32]) -> Result<usize, UiError> {
+  pub fn process(&mut self, buffer: &mut [f32]) -> Result<usize, crate::error::Error> {
     assert!(buffer.len() == BLOCK_SIZE * self.channels);
 
     // Stream has ended.
@@ -307,7 +305,7 @@ impl AudioMixerStream {
   }
 
   // Obtain samples before time stretching.
-  fn process_raw(&mut self) -> Result<(), UiError> {
+  fn process_raw(&mut self) -> Result<(), crate::error::Error> {
     // Obtain the actual position in the stream from the timestretched position.
     let _position = (self.position as f64 / self.time_factor).ceil() as usize;
     let timecode =
@@ -328,12 +326,12 @@ impl AudioMixerStream {
 
       es.read_stream
       .seek(frame_pos, creek::SeekMode::Auto)
-      .map_err(|e| UiError::Audio(e.to_string()))?;*/
+      .map_err(|e| crate::error::Error::Audio(e.to_string()))?;*/
 
       let data = es
         .read_stream
         .read(es.read_block_size)
-        .map_err(|e| UiError::Audio(e.to_string()))?;
+        .map_err(|e| crate::error::Error::Audio(e.to_string()))?;
 
       assert!(data.num_channels() >= es.channels);
 
@@ -347,7 +345,7 @@ impl AudioMixerStream {
               &mut SequentialNumbers::new_mut(&mut es.read_buffer[i], 1, BLOCK_SIZE).unwrap(),
               None,
             )
-            .map_err(|e| UiError::Audio(e.to_string()))?;
+            .map_err(|e| crate::error::Error::Audio(e.to_string()))?;
           assert!(output_frames == BLOCK_SIZE);
         }
       } else {

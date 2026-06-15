@@ -1,7 +1,7 @@
 use std::path::Path;
 
+use crate::{objects::audio::AudioFileType, timecode::Timecode};
 use infer::Infer;
-use klib::{objects::audio::AudioFileType, timecode::Timecode};
 use symphonia::core::{
   formats::{FormatOptions, FormatReader},
   io::MediaSourceStream,
@@ -9,18 +9,18 @@ use symphonia::core::{
   probe::Hint,
 };
 
-use crate::util::error::UiError;
-
 pub struct AudioFileInfo {
   pub audio_type: AudioFileType,
   pub length: Timecode,
 }
 
 impl AudioFileInfo {
-  pub fn from_file(path: &Path) -> Result<Option<AudioFileInfo>, UiError> {
+  pub fn from_file(path: &Path) -> Result<Option<AudioFileInfo>, crate::error::Error> {
     let file_type = Infer::new()
       .get_from_path(path)?
-      .ok_or(UiError::Io("Failed to detect file type".to_string()))?;
+      .ok_or(crate::error::Error::Io(
+        "Failed to detect file type".to_string(),
+      ))?;
 
     let audio_type = Self::file_type_from_mime(file_type.mime_type());
     if audio_type.is_none() {

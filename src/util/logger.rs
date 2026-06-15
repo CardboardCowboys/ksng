@@ -23,12 +23,13 @@ pub struct Logger {
 }
 
 impl Logger {
-  pub fn wrap<T>(&self, val: Result<T, UiError>) -> Option<T> {
+  pub fn wrap<T>(&self, val: Result<T, impl Into<UiError>>) -> Option<T> {
     match val {
       Ok(v) => Some(v),
       Err(e) => {
-        error!("{e:?}");
-        self.log(LogType::Error, format!("{e:?}"));
+        let ui_error: UiError = e.into();
+        error!("{ui_error:?}");
+        self.log(LogType::Error, format!("{ui_error:?}"));
         None
       }
     }
