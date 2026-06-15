@@ -167,6 +167,8 @@ impl SyncWindow {
       return;
     }
 
+    // God this logic is so complicated. There *must* be a better way!
+
     let time = app.playback.borrow().position().max(self.min_time);
     let mut last_event_end = time;
 
@@ -195,21 +197,25 @@ impl SyncWindow {
         .unwrap();
       let orig_length = orig_end - orig_start;
       let mut available_length = time - repos_start;
+      let mut current_start = time;
       // If we have a previous event we still need to end, give it half the length.
       if !self.finished_last_syllable {
-        available_length = Timecode::from_seconds_f64(available_length.to_seconds_f64() / 2.0);
+        available_length = Timecode::from_seconds_f64(available_length.to_seconds_f64() / 2.0)
+          .max(Timecode::from_seconds(0.05));
         repos_start += available_length;
         last_event_end = repos_start;
+        current_start = repos_start + available_length;
       }
 
       if orig_length <= available_length {
         // We have enough room to fit the events without changing their duration.
-        let mut next_end = time;
+        let mut next_end = current_start;
         for event_idx in &self.events_need_repositioning {
           let len = self.event_timings[*event_idx].1 - self.event_timings[*event_idx].0;
           self.event_timings[*event_idx] = (next_end - len, next_end);
           next_end -= len;
         }
+        self.min_time = self.min_time.max(current_start);
       } else {
         // We need to change the event length to fit the available duration.
         let repos_length = Timecode::from_seconds_f64(
@@ -276,6 +282,49 @@ impl SyncWindow {
     self.pending_scroll = true;
     self.min_time = time + Timecode::from_seconds(0.05);
   }
+
+  fn handle_save(&mut self, app: &KsngApp, track: Option<&Track>) {
+    if let Some(last_idx) = self.last_idx
+      && let Some(track) = track
+      && last_idx < track.events.len() - 1
+    {
+      // There are events we didn't get to - move them to after all synced
+      // events so that they don't overlap with what we just synced.
+      let mut last_end_pos = if self.finished_last_syllable {
+        self.event_timings[last_idx].1
+      } else {
+        self.min_time
+      };
+
+      self.event_timings[last_idx] = (self.event_timings[last_idx].0, last_end_pos);
+
+      let diff = last_end_pos - self.event_timings[last_idx + 1].0;
+
+      for idx in (last_idx + 1)..self.event_timings.len() {
+        if self.event_timings[idx].0 >= last_end_pos {
+          // This doesn't overlap, stop moving things.
+          break;
+        }
+
+        let length = self.event_timings[idx].1 - self.event_timings[idx].0;
+        self.event_timings[idx] = (
+          self.event_timings[idx].0 + diff,
+          self.event_timings[idx].0 + diff + length,
+        );
+
+        last_end_pos = self.event_timings[idx].1;
+      }
+    }
+
+    app
+      .commands
+      .dispatch(SetEventTimingsCommand::new_with_title(
+        "Sync timings".to_string(),
+        &self.event_ids,
+        &self.event_timings,
+      ));
+    self.is_dirty = false;
+  }
 }
 
 impl KWindow for SyncWindow {
@@ -330,6 +379,7 @@ impl KWindow for SyncWindow {
 
 				let mut handle_sync = false;
 				let mut handle_break = false;
+				let mut handle_save = false;
 
         if ui.input_mut(|i| {
           i.consume_key(egui::Modifiers::NONE, Key::Z)
@@ -375,8 +425,7 @@ impl KWindow for SyncWindow {
 								}
 							}
               if ui.button("Save").clicked() {
-								app.commands.dispatch(SetEventTimingsCommand::new_with_title("Sync timings".to_string(), &self.event_ids, &self.event_timings));
-								self.is_dirty = false;
+								handle_save = true;
 							}
             },
           );
@@ -388,6 +437,10 @@ impl KWindow for SyncWindow {
 
 				if handle_break {
 					self.handle_break(app);
+				}
+
+				if handle_save {
+					self.handle_save(app, track);
 				}
 
         if self.layout_job.is_none() {
