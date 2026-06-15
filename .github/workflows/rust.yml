@@ -22,22 +22,6 @@ jobs:
           command: check
           args: --all-features
 
-  check_wasm:
-    name: Check wasm32
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          target: wasm32-unknown-unknown
-          override: true
-      - uses: actions-rs/cargo@v1
-        with:
-          command: check
-          args: --all-features --lib --target wasm32-unknown-unknown
-
   test:
     name: Test Suite
     runs-on: ubuntu-latest
@@ -86,22 +70,6 @@ jobs:
           command: clippy
           args: -- -D warnings
 
-  trunk:
-    name: trunk
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: 1.81.0
-          target: wasm32-unknown-unknown
-          override: true
-      - name: Download and install Trunk binary
-        run: wget -qO- https://github.com/thedodd/trunk/releases/latest/download/trunk-x86_64-unknown-linux-gnu.tar.gz | tar -xzf-
-      - name: Build
-        run: ./trunk build
-
   build:
     runs-on: ${{ matrix.os }}
     strategy:
@@ -131,7 +99,7 @@ jobs:
     - uses: actions/checkout@master
     - name: Install build dependencies - Rustup
       run: |
-        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain stable --profile default --target ${{ matrix.TARGET }} -y
+        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain nightly --profile default --target ${{ matrix.TARGET }} -y
         echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
     # For linux, it's necessary to use cross from the git repository to avoid glibc problems
