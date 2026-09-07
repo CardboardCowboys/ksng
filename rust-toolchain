@@ -6,4 +6,4 @@
 
 [toolchain]
 channel = "nightly"  # Avoid specifying a patch version here; see https://github.com/emilk/eframe_template/issues/145
-components = [ "rustfmt", "clippy" ]
+components = [ "rustfmt", "clippy" ] 

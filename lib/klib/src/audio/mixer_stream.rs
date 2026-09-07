@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 
 use crate::{
+  audio::stream,
   objects::{
     audio::AudioFileSource,
     event::EventValue,
@@ -23,13 +24,10 @@ struct AudioMixerEventStream {
   end_timecode: Timecode,
   offset: Timecode,
   volume: f32,
-  read_stream: ReadDiskStream<SymphoniaDecoder>,
+  read_stream: Box<dyn stream::AudioStream + Send>,
+  read_buffers: Vec<Vec<f32>>,
   channels: usize,
   sample_rate: usize,
-  resampler: Option<rubato::Fft<f32>>,
-  read_block_size: usize,
-  resample_buffer: Vec<f32>,
-  read_buffer: Vec<Vec<f32>>,
 }
 
 impl AudioMixerEventStream {
@@ -67,7 +65,7 @@ pub struct AudioMixerStream {
 }
 
 impl AudioMixerStream {
-  pub fn new(channels: usize, _sample_rate: usize) -> Result<Self, crate::error::Error> {
+  pub fn new(channels: usize, sample_rate: usize) -> Result<Self, crate::error::Error> {
     let mut planar_buffers = Vec::new();
     for _ in 0..channels {
       let mut buffer = Vec::with_capacity(BLOCK_SIZE);
@@ -79,7 +77,7 @@ impl AudioMixerStream {
       event_streams: Default::default(),
       time_factor: 1.0,
       channels,
-      sample_rate: 44100,
+      sample_rate,
       duration: 0,
       position: 0,
       planar_buffers,
@@ -110,10 +108,8 @@ impl AudioMixerStream {
         continue;
       }
 
-      let _ = es.read_stream.seek(
-        es.position_to_frame(self.sample_rate, new_position),
-        creek::SeekMode::Auto,
-      );
+      es.read_stream
+        .seek(es.position_to_frame(self.sample_rate, new_position));
     }
   }
 
@@ -173,6 +169,11 @@ impl AudioMixerStream {
             "Tried to load audio file without sample rate".into(),
           ))? as usize;
 
+          log::info!(
+            "loaded file {:?} with sample rate {sample_rate}",
+            file.source
+          );
+
           // Cache the start of the stream.
           stream
             .cache(0, (offset.to_seconds_f64() * sample_rate as f64) as usize)
@@ -185,26 +186,12 @@ impl AudioMixerStream {
           // If there are more than two channels, we pretend there's only two.
           let num_channels = stream.info().num_channels.max(2) as usize;
 
-          // If we need to resample, let's preallocate the space we'll need.
-          let read_block_size = if sample_rate != self.sample_rate {
-            (BLOCK_SIZE as f64 * sample_rate as f64 / self.sample_rate as f64) as usize
-          } else {
-            BLOCK_SIZE
-          };
-
-          let resample_buffer = if sample_rate != self.sample_rate {
-            let mut buffer = Vec::with_capacity(read_block_size);
-            buffer.resize(read_block_size, 0.0f32);
-            buffer
-          } else {
-            vec![]
-          };
-
-          let mut read_buffer = Vec::with_capacity(num_channels);
-          for _ in 0..num_channels {
+          let stream = stream::new_stream(stream, BLOCK_SIZE, self.sample_rate)?;
+          let mut read_buffers = Vec::with_capacity(num_channels);
+          for i in 0..num_channels {
             let mut buffer = Vec::with_capacity(BLOCK_SIZE);
-            buffer.resize(BLOCK_SIZE, 0.0f32);
-            read_buffer.push(buffer);
+            buffer.resize(BLOCK_SIZE, 0.0_f32);
+            read_buffers.push(buffer);
           }
 
           self.event_streams.push(AudioMixerEventStream {
@@ -214,27 +201,10 @@ impl AudioMixerStream {
             offset: *offset,
             channels: num_channels,
             read_stream: stream,
+            read_buffers,
             sample_rate,
             start_timecode: ev.start_timecode,
             end_timecode: ev.end_timecode,
-            resampler: if sample_rate != self.sample_rate {
-              Some(
-                rubato::Fft::<f32>::new(
-                  sample_rate,
-                  self.sample_rate,
-                  1024,
-                  1,
-                  1,
-                  rubato::FixedSync::Both,
-                )
-                .map_err(|e| crate::error::Error::Audio(e.to_string()))?,
-              )
-            } else {
-              None
-            },
-            read_block_size,
-            resample_buffer,
-            read_buffer,
           });
         }
       }
@@ -328,49 +298,24 @@ impl AudioMixerStream {
       .seek(frame_pos, creek::SeekMode::Auto)
       .map_err(|e| crate::error::Error::Audio(e.to_string()))?;*/
 
-      let data = es
-        .read_stream
-        .read(es.read_block_size)
-        .map_err(|e| crate::error::Error::Audio(e.to_string()))?;
+      let frames = es.read_stream.read(&mut es.read_buffers)?;
 
-      assert!(data.num_channels() >= es.channels);
-
-      if let Some(resampler) = &mut es.resampler {
-        for i in 0..es.channels {
-          es.resample_buffer.copy_from_slice(data.read_channel(i));
-          let (_, output_frames) = resampler
-            .process_into_buffer(
-              &SequentialNumbers::new(es.resample_buffer.as_slice(), 1, es.read_block_size)
-                .unwrap(),
-              &mut SequentialNumbers::new_mut(&mut es.read_buffer[i], 1, BLOCK_SIZE).unwrap(),
-              None,
-            )
-            .map_err(|e| crate::error::Error::Audio(e.to_string()))?;
-          assert!(output_frames == BLOCK_SIZE);
-        }
-      } else {
-        for i in 0..es.channels {
-          es.read_buffer[i][0..data.num_frames()].copy_from_slice(data.read_channel(i));
-        }
-      }
-
-      let frames = data.num_frames().min(BLOCK_SIZE);
       if es.channels == 2 {
         for i in 0..es.channels {
           for j in 0..frames {
-            self.planar_buffers[i][j] += es.read_buffer[i][j] * es.volume;
+            self.planar_buffers[i][j] += es.read_buffers[i][j] * es.volume;
           }
         }
       } else if es.channels == 1 && self.channels == 2 {
         for i in 0..self.channels {
           for j in 0..frames {
-            self.planar_buffers[i][j] += es.read_buffer[0][j] * es.volume;
+            self.planar_buffers[i][j] += es.read_buffers[0][j] * es.volume;
           }
         }
       } else if self.channels == 1 && es.channels == 2 {
         for i in 0..es.channels {
           for j in 0..frames {
-            self.planar_buffers[0][j] += es.read_buffer[i][j] * es.volume;
+            self.planar_buffers[0][j] += es.read_buffers[i][j] * es.volume;
           }
         }
       } else {

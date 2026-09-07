@@ -2,9 +2,10 @@ use std::sync::{Arc, Mutex, RwLock};
 
 use circular_buffer::CircularBuffer;
 use cpal::{
-  SampleFormat,
+  SampleFormat, SupportedOutputConfigs, SupportedStreamConfig,
   traits::{DeviceTrait, HostTrait, StreamTrait},
 };
+use itertools::Itertools;
 use klib::audio::mixer_stream::{self, AudioMixerStream};
 use klib::timecode::Timecode;
 
@@ -100,13 +101,22 @@ impl AudioMixer {
     let output_config = device
       .supported_output_configs()
       .ok()
-      .and_then(|d| d.clone().find(|d| d.sample_format() == SampleFormat::F32))
+      .and_then(Self::find_ideal_output_config)
       .ok_or(UiError::Audio(
         "Failed to get supported output configs for audio device.".into(),
       ))?;
-    let output_config = output_config
-      .try_with_sample_rate(44100)
-      .unwrap_or(output_config.with_max_sample_rate());
+
+    for c in device.supported_output_configs().unwrap() {
+      log::info!(
+        "Supported config: buffer size {:?}, channels {}, min sample rate {:?}, max sample rate {:?}, format {:?}",
+        c.buffer_size(),
+        c.channels(),
+        c.min_sample_rate(),
+        c.max_sample_rate(),
+        c.sample_format()
+      );
+    }
+
     let context = Arc::new(SharedOutputContext {
       mixer_stream: Mutex::new(AudioMixerStream::new(
         output_config.channels() as usize,
@@ -165,5 +175,37 @@ impl AudioMixer {
       )
       .map_err(|e| UiError::Audio(format!("Failed to build CPAL output stream: {:?}", e)))?;
     Ok((Box::new(stream), ret_context))
+  }
+
+  fn find_ideal_output_config(
+    mut configs: SupportedOutputConfigs,
+  ) -> Option<SupportedStreamConfig> {
+    // First, see if we can get ourselves a perfect config.
+    if let Some(config) = configs.find(|c| {
+      c.min_sample_rate() <= 44100
+        && c.max_sample_rate() >= 44100
+        && c.sample_format() == SampleFormat::F32
+    }) {
+      return config.try_with_sample_rate(44100);
+    }
+
+    if let Some(config) = configs.find(|c| {
+      c.min_sample_rate() <= 48000
+        && c.max_sample_rate() >= 48000
+        && c.sample_format() == SampleFormat::F32
+    }) {
+      return config.try_with_sample_rate(48000);
+    }
+
+    // If not... take what we can get
+    if let Some(config) = configs
+      .filter(|c| c.sample_format() == SampleFormat::F32)
+      .sorted_by_key(|f| (48000_i32 - f.min_sample_rate() as i32).abs())
+      .next()
+    {
+      return config.try_with_sample_rate(config.max_sample_rate());
+    }
+
+    None
   }
 }
