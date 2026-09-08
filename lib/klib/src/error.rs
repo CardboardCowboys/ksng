@@ -9,6 +9,7 @@ pub enum Error {
   Layout(String),
   Skia(String),
   Audio(String),
+  VideoExport(String),
 }
 
 impl std::error::Error for Error {}
@@ -23,6 +24,7 @@ impl Display for Error {
       Error::Layout(str) => f.write_str(&format!("Error::Layout ({str})")),
       Error::Skia(str) => f.write_str(&format!("Error::Skia ({str})")),
       Error::Audio(str) => f.write_str(&format!("Error::Audio ({str})")),
+      Error::VideoExport(str) => f.write_str(&format!("Error::VideoExport ({str})")),
     }
   }
 }
@@ -51,5 +53,12 @@ impl From<std::io::Error> for Error {
 impl From<symphonia::core::errors::Error> for Error {
   fn from(value: symphonia::core::errors::Error) -> Self {
     Error::Audio(format!("Symphonia error: {value:?}"))
+  }
+}
+
+#[cfg(feature = "export_video")]
+impl From<ffmpeg_next::Error> for Error {
+  fn from(value: ffmpeg_next::Error) -> Self {
+    Error::VideoExport(format!("FFmpeg error: {value:?}"))
   }
 }

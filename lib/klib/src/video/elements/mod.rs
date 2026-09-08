@@ -17,7 +17,7 @@ pub struct VideoElementRenderContext<'canvas> {
 
 /// A video element is an renderable item with a position and a start and end
 /// time.
-pub trait VideoElement {
+pub trait VideoElement: Send {
   /// The ID of this video element.
   ///
   /// This might be equivalent to the ID of an event, or may be an entirely

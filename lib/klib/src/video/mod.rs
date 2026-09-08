@@ -14,6 +14,8 @@ use crate::{
 
 pub mod context;
 pub mod elements;
+#[cfg(feature = "export_video")]
+pub mod export;
 pub mod layouts;
 pub mod renderer;
 pub mod sequence;
