@@ -1,4 +1,4 @@
-use egui::{Checkbox, ComboBox, DragValue, Slider, Ui};
+use egui::{Checkbox, ComboBox, DragValue, Slider, TextEdit, Ui};
 use klib::{
   style::{Color32, FontManager, FontStyle},
   timecode::Timecode,
@@ -317,6 +317,17 @@ impl<'ui> EditableConfigUi for EguiEditableConfigUi<'ui> {
       *changed = true;
     }
     new_color
+  }
+
+  fn text(&mut self, key: &str, changed: &mut bool, value: &str) -> String {
+    let mut new_value = value.to_owned();
+    config_row(key, self.ui, |ui| {
+      ui.add(TextEdit::singleline(&mut new_value));
+    });
+    if new_value != value {
+      *changed = true;
+    }
+    new_value
   }
 }
 

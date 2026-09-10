@@ -1,6 +1,6 @@
 use std::{
   path::{Path, PathBuf},
-  sync::{Arc, Mutex},
+  sync::{Arc, Mutex, Once},
 };
 
 use ffmpeg_next::{
@@ -10,6 +10,7 @@ use ffmpeg_next::{
   util::format,
   ChannelLayout, Dictionary, Rational,
 };
+use klib_macros::EditableConfig;
 use zerocopy::IntoBytes;
 
 use crate::{
@@ -32,7 +33,7 @@ pub struct FfmpegEncoder {
   duration: Timecode,
 }
 
-#[derive(Debug)]
+#[derive(EditableConfig, Debug, Copy, Clone)]
 enum FfmpegCodecSet {
   Mp4H264Aac,
   Mp4Av1Aac,
@@ -40,11 +41,32 @@ enum FfmpegCodecSet {
   WebmAv1Opus,
 }
 
+impl FfmpegCodecSet {
+  fn sample_format(&self) -> format::sample::Sample {
+    match &self {
+      Self::Mp4H264Aac | Self::Mp4Av1Aac => format::Sample::F32(format::sample::Type::Planar),
+      Self::WebmVp9Opus | Self::WebmAv1Opus => format::Sample::F32(format::sample::Type::Packed),
+    }
+  }
+}
+
+#[derive(EditableConfig, Clone)]
 pub struct FfmpegEncoderOptions {
   codec_set: FfmpegCodecSet,
   frame_rate: usize,
   audio_opts: String,
   video_opts: String,
+}
+
+impl Default for FfmpegEncoderOptions {
+  fn default() -> Self {
+    Self {
+      codec_set: FfmpegCodecSet::Mp4H264Aac,
+      frame_rate: 30,
+      audio_opts: Default::default(),
+      video_opts: Default::default(),
+    }
+  }
 }
 
 struct FfmpegEncoderSharedState {
@@ -57,13 +79,18 @@ struct FfmpegEncoderSharedState {
 }
 
 const SAMPLE_RATE: usize = 44100;
+static FFMPEG_INIT: Once = Once::new();
 
 impl FfmpegEncoder {
   pub fn new(
-    options: FfmpegEncoderOptions,
+    options: &FfmpegEncoderOptions,
     file: &File,
     output_path: &Path,
   ) -> Result<FfmpegEncoder, Error> {
+    FFMPEG_INIT.call_once(|| {
+      ffmpeg_next::init().unwrap();
+    });
+
     let output_path = match options.codec_set {
       FfmpegCodecSet::Mp4Av1Aac | FfmpegCodecSet::Mp4H264Aac => output_path.with_extension("mp4"),
       FfmpegCodecSet::WebmAv1Opus | FfmpegCodecSet::WebmVp9Opus => {
@@ -87,15 +114,15 @@ impl FfmpegEncoder {
     let mut video_encoder = codec::context::Context::new_with_codec(video_codec)
       .encoder()
       .video()?;
-    video_ost.set_parameters(&video_encoder);
 
     video_encoder.set_width(file.config.video.width as u32);
     video_encoder.set_height(file.config.video.height as u32);
-    video_encoder
-      .set_aspect_ratio(file.config.video.width as f64 / file.config.video.height as f64);
-    video_encoder.set_format(format::Pixel::RGBAF32LE);
-    video_encoder.set_frame_rate(Some(Rational::new(1, options.frame_rate as i32)));
-    video_encoder.set_time_base(TIME_BASE);
+    video_encoder.set_format(format::Pixel::YUV420P);
+    video_encoder.set_frame_rate(Some(Rational::new(options.frame_rate as i32, 1)));
+    video_encoder.set_time_base(Rational::new(1, options.frame_rate as i32));
+    video_encoder.set_max_b_frames(1);
+    video_encoder.set_gop(10);
+    video_ost.set_parameters(&video_encoder);
 
     let audio_codec = match options.codec_set {
       FfmpegCodecSet::Mp4Av1Aac | FfmpegCodecSet::Mp4H264Aac => encoder::find(codec::Id::AAC),
@@ -110,10 +137,12 @@ impl FfmpegEncoder {
     let mut audio_encoder = codec::context::Context::new_with_codec(audio_codec)
       .encoder()
       .audio()?;
-    audio_ost.set_parameters(&audio_encoder);
     audio_encoder.set_bit_rate(128000);
+    audio_encoder.set_rate(SAMPLE_RATE as i32);
+    audio_encoder.set_format(options.codec_set.sample_format());
     audio_encoder.set_channel_layout(ChannelLayout::STEREO);
     audio_encoder.set_time_base(Rational::new(1, SAMPLE_RATE as i32));
+    audio_ost.set_parameters(&audio_encoder);
 
     let audio_opts = Self::parse_opts(&options.audio_opts).ok_or(Error::VideoExport(
       "Could not parse audio options string".to_owned(),
@@ -125,13 +154,15 @@ impl FfmpegEncoder {
     let audio_encoder = audio_encoder.open_with(audio_opts)?;
     let video_encoder = video_encoder.open_with(video_opts)?;
 
+    out_stream.write_header()?;
+
     let mut mixer = AudioMixerStream::new(2, 44100)?;
     mixer.update_from_tracks(&file.tracks)?;
 
     let sequence = VideoSequence::from_file(file, &file.config.video);
 
     Ok(FfmpegEncoder {
-      options,
+      options: options.clone(),
       output_path,
       duration: file.calculate_length(),
       shared: Arc::new(Mutex::new(FfmpegEncoderSharedState {
@@ -170,9 +201,19 @@ impl FfmpegEncoder {
     buffer.resize(buffer_size, 0.0_f32);
 
     let mut frame = ffmpeg_next::frame::Audio::new(
-      format::Sample::F32(format::sample::Type::Packed),
-      buffer_size,
+      shared.audio_encoder.format(),
+      format::sample::Buffer::size(
+        shared.audio_encoder.format(),
+        2,
+        mixer_stream::BLOCK_SIZE,
+        true,
+      ),
       ChannelLayout::STEREO,
+    );
+
+    let is_interleaved = matches!(
+      shared.audio_encoder.format(),
+      format::sample::Sample::F32(format::sample::Type::Packed)
     );
 
     while finished_samples < total {
@@ -183,9 +224,43 @@ impl FfmpegEncoder {
 
       let num_samples = shared.mixer.process(&mut buffer)?;
 
-      let frame_data = &mut frame.data_mut(0)[0..num_samples];
-      frame_data.copy_from_slice(buffer[0..num_samples].as_bytes());
-      frame.set_samples(num_samples / 2);
+      let num_frames = num_samples / 2;
+      let frame_data = &mut frame.data_mut(0)[0..num_samples * size_of::<f32>()];
+      if is_interleaved {
+        frame_data.copy_from_slice(buffer[0..num_samples].as_bytes());
+      } else {
+        for i in 0..num_frames {
+          let channel0idx = i * size_of::<f32>();
+          let channel1idx = (num_frames + i) * size_of::<f32>();
+
+          let c0 = (buffer[i * 2]).to_le_bytes();
+          let c1 = (buffer[i * 2 + 1]).to_le_bytes();
+          assert!(!buffer[i * 2].is_nan() && !buffer[i * 2].is_infinite());
+          assert!(!buffer[i * 2 + 1].is_nan() && !buffer[i * 2 + 1].is_infinite());
+
+          frame_data[channel0idx] = c0[0];
+          frame_data[channel0idx + 1] = c0[1];
+          frame_data[channel0idx + 2] = c0[2];
+          frame_data[channel0idx + 3] = c0[3];
+          frame_data[channel1idx] = c1[0];
+          frame_data[channel1idx + 1] = c1[1];
+          frame_data[channel1idx + 2] = c1[2];
+          frame_data[channel1idx + 3] = c1[3];
+        }
+      }
+
+      for i in 0..num_samples {
+        let float = f32::from_le_bytes([
+          frame_data[i * 4],
+          frame_data[i * 4 + 1],
+          frame_data[i * 4 + 2],
+          frame_data[i * 4 + 3],
+        ]);
+        assert!(!float.is_nan() && !float.is_infinite());
+      }
+
+      frame.set_samples(num_samples);
+      frame.set_pts(Some(finished_samples as i64));
 
       shared.audio_encoder.send_frame(&frame)?;
       let mut packet = ffmpeg_next::Packet::empty();
@@ -199,6 +274,11 @@ impl FfmpegEncoder {
     }
 
     shared.audio_encoder.send_eof()?;
+    let mut packet = ffmpeg_next::Packet::empty();
+    while shared.audio_encoder.receive_packet(&mut packet).is_ok() {
+      packet.set_stream(1);
+      packet.write_interleaved(&mut shared.out_stream)?;
+    }
 
     *monitor.status.write().unwrap() = VideoExportStatus::Completed;
     Ok(())
@@ -217,12 +297,24 @@ impl FfmpegEncoder {
     VideoRenderer::allocate_buffer(&shared.config, &mut buffer);
 
     let mut frame = ffmpeg_next::frame::Video::new(
-      format::Pixel::RGBAF32LE,
+      format::Pixel::RGBA,
+      shared.config.width as u32,
+      shared.config.height as u32,
+    );
+
+    let mut yuv_frame = ffmpeg_next::frame::Video::new(
+      format::Pixel::YUV420P,
       shared.config.width as u32,
       shared.config.height as u32,
     );
 
     let mut renderer = VideoRenderer::new()?;
+
+    let mut pixel_converter = ffmpeg_next::software::converter(
+      (shared.config.width as u32, shared.config.height as u32),
+      format::Pixel::RGBA,
+      format::Pixel::YUV420P,
+    )?;
 
     while finished_frames < total {
       if *monitor.cancelled.read().unwrap() {
@@ -235,10 +327,13 @@ impl FfmpegEncoder {
       renderer.render_frame(&shared.config, &shared.sequence, time, &mut buffer)?;
 
       frame.data_mut(0).copy_from_slice(&buffer);
-      frame.set_pts(Some(finished_frames as i64));
-      frame.set_kind(ffmpeg_next::picture::Type::None);
 
-      shared.video_encoder.send_frame(&frame)?;
+      pixel_converter.run(&frame, &mut yuv_frame)?;
+
+      yuv_frame.set_pts(Some(finished_frames as i64));
+      yuv_frame.set_kind(ffmpeg_next::picture::Type::None);
+
+      shared.video_encoder.send_frame(&yuv_frame)?;
       let mut packet = ffmpeg_next::Packet::empty();
       while shared.video_encoder.receive_packet(&mut packet).is_ok() {
         packet.set_stream(0);
@@ -250,6 +345,13 @@ impl FfmpegEncoder {
     }
 
     shared.video_encoder.send_eof()?;
+    let mut packet = ffmpeg_next::Packet::empty();
+    while shared.video_encoder.receive_packet(&mut packet).is_ok() {
+      packet.set_stream(0);
+      packet.write_interleaved(&mut shared.out_stream)?;
+    }
+
+    shared.out_stream.write_trailer()?;
 
     *monitor.status.write().unwrap() = VideoExportStatus::Completed;
     Ok(())

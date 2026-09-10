@@ -8,6 +8,7 @@ pub enum KsngEvent {
   ProjectOpen,
   ProjectOpenId(Uuid),
   ProjectDelete(Uuid),
+  ProjectExportVideo,
   Quit,
   Undo,
   Redo,

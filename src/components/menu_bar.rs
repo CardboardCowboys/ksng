@@ -86,6 +86,17 @@ pub fn menu_bar(app: &KsngApp, ctx: &Context, ui: &mut Ui) {
 
           ui.separator();
 
+          ui.add_enabled_ui(project.is_some(), |ui| {
+            ui.menu_button("Export", |ui| {
+              if ui.button("Video...").clicked() {
+                app.dispatch(KsngEvent::ProjectExportVideo);
+                ui.close();
+              }
+            });
+          });
+
+          ui.separator();
+
           if !is_web && button_with_shortcut(ui, "Quit", Key::Q, Modifiers::COMMAND) {
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
             ui.close();

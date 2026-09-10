@@ -10,8 +10,8 @@ use crate::{
   components::{self, lyrics_editor::LyricsEditor, timeline::Timeline},
   fs::Data,
   modals::{
-    ModalManager, dirty_warning::DirtyWarningModal, open_project::OpenProjectModal,
-    save_project::SaveProjectModal,
+    ModalManager, dirty_warning::DirtyWarningModal, export_video::ExportVideoModal,
+    open_project::OpenProjectModal, save_project::SaveProjectModal,
   },
   playback::{Playback, PlaybackState},
   preferences::Preferences,
@@ -109,6 +109,9 @@ impl KsngApp {
           self.project.replace(Some(project));
           self.on_project_change(ctx);
         }
+      }
+      KsngEvent::ProjectExportVideo => {
+        self.modals.add(ExportVideoModal::new());
       }
       KsngEvent::Quit => {
         *self.close_allowed.borrow_mut() = true;

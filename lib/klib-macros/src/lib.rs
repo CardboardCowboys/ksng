@@ -190,6 +190,10 @@ fn editor_for_field(
         return Ok(quote! {
           #set = ui.color(#key, &mut changed, #access);
         });
+      } else if type_name == "String" {
+        return Ok(quote! {
+          #set = ui.text(#key, &mut changed, &#access);
+        });
       }
 
       let new_name = format!("new_{}", field_ident);

@@ -66,4 +66,7 @@ pub trait EditableConfigUi {
   /// Draws a color editor.
   /// Params: (key, changed, value)
   fn color(&mut self, key: &str, changed: &mut bool, value: Color32) -> Color32;
+  /// Draws a single-line text editor.
+  /// Params: (key, changed, value)
+  fn text(&mut self, key: &str, changed: &mut bool, value: &str) -> String;
 }
