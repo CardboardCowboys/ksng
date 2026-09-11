@@ -7,7 +7,7 @@ use ffmpeg_next::{
   codec::{self, Context},
   encoder::{self, Encoder},
   rescale::TIME_BASE,
-  util::format,
+  util::format::{self, sample::Sample},
   ChannelLayout, Dictionary, Rational,
 };
 use klib_macros::EditableConfig;
@@ -39,7 +39,7 @@ enum FfmpegCodecSet {
 }
 
 impl FfmpegCodecSet {
-  fn sample_format(&self) -> format::sample::Sample {
+  fn sample_format(&self) -> Sample {
     match &self {
       Self::Mp4H264Aac | Self::Mp4Av1Aac => format::Sample::F32(format::sample::Type::Planar),
       Self::WebmVp9Opus | Self::WebmAv1Opus => format::Sample::F32(format::sample::Type::Packed),
@@ -176,7 +176,7 @@ impl FfmpegEncoder {
     let mut audio_encoder = codec::context::Context::new_with_codec(audio_codec)
       .encoder()
       .audio()?;
-    audio_encoder.set_bit_rate(128000);
+    audio_encoder.set_bit_rate(256000);
     audio_encoder.set_rate(SAMPLE_RATE as i32);
     audio_encoder.set_format(options.codec_set.sample_format());
     audio_encoder.set_channel_layout(ChannelLayout::STEREO);
@@ -202,7 +202,7 @@ impl FfmpegEncoder {
     }
 
     // Step 2: export audio
-    let total = (SAMPLE_RATE as f64 * shared.duration.to_seconds_f64()).ceil() as usize;
+    let total = (SAMPLE_RATE as f64 * shared.duration.to_seconds_f64()).ceil() as usize * 2;
     monitor.next_step("Encoding audio".to_owned(), total);
     {
       let mut finished_samples = 0;
@@ -212,15 +212,32 @@ impl FfmpegEncoder {
       buffer.resize(buffer_size, 0.0_f32);
 
       let mut frame = ffmpeg_next::frame::Audio::new(
-        audio_encoder.format(),
-        format::sample::Buffer::size(audio_encoder.format(), 2, mixer_stream::BLOCK_SIZE, true),
+        Sample::F32(format::sample::Type::Packed),
+        1024,
         ChannelLayout::STEREO,
       );
+      frame.set_rate(SAMPLE_RATE as u32);
+
+      let mut planar_frame =
+        ffmpeg_next::frame::Audio::new(audio_encoder.format(), 1024, ChannelLayout::STEREO);
 
       let is_interleaved = matches!(
         audio_encoder.format(),
         format::sample::Sample::F32(format::sample::Type::Packed)
       );
+
+      let mut sample_converter = ffmpeg_next::software::resampler(
+        (
+          Sample::F32(format::sample::Type::Packed),
+          ChannelLayout::STEREO,
+          SAMPLE_RATE as u32,
+        ),
+        (
+          audio_encoder.format(),
+          ChannelLayout::STEREO,
+          SAMPLE_RATE as u32,
+        ),
+      )?;
 
       let mut mixer = shared.mixer.write().unwrap();
 
@@ -234,43 +251,21 @@ impl FfmpegEncoder {
 
         let num_frames = num_samples / 2;
         let frame_data = &mut frame.data_mut(0)[0..num_samples * size_of::<f32>()];
+        frame_data.copy_from_slice(buffer[0..num_samples].as_bytes());
         if is_interleaved {
-          frame_data.copy_from_slice(buffer[0..num_samples].as_bytes());
+          frame.set_samples(num_frames);
+          frame.set_pts(Some((finished_samples as i64) / 2));
+
+          audio_encoder.send_frame(&frame)?;
         } else {
-          for i in 0..num_frames {
-            let channel0idx = i * size_of::<f32>();
-            let channel1idx = (num_frames + i) * size_of::<f32>();
+          let _ = sample_converter.run(&frame, &mut planar_frame)?;
 
-            let c0 = (buffer[i * 2]).to_le_bytes();
-            let c1 = (buffer[i * 2 + 1]).to_le_bytes();
-            assert!(!buffer[i * 2].is_nan() && !buffer[i * 2].is_infinite());
-            assert!(!buffer[i * 2 + 1].is_nan() && !buffer[i * 2 + 1].is_infinite());
+          planar_frame.set_samples(num_frames);
+          planar_frame.set_pts(Some((finished_samples as i64) / 2));
 
-            frame_data[channel0idx] = c0[0];
-            frame_data[channel0idx + 1] = c0[1];
-            frame_data[channel0idx + 2] = c0[2];
-            frame_data[channel0idx + 3] = c0[3];
-            frame_data[channel1idx] = c1[0];
-            frame_data[channel1idx + 1] = c1[1];
-            frame_data[channel1idx + 2] = c1[2];
-            frame_data[channel1idx + 3] = c1[3];
-          }
+          audio_encoder.send_frame(&planar_frame)?;
         }
 
-        for i in 0..num_samples {
-          let float = f32::from_le_bytes([
-            frame_data[i * 4],
-            frame_data[i * 4 + 1],
-            frame_data[i * 4 + 2],
-            frame_data[i * 4 + 3],
-          ]);
-          assert!(!float.is_nan() && !float.is_infinite());
-        }
-
-        frame.set_samples(num_frames);
-        frame.set_pts(Some(finished_samples as i64));
-
-        audio_encoder.send_frame(&frame)?;
         let mut packet = ffmpeg_next::Packet::empty();
         while audio_encoder.receive_packet(&mut packet).is_ok() {
           packet.set_stream(1);
