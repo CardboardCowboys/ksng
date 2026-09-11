@@ -51,7 +51,7 @@ fn button_enabled_with_shortcut(
   ui.input_mut(|input| input.consume_key(modifiers, key))
 }
 
-pub fn menu_bar(app: &KsngApp, ctx: &Context, ui: &mut Ui) {
+pub fn menu_bar(app: &KsngApp, ui: &mut Ui) {
   MenuBar::new().ui(ui, |ui| {
     let project = app.project.borrow();
     Sides::new().show(
@@ -98,7 +98,7 @@ pub fn menu_bar(app: &KsngApp, ctx: &Context, ui: &mut Ui) {
           ui.separator();
 
           if !is_web && button_with_shortcut(ui, "Quit", Key::Q, Modifiers::COMMAND) {
-            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+            ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
             ui.close();
           }
         });

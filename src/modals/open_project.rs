@@ -1,4 +1,4 @@
-use egui::{Align, Button, Id, ImageButton, Layout, Modal, Sense, Sides, TopBottomPanel};
+use egui::{Align, Button, Id, Layout, Modal, Panel, Sense, Sides};
 use egui_extras::{Column, TableBuilder};
 use uuid::Uuid;
 
@@ -109,12 +109,12 @@ impl KModal for OpenProjectModal {
             }
           });
 
-        TopBottomPanel::bottom(Id::new("modal#open_project.bottom")).show_inside(ui, |ui| {
+        Panel::bottom(Id::new("modal#open_project.bottom")).show(ui, |ui| {
           ui.add_space(5.0);
           Sides::new().show(
             ui,
             |ui| {
-              let button = ImageButton::new(icons::DELETE);
+              let button = Button::image(icons::DELETE);
               if ui.add_enabled(self.selected_id.is_some(), button).clicked()
                 && let Some(selected_id) = self.selected_id
               {

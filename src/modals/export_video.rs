@@ -231,7 +231,7 @@ impl KModal for ExportVideoModal {
       });
     });
 
-    if self.dialog.state() == DialogState::Open {
+    if *self.dialog.state() == DialogState::Open {
       self.dialog.update(context);
     }
   }

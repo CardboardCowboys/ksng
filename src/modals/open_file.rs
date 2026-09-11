@@ -48,7 +48,7 @@ impl KModal for OpenFileModal {
       (self.after)(app, path.to_path_buf());
     }
 
-    if res.state() != DialogState::Open {
+    if *res.state() != DialogState::Open {
       self.open = false;
     }
   }

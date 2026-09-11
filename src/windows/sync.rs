@@ -1,5 +1,5 @@
 use egui::{
-  Button, Color32, FontId, Id, Key, Sides, TextFormat,
+  Button, Color32, FontId, Frame, Id, Key, Sides, TextFormat,
   text::{CCursor, LayoutJob, LayoutSection},
 };
 use klib::{
@@ -97,7 +97,7 @@ impl SyncWindow {
     if before_len > 0 {
       job.sections.push(LayoutSection {
         leading_space: 0.0,
-        byte_range: 0..before_len,
+        byte_range: egui::text::ByteIndex(0)..egui::text::ByteIndex(before_len),
         format: TextFormat {
           font_id: FontId::proportional(20.0),
           color: Color32::GRAY,
@@ -109,7 +109,8 @@ impl SyncWindow {
     if current_len > 0 {
       job.sections.push(LayoutSection {
         leading_space: 0.0,
-        byte_range: before_len..(before_len + current_len),
+        byte_range: egui::text::ByteIndex(before_len)
+          ..egui::text::ByteIndex(before_len + current_len),
         format: TextFormat {
           font_id: FontId::proportional(20.0),
           color: Color32::YELLOW,
@@ -121,7 +122,7 @@ impl SyncWindow {
     if job.text.len() != final_start {
       job.sections.push(LayoutSection {
         leading_space: 0.0,
-        byte_range: final_start..job.text.len(),
+        byte_range: egui::text::ByteIndex(final_start)..egui::text::ByteIndex(job.text.len()),
         format: TextFormat {
           font_id: FontId::proportional(20.0),
           color: Color32::WHITE,
@@ -417,7 +418,7 @@ impl KWindow for SyncWindow {
 					handle_back = true;
 				}
 
-        egui::TopBottomPanel::bottom("sync#buttons").show_inside(ui, |ui| {
+        egui::Panel::bottom("sync#buttons").show_inside(ui, |ui| {
           ui.add_space(5.0);
           Sides::new().show(
             ui,
@@ -491,14 +492,14 @@ impl KWindow for SyncWindow {
             let mut text = layout.text.clone();
             let mut layouter = |ui: &egui::Ui, _buf: &dyn egui::TextBuffer, wrap_width: f32| {
               layout.wrap.max_width = wrap_width;
-              ui.fonts(|f| f.layout_job(layout.clone()))
+              ui.fonts_mut(|f| f.layout_job(layout.clone()))
             };
 
             let text_edit_id = Id::new("sync#lyrics_text");
 
             let response = egui::TextEdit::multiline(&mut text)
               .id(text_edit_id)
-              .frame(false)
+							.frame(Frame::NONE)
               .interactive(false)
               .desired_width(ui.available_width() - 20.0)
               .font(FontId::proportional(20.0))

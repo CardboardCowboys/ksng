@@ -1,6 +1,6 @@
 use std::{collections::HashSet, fmt::Write};
 
-use egui::{Button, FontId, MenuBar, Sides, Ui};
+use egui::{Button, FontId, Frame, MenuBar, Sides, Ui};
 use klib::{
   objects::{
     event::{Event, EventType},
@@ -165,7 +165,7 @@ impl LyricsEditor {
 
   pub fn show(&mut self, app: &KsngApp, ui: &mut Ui) {
     let mut apply_changes = false;
-    egui::TopBottomPanel::top("lyrics_editor#top").show_inside(ui, |ui| {
+    egui::Panel::top("lyrics_editor#top").show_inside(ui, |ui| {
       MenuBar::new().ui(ui, |ui| {
         let track_changed = self
           .current_data
@@ -232,7 +232,7 @@ impl LyricsEditor {
         };*/
 
         let output = egui::TextEdit::multiline(&mut lyrics_track.text)
-          .frame(false)
+          .frame(Frame::NONE)
           .desired_width(ui.available_width() - 20.0)
           .font(FontId::proportional(20.0))
           //.layouter(&mut layouter)

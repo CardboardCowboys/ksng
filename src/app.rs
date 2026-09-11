@@ -205,8 +205,9 @@ impl eframe::App for KsngApp {
 
   /// Called each time the UI needs repainting, which may be many times per
   /// second.
-  fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+  fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
     let mut queue = self.event_queue.borrow_mut();
+    let ctx = ui.ctx();
     while let Some(event) = queue.pop_front() {
       self.on_event(ctx, event);
     }
@@ -227,35 +228,39 @@ impl eframe::App for KsngApp {
       ctx.request_repaint();
     }
 
+    drop(ctx);
+
     // Put your widgets into a `SidePanel`, `TopBottomPanel`, `CentralPanel`,
     // `Window` or `Area`. For inspiration and more examples, go to https://emilk.github.io/egui
 
-    egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
-      components::menu_bar::menu_bar(self, ctx, ui);
+    egui::Panel::top("top_panel").show(ui, |ui| {
+      components::menu_bar::menu_bar(self, ui);
     });
 
-    egui::CentralPanel::default().show(ctx, |ui| {
-      egui::TopBottomPanel::bottom(Id::new("timeline"))
-        .default_height(200.0)
+    egui::CentralPanel::default().show(ui, |ui| {
+      egui::Panel::bottom(Id::new("timeline"))
+        .default_size(200.0)
         .resizable(true)
-        .show_inside(ui, |ui| {
-          self.timeline.borrow_mut().update(self, ctx, ui);
+        .show(ui, |ui| {
+          self.timeline.borrow_mut().update(self, ui);
         });
-      egui::CentralPanel::default().show_inside(ui, |ui| {
-        egui::SidePanel::right(Id::new("player"))
-          .default_width(300.0)
-          .max_width(ui.available_width() - 100.0)
+      egui::CentralPanel::default().show(ui, |ui| {
+        egui::Panel::right(Id::new("player"))
+          .default_size(300.0)
+          .max_size((ui.available_width() - 100.0).max(0.0))
           .resizable(true)
-          .show_inside(ui, |ui| {
-            components::player::player(self, ctx, ui);
+          .show(ui, |ui| {
+            components::player::player(self, ui);
           });
         egui::CentralPanel::default()
           .frame(egui::Frame::new().inner_margin(0.0))
-          .show_inside(ui, |ui| {
+          .show(ui, |ui| {
             self.lyrics_editor.borrow_mut().show(self, ui);
           });
       });
     });
+
+    let ctx = ui.ctx();
 
     if ctx.input(|i| i.viewport().close_requested())
       && let Some(project) = self.project.borrow().as_ref()

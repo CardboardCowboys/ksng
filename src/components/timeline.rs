@@ -1,8 +1,8 @@
 use std::collections::{HashMap, HashSet, hash_map::Entry};
 
 use egui::{
-  Align2, CentralPanel, Color32, Context, CursorIcon, FontId, Frame, Id, ImageButton, ImageSource,
-  Margin, PointerButton, Pos2, Rect, ScrollArea, Sense, SidePanel, Sides, Stroke, StrokeKind,
+  Align2, Button, CentralPanel, Color32, Context, CursorIcon, FontId, Frame, Id, ImageSource,
+  Margin, Panel, PointerButton, Pos2, Rect, ScrollArea, Sense, Sides, Stroke, StrokeKind,
   TextureOptions, Ui, UiBuilder, Vec2, scroll_area::ScrollSource,
 };
 use klib::{
@@ -131,7 +131,7 @@ impl Default for Timeline {
 }
 
 impl Timeline {
-  pub fn update(&mut self, app: &KsngApp, _ctx: &Context, ui: &mut Ui) {
+  pub fn update(&mut self, app: &KsngApp, ui: &mut Ui) {
     let zoom_delta = ui.input_mut(|input| {
       if input.modifiers.alt {
         Vec2::new(0.0, input.zoom_delta() - 1.0)
@@ -174,11 +174,10 @@ impl Timeline {
       }
       let project = project.as_ref().unwrap();
 
-      ui.visuals_mut().clip_rect_margin = 0.0;
       ui.spacing_mut().item_spacing = Vec2::ZERO;
       ui.spacing_mut().indent = 0.0;
 
-      SidePanel::left(Id::new("timeline#headers"))
+      Panel::left(Id::new("timeline#headers"))
         .frame(Frame::side_top_panel(ui.style()))
         .show_inside(ui, |ui| {
           for track in &project.file.tracks {
@@ -213,7 +212,7 @@ impl Timeline {
                   ui.inert_heading(format!("{:?}", track.track_type));
                 },
                 |ui| {
-                  let settings_button = ImageButton::new(icons::GEAR);
+                  let settings_button = Button::image(icons::GEAR);
                   if ui
                     .add_sized(Vec2::new(20.0, 20.0), settings_button)
                     .clicked()
@@ -225,14 +224,15 @@ impl Timeline {
                   ui.add_space(2.0);
 
                   if let Some(TrackValue::Audio(audio)) = &track.track_value {
-                    let mut mute_button = ImageButton::new(if audio.muted {
+                    let mut mute_button = Button::image(if audio.muted {
                       icons::VOLUME_OFF
                     } else {
                       icons::VOLUME
                     });
 
                     if audio.muted {
-                      mute_button = mute_button.tint(Color32::RED);
+                      mute_button = mute_button.image_tint_follows_text_color(true);
+                      ui.visuals_mut().override_text_color = Some(Color32::RED);
                     }
 
                     if ui.add_sized(Vec2::new(20.0, 20.0), mute_button).clicked() {
@@ -243,7 +243,7 @@ impl Timeline {
 
                   if track.track_type == TrackType::Lyrics
                     && ui
-                      .add_sized(Vec2::new(20.0, 20.0), ImageButton::new(icons::SYNC))
+                      .add_sized(Vec2::new(20.0, 20.0), Button::image(icons::SYNC))
                       .clicked()
                   {
                     app.windows.add(SyncWindow::new(track.id));
@@ -272,9 +272,9 @@ impl Timeline {
 
       CentralPanel::default()
         .frame(Frame::side_top_panel(ui.style()))
-        .show_inside(ui, |ui| {
+        .show(ui, |ui| {
           let mut scroll_source = ScrollSource::ALL;
-          scroll_source.drag = false;
+          scroll_source.drag = egui::scroll_area::DragScroll::Never;
 
           let res: egui::scroll_area::ScrollAreaOutput<()> = ScrollArea::horizontal()
             .auto_shrink(false)

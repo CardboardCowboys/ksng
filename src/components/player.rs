@@ -1,6 +1,4 @@
-use egui::{
-  Align, Context, Id, ImageButton, ImageSource, Layout, Slider, TopBottomPanel, Ui, Vec2,
-};
+use egui::{Align, Button, Id, ImageSource, Layout, Panel, Slider, Ui, Vec2};
 use klib::timecode::Timecode;
 
 use crate::{KsngApp, playback::PlaybackState, style::icons};
@@ -12,8 +10,8 @@ fn calculate_video_size(available_size: Vec2, video_size: Vec2) -> Vec2 {
   Vec2::new(scale * video_size.x, scale * video_size.y)
 }
 
-pub fn player(app: &KsngApp, _ctx: &Context, ui: &mut Ui) {
-  TopBottomPanel::bottom(Id::new("player#controls")).show_inside(ui, |ui| {
+pub fn player(app: &KsngApp, ui: &mut Ui) {
+  Panel::bottom(Id::new("player#controls")).show(ui, |ui| {
     ui.add_enabled_ui(app.project.borrow().is_some(), |ui| {
       ui.vertical_centered(|ui| {
         let position = app.playback.borrow().position();
@@ -48,9 +46,9 @@ pub fn player(app: &KsngApp, _ctx: &Context, ui: &mut Ui) {
 
         let state = app.playback.borrow().state();
         let button = if state == PlaybackState::Playing {
-          ImageButton::new(icons::PAUSE)
+          Button::image(icons::PAUSE)
         } else {
-          ImageButton::new(icons::PLAY)
+          Button::image(icons::PLAY)
         };
 
         if ui.add_sized(Vec2::new(40.0, 40.0), button).clicked() {
@@ -60,7 +58,7 @@ pub fn player(app: &KsngApp, _ctx: &Context, ui: &mut Ui) {
     });
   });
   let size = ui.available_size();
-  TopBottomPanel::top(Id::new("player#view")).show_inside(ui, |ui| {
+  Panel::top(Id::new("player#view")).show(ui, |ui| {
     if let Some(texture) = app.video.borrow().last_frame_texture() {
       let size = calculate_video_size(size, texture.size);
       ui.with_layout(Layout::top_down(Align::Center), |ui| {
