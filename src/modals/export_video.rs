@@ -11,8 +11,7 @@ enum VideoExportSetting {
 
 enum ModalState {
   Opened,
-  ExportingAudio(Arc<VideoExportProgressMonitor>),
-  ExportingVideo(Arc<VideoExportProgressMonitor>),
+  Exporting(Arc<VideoExportProgressMonitor>),
   Failed(klib::error::Error),
   Complete,
   Cancelled,
@@ -28,17 +27,24 @@ pub struct ExportVideoModal {
 }
 
 impl ExportVideoModal {
-  pub fn new() -> Self {
+  pub fn new(project_name: String) -> Self {
     let mut dialog = FileDialog::new().as_modal(false);
 
     if let Some(home_dir) = directories::UserDirs::new().map(|u| u.home_dir().to_path_buf()) {
       dialog = dialog.initial_directory(home_dir);
     }
 
+    let mut output_path = None;
+    if let Some(desktop_dir) =
+      directories::UserDirs::new().and_then(|u| u.desktop_dir().map(|p| p.to_path_buf()))
+    {
+      output_path = Some(desktop_dir.join(project_name));
+    }
+
     ExportVideoModal {
       open: true,
       dialog,
-      output_path: None,
+      output_path,
       setting: VideoExportSetting::Ffmpeg(Default::default()),
       exporter: None,
       state: ModalState::Opened,
@@ -129,8 +135,13 @@ impl KModal for ExportVideoModal {
 
       match &self.state {
         ModalState::Opened => {}
-        ModalState::ExportingAudio(monitor) => {
-          ui.label("Exporting Audio");
+        ModalState::Exporting(monitor) => {
+          ui.label(format!(
+            "{} ({}/{})",
+            monitor.step_name.read().unwrap(),
+            *monitor.current_step.read().unwrap() + 1,
+            monitor.num_steps
+          ));
           ui.add(
             ProgressBar::new(monitor.percent())
               .animate(false)
@@ -141,32 +152,6 @@ impl KModal for ExportVideoModal {
             export::VideoExportStatus::InProgress => {}
             export::VideoExportStatus::Completed => {
               new_state = Some(ModalState::Complete);
-            }
-            export::VideoExportStatus::Cancelled => {
-              new_state = Some(ModalState::Cancelled);
-            }
-            export::VideoExportStatus::Failed(error) => {
-              new_state = Some(ModalState::Failed(error.clone()));
-            }
-          }
-        }
-        ModalState::ExportingVideo(monitor) => {
-          ui.label("Exporting Video");
-          ui.add(
-            ProgressBar::new(monitor.percent())
-              .animate(false)
-              .show_percentage(),
-          );
-
-          match &*monitor.status.read().unwrap() {
-            export::VideoExportStatus::InProgress => {}
-            export::VideoExportStatus::Completed => {
-              if let Some(exporter) = self.exporter.as_ref() {
-                match exporter.encode_audio() {
-                  Ok(monitor) => new_state = Some(ModalState::ExportingAudio(monitor)),
-                  Err(err) => new_state = Some(ModalState::Failed(err)),
-                }
-              }
             }
             export::VideoExportStatus::Cancelled => {
               new_state = Some(ModalState::Cancelled);
@@ -195,11 +180,7 @@ impl KModal for ExportVideoModal {
       ui.horizontal(|ui| {
         if ui.button("Cancel").clicked() {
           match &self.state {
-            ModalState::ExportingAudio(monitor) => {
-              *monitor.cancelled.write().unwrap() = true;
-              self.state = ModalState::Cancelled;
-            }
-            ModalState::ExportingVideo(monitor) => {
+            ModalState::Exporting(monitor) => {
               *monitor.cancelled.write().unwrap() = true;
               self.state = ModalState::Cancelled;
             }
@@ -226,9 +207,9 @@ impl KModal for ExportVideoModal {
             match exporter {
               Err(err) => self.state = ModalState::Failed(err),
               Ok(exporter) => {
-                match exporter.encode_video() {
+                match exporter.export() {
                   Ok(monitor) => {
-                    self.state = ModalState::ExportingVideo(monitor);
+                    self.state = ModalState::Exporting(monitor);
                   }
                   Err(err) => {
                     self.state = ModalState::Failed(err);

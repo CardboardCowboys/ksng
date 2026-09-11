@@ -111,7 +111,11 @@ impl KsngApp {
         }
       }
       KsngEvent::ProjectExportVideo => {
-        self.modals.add(ExportVideoModal::new());
+        let mut name = "none".to_string();
+        if let Some(project) = &*self.project.borrow() {
+          name = project.name.clone().unwrap_or("none".to_string());
+        }
+        self.modals.add(ExportVideoModal::new(name));
       }
       KsngEvent::Quit => {
         *self.close_allowed.borrow_mut() = true;

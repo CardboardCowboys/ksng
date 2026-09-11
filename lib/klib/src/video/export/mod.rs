@@ -20,30 +20,41 @@ pub enum VideoExportStatus {
 
 #[derive(Default)]
 pub struct VideoExportProgressMonitor {
-  pub total: usize,
+  pub num_steps: usize,
+  pub current_step: RwLock<usize>,
+  pub total: RwLock<usize>,
   pub progress: RwLock<usize>,
+  pub step_name: RwLock<String>,
   pub status: RwLock<VideoExportStatus>,
   pub cancelled: RwLock<bool>,
 }
 
 impl VideoExportProgressMonitor {
-  pub fn new(total: usize) -> VideoExportProgressMonitor {
+  pub fn new(total_steps: usize, step_name: String, total: usize) -> VideoExportProgressMonitor {
     VideoExportProgressMonitor {
-      total,
+      num_steps: total_steps,
+      total: RwLock::new(total),
+      step_name: RwLock::new(step_name),
       ..Default::default()
     }
+  }
+
+  pub fn next_step(&self, name: String, new_total: usize) {
+    *self.total.write().unwrap() = new_total;
+    *self.step_name.write().unwrap() = name;
+    *self.current_step.write().unwrap() += 1;
   }
 
   /// Returns the completion percent of this monitor between 0.0 and 1.0.
   pub fn percent(&self) -> f32 {
     let progress = self.progress.read().map(|v| *v).unwrap_or(0);
-    (progress as f32 / self.total as f32).clamp(0.0, 1.0)
+    let total = self.total.read().map(|v| *v).unwrap_or(0);
+    (progress as f32 / total as f32).clamp(0.0, 1.0)
   }
 }
 
 pub trait VideoExporter {
-  fn encode_audio(&self) -> Result<Arc<VideoExportProgressMonitor>, Error>;
-  fn encode_video(&self) -> Result<Arc<VideoExportProgressMonitor>, Error>;
+  fn export(&self) -> Result<Arc<VideoExportProgressMonitor>, Error>;
 }
 
 pub fn create_exporter_ffmpeg(
