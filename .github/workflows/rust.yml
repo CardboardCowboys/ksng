@@ -5,7 +5,7 @@ name: CI
 env:
   RUSTFLAGS: -D warnings
   RUSTDOCFLAGS: -D warnings
-  UBUNTU_DEPS: libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libxkbcommon-dev libssl-dev libasound2-dev libfreetype-dev libfontconfig-dev libopus-dev libx264-dev libvpx-dev
+  UBUNTU_DEPS: libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libxkbcommon-dev libssl-dev libasound2-dev libfreetype-dev libfontconfig-dev libopus-dev libx264-dev libvpx-dev nasm autoconf automake build-essential cmake git-core libass-dev libgnutls28-dev libmp3lame-dev libsdl2-dev libtool libva-dev libvdpau-dev libvorbis-dev libxcb1-dev libxcb-shm0-dev libxcb-xfixes0-dev meson ninja-build pkg-config texinfo wget yasm zlib1g-dev
 
 jobs:
   check:
@@ -102,9 +102,9 @@ jobs:
       uses: msys2/setup-msys2@v2
       with:
         install: |
-          opus
-          libvpx
-          x264
+          mingw-w64-opus
+          mingw-w64-libvpx
+          mingw-w64-x264
           make
           diffutils
           yasm
