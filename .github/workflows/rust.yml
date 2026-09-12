@@ -97,6 +97,10 @@ jobs:
       if: contains(matrix.TARGET, 'linux')
       run: |
         sudo apt install ${{ env.UBUNTU_DEPS }}
+    - name: Install CUDA Toolkit (Ubuntu)
+      if: contains(matrix.TARGET, 'linux')
+      uses: Jimver/cuda-toolkit@master
+      id: cuda-toolkit
     - name: Cache ffmpeg (Ubuntu)
       if: contains(matrix.TARGET, 'linux')
       id: cache-ffmpeg-linux
@@ -133,7 +137,10 @@ jobs:
       if: contains(matrix.TARGET, 'windows')
       run: |
         $path = @(Get-ChildItem -Path C:\ffmpeg)[0]
-        echo "FFMPEG_DIR=C:\ffmpeg\$path" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        $ffmpeg_dir = "C:\ffmpeg\$path"
+        echo "FFMPEG_DIR=$ffmpeg_dir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        echo "$ffmpeg_dir"
+        Get-ChildItem $ffmpeg_dir
 
     - name: Build
       run: |
