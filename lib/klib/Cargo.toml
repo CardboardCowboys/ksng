@@ -28,4 +28,4 @@ circular-buffer = { version = "2.0.1", optional = true }
 default = []
 audio = ["dep:rubato", "dep:creek", "dep:audioadapter-buffers", "dep:symphonia", "dep:infer", "dep:circular-buffer"]
 export_video = ["audio", "dep:ffmpeg-next"]
-build-ffmpeg = ["ffmpeg-next/build", "ffmpeg-next/build-license-gpl", "ffmpeg-next/build-lib-fdk-aac", "ffmpeg-next/build-lib-x264", "ffmpeg-next/build-lib-opus", "ffmpeg-next/build-lib-vpx"]
+build-ffmpeg = ["ffmpeg-next/build", "ffmpeg-next/build-license-gpl", "ffmpeg-next/build-lib-x264", "ffmpeg-next/build-lib-opus", "ffmpeg-next/build-lib-vpx"]
