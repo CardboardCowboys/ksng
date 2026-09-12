@@ -103,7 +103,7 @@ jobs:
     - name: Install Dependencies (MacOS)
       if: contains(matrix.TARGET, 'apple')
       run: |
-        brew install automake fdk-aac git lame libass libtool libvorbis libvpx opus sdl shtool texi2html theora wget x264 x265 xvid nasm
+        brew install automake git lame libass libtool libvorbis libvpx opus sdl shtool texi2html theora wget x264 x265 xvid nasm
 
     - name: Install Dependencies (Ubuntu)
       uses: awalsh128/cache-apt-pkgs-action@v1
@@ -128,25 +128,22 @@ jobs:
 
     - name: Setup MSVC (Windows)
       if: contains(matrix.TARGET, 'windows')
+      id: windows-setup-msvc
       uses: mlocati/setup-msvc@v1
 
     - name: Build
       run: |
+        where link
         cargo build --verbose --release --features=build-ffmpeg --target=${{ matrix.TARGET }}
 
     - name: Make Final Zip
       run: |
-        mkdir tmp
-        mkdir tmp/release
-        cp target/${{ matrix.TARGET }}/release/ksng${{ matrix.EXTENSION }} "tmp/release\ksng-${{ matrix.TARGET }}${{ matrix.EXTENSION }}"
-        cp target/${{ matrix.TARGET }}/release/*.dll tmp/release
-        cp target/${{ matrix.TARGET }}/release/*.so tmp/release
-        cp target/${{ matrix.TARGET }}/release/*.dylib tmp/release
+        cp target/${{ matrix.TARGET }}/release/ksng${{ matrix.EXTENSION }} "ksng-${{ matrix.TARGET }}${{ matrix.EXTENSION }}"
 
     - uses: actions/upload-artifact@master
       with:
         name: ksng-${{ matrix.TARGET }}
-        path: tmp/release
+        path: ksng-${{ matrix.TARGET }}${{ matrix.EXTENSION }}
         archive: true
 #
 #    - uses: svenstaro/upload-release-action@v2
