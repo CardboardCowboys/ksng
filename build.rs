@@ -6,33 +6,36 @@ use std::{
 use glob::glob;
 
 fn main() {
-  let out_dir = PathBuf::from_str(&std::env::var("OUT_DIR").unwrap())
-    .unwrap()
-    .join("../../../")
-    .canonicalize()
-    .unwrap();
-  let Some(ffmpeg_dir) = std::env::var("FFMPEG_DIR").ok() else {
-    panic!("You must set your `FFMPEG_DIR` to a path containing the FFMPEG dll/so/dylib files");
-  };
+  #[cfg(not(feature = "build-ffmpeg"))]
+  {
+    let out_dir = PathBuf::from_str(&std::env::var("OUT_DIR").unwrap())
+      .unwrap()
+      .join("../../../")
+      .canonicalize()
+      .unwrap();
+    let Some(ffmpeg_dir) = std::env::var("FFMPEG_DIR").ok() else {
+      panic!("You must set your `FFMPEG_DIR` to a path containing the FFMPEG dll/so/dylib files");
+    };
 
-  let ffmpeg_dir = PathBuf::from_str(&ffmpeg_dir).unwrap();
-  let libs = vec![
-    "avcodec",
-    "avdevice",
-    "avformat",
-    "avutil",
-    "swresample",
-    "swscale",
-  ];
+    let ffmpeg_dir = PathBuf::from_str(&ffmpeg_dir).unwrap();
+    let libs = vec![
+      "avcodec",
+      "avdevice",
+      "avformat",
+      "avutil",
+      "swresample",
+      "swscale",
+    ];
 
-  let Some(libs) = find_libs(&ffmpeg_dir, &libs) else {
-    panic!("Could not find FFmpeg shared libraries in FFMPEG_DIR");
-  };
+    let Some(libs) = find_libs(&ffmpeg_dir, &libs) else {
+      panic!("Could not find FFmpeg shared libraries in FFMPEG_DIR");
+    };
 
-  for lib in libs {
-    let out_path = out_dir.join(lib.file_name().unwrap());
-    if !std::fs::exists(&out_path).unwrap() {
-      std::fs::copy(&lib, &out_path).unwrap();
+    for lib in libs {
+      let out_path = out_dir.join(lib.file_name().unwrap());
+      if !std::fs::exists(&out_path).unwrap() {
+        std::fs::copy(&lib, &out_path).unwrap();
+      }
     }
   }
 }

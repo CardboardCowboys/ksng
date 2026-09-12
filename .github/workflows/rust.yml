@@ -102,6 +102,7 @@ jobs:
 
     - name: Install Dependencies (Ubuntu)
       uses: awalsh128/cache-apt-pkgs-action@v1
+      if: contains(matrix.TARGET, 'linux')
       with:
         packages: ${{ env.UBUNTU_DEPS }}
         version: 1.0
