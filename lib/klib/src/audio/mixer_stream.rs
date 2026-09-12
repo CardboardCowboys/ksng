@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use crate::{
-  audio::stream,
+  audio::{stream, SampleProducer},
   objects::{
     audio::AudioFileSource,
     event::EventValue,
@@ -240,40 +240,6 @@ impl AudioMixerStream {
     }
   }
 
-  /// Fills `buffer` with up to `BLOCK_SIZE * self.channels` of interleaved
-  /// audio.
-  pub fn process(&mut self, buffer: &mut [f32]) -> Result<usize, crate::error::Error> {
-    assert!(buffer.len() == BLOCK_SIZE * self.channels);
-
-    // Stream has ended.
-    if self.position >= self.duration {
-      return Ok(0);
-    }
-
-    // Don't add overhead of time stretching if not necessary.
-    let frame_count = if self.time_factor == 1.0 {
-      self.process_raw()?;
-      interleave_buffers(&self.planar_buffers, BLOCK_SIZE, buffer);
-      BLOCK_SIZE
-    } else {
-      /*self.process_raw()?;
-      let output_frames = self.time_stretch_stream.process(
-        Some(&self.planar_buffers),
-        &mut self.stretched_buffer,
-        BLOCK_SIZE,
-        BLOCK_SIZE as f64 / self.time_factor,
-        1.0,
-      );
-      interleave_buffers(&self.stretched_buffer, output_frames, buffer);
-      output_frames
-      */
-      0
-    };
-
-    self.position += frame_count;
-    Ok(frame_count * self.channels)
-  }
-
   // Obtain samples before time stretching.
   fn process_raw(&mut self) -> Result<(), crate::error::Error> {
     // Obtain the actual position in the stream from the timestretched position.
@@ -328,6 +294,46 @@ impl AudioMixerStream {
     }
 
     Ok(())
+  }
+}
+
+impl SampleProducer for AudioMixerStream {
+  /// Fills `buffer` with up to `BLOCK_SIZE * self.channels` of interleaved
+  /// audio.
+  fn process(&mut self, buffer: &mut [f32]) -> Result<usize, crate::error::Error> {
+    assert!(buffer.len() == BLOCK_SIZE * self.channels);
+
+    // Stream has ended.
+    if self.position >= self.duration {
+      return Ok(0);
+    }
+
+    // Don't add overhead of time stretching if not necessary.
+    let frame_count = if self.time_factor == 1.0 {
+      self.process_raw()?;
+      interleave_buffers(&self.planar_buffers, BLOCK_SIZE, buffer);
+      BLOCK_SIZE
+    } else {
+      /*self.process_raw()?;
+      let output_frames = self.time_stretch_stream.process(
+        Some(&self.planar_buffers),
+        &mut self.stretched_buffer,
+        BLOCK_SIZE,
+        BLOCK_SIZE as f64 / self.time_factor,
+        1.0,
+      );
+      interleave_buffers(&self.stretched_buffer, output_frames, buffer);
+      output_frames
+      */
+      0
+    };
+
+    self.position += frame_count;
+    Ok(frame_count * self.channels)
+  }
+
+  fn block_size(&self) -> usize {
+    BLOCK_SIZE
   }
 }
 

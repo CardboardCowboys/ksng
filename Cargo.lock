@@ -843,6 +843,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a77b57ca5f8cc834a94656d3186a8c515a7ba9026af03cf7694c29908b169205"
 
 [[package]]
+name = "circular-buffer"
+version = "2.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "662f6b21c6e889ee4e3f449e197c40f03603472fcd40c709093d386e3dca07cf"
+
+[[package]]
 name = "clang-sys"
 version = "1.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2517,6 +2523,7 @@ version = "0.1.0"
 dependencies = [
  "audioadapter-buffers",
  "binary_rw",
+ "circular-buffer 2.0.1",
  "creek",
  "ffmpeg-next",
  "harfbuzz_rs",
@@ -2549,7 +2556,7 @@ name = "ksng"
 version = "0.1.0"
 dependencies = [
  "chrono",
- "circular-buffer",
+ "circular-buffer 1.2.1",
  "colog",
  "cpal",
  "directories",

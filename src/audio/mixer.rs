@@ -6,7 +6,10 @@ use cpal::{
   traits::{DeviceTrait, HostTrait, StreamTrait},
 };
 use itertools::Itertools;
-use klib::audio::mixer_stream::{self, AudioMixerStream};
+use klib::audio::{
+  SampleProducer,
+  mixer_stream::{self, AudioMixerStream},
+};
 use klib::timecode::Timecode;
 
 use crate::{

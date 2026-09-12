@@ -14,7 +14,10 @@ use klib_macros::EditableConfig;
 use zerocopy::IntoBytes;
 
 use crate::{
-  audio::mixer_stream::{self, AudioMixerStream},
+  audio::{
+    mixer_stream::{self, AudioMixerStream},
+    Reblocker, SampleProducer,
+  },
   error::Error,
   objects::file::File,
   timecode::Timecode,
@@ -73,9 +76,10 @@ struct FfmpegEncoderSharedState {
   options: FfmpegEncoderOptions,
   output_path: PathBuf,
   duration: Timecode,
+  sample_rate: usize,
+  block_size: usize,
 }
 
-const SAMPLE_RATE: usize = 44100;
 static FFMPEG_INIT: Once = Once::new();
 
 impl FfmpegEncoder {
@@ -88,7 +92,12 @@ impl FfmpegEncoder {
       ffmpeg_next::init().unwrap();
     });
 
-    let mut mixer = AudioMixerStream::new(2, 44100)?;
+    let (sample_rate, block_size) = match &options.codec_set {
+      FfmpegCodecSet::Mp4Av1Aac | FfmpegCodecSet::Mp4H264Aac => (44100_usize, 1024),
+      FfmpegCodecSet::WebmVp9Opus | FfmpegCodecSet::WebmAv1Opus => (48000_usize, 960),
+    };
+
+    let mut mixer = AudioMixerStream::new(2, sample_rate)?;
     mixer.update_from_tracks(&file.tracks)?;
 
     let sequence = VideoSequence::from_file(file, &file.config.video);
@@ -101,6 +110,8 @@ impl FfmpegEncoder {
         mixer: RwLock::new(mixer),
         config: file.config.video.clone(),
         sequence,
+        sample_rate,
+        block_size,
       })),
     })
   }
@@ -124,6 +135,7 @@ impl FfmpegEncoder {
     let shared = shared.lock().unwrap();
     let options = &shared.options;
     let config = &shared.config;
+    let sample_rate = shared.sample_rate;
 
     // Step 1: Initializing
     let output_path = match options.codec_set {
@@ -177,10 +189,10 @@ impl FfmpegEncoder {
       .encoder()
       .audio()?;
     audio_encoder.set_bit_rate(256000);
-    audio_encoder.set_rate(SAMPLE_RATE as i32);
+    audio_encoder.set_rate(sample_rate as i32);
     audio_encoder.set_format(options.codec_set.sample_format());
     audio_encoder.set_channel_layout(ChannelLayout::STEREO);
-    audio_encoder.set_time_base(Rational::new(1, SAMPLE_RATE as i32));
+    audio_encoder.set_time_base(Rational::new(1, sample_rate as i32));
     audio_ost.set_parameters(&audio_encoder);
 
     let audio_opts = Self::parse_opts(&options.audio_opts).ok_or(Error::VideoExport(
@@ -202,24 +214,25 @@ impl FfmpegEncoder {
     }
 
     // Step 2: export audio
-    let total = (SAMPLE_RATE as f64 * shared.duration.to_seconds_f64()).ceil() as usize * 2;
+    let total = (sample_rate as f64 * shared.duration.to_seconds_f64()).ceil() as usize * 2;
     monitor.next_step("Encoding audio".to_owned(), total);
     {
       let mut finished_samples = 0;
+      let block_size = shared.block_size;
 
-      let buffer_size = mixer_stream::BLOCK_SIZE * 2;
+      let buffer_size = block_size * 2;
       let mut buffer = Vec::with_capacity(buffer_size);
       buffer.resize(buffer_size, 0.0_f32);
 
       let mut frame = ffmpeg_next::frame::Audio::new(
         Sample::F32(format::sample::Type::Packed),
-        1024,
+        block_size,
         ChannelLayout::STEREO,
       );
-      frame.set_rate(SAMPLE_RATE as u32);
+      frame.set_rate(sample_rate as u32);
 
       let mut planar_frame =
-        ffmpeg_next::frame::Audio::new(audio_encoder.format(), 1024, ChannelLayout::STEREO);
+        ffmpeg_next::frame::Audio::new(audio_encoder.format(), block_size, ChannelLayout::STEREO);
 
       let is_interleaved = matches!(
         audio_encoder.format(),
@@ -230,16 +243,17 @@ impl FfmpegEncoder {
         (
           Sample::F32(format::sample::Type::Packed),
           ChannelLayout::STEREO,
-          SAMPLE_RATE as u32,
+          sample_rate as u32,
         ),
         (
           audio_encoder.format(),
           ChannelLayout::STEREO,
-          SAMPLE_RATE as u32,
+          sample_rate as u32,
         ),
       )?;
 
       let mut mixer = shared.mixer.write().unwrap();
+      let mut sample_blocker = Reblocker::<_, 8192>::new(&mut *mixer, block_size);
 
       while finished_samples < total {
         if *monitor.cancelled.read().unwrap() {
@@ -247,7 +261,7 @@ impl FfmpegEncoder {
           return Ok(());
         }
 
-        let num_samples = mixer.process(&mut buffer)?;
+        let num_samples = sample_blocker.process(&mut buffer)?;
 
         let num_frames = num_samples / 2;
         let frame_data = &mut frame.data_mut(0)[0..num_samples * size_of::<f32>()];
