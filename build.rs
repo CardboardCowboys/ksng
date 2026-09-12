@@ -19,7 +19,6 @@ fn main() {
   let libs = vec![
     "avcodec",
     "avdevice",
-    "avfilter",
     "avformat",
     "avutil",
     "swresample",
