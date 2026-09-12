@@ -165,7 +165,7 @@ impl LyricsEditor {
 
   pub fn show(&mut self, app: &KsngApp, ui: &mut Ui) {
     let mut apply_changes = false;
-    egui::Panel::top("lyrics_editor#top").show_inside(ui, |ui| {
+    egui::Panel::top("lyrics_editor#top").show(ui, |ui| {
       MenuBar::new().ui(ui, |ui| {
         let track_changed = self
           .current_data
@@ -215,7 +215,7 @@ impl LyricsEditor {
       });
     });
 
-    egui::CentralPanel::default().show_inside(ui, |ui| {
+    egui::CentralPanel::default().show(ui, |ui| {
       egui::ScrollArea::both().auto_shrink(false).show(ui, |ui| {
         let Some(data) = &mut self.current_data else {
           return;

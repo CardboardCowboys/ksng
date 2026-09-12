@@ -68,7 +68,7 @@ impl KModal for ExportVideoModal {
       return;
     };
 
-    let modal = Modal::new(Id::new("modal#confirm")).show(context, |ui| {
+    Modal::new(Id::new("modal#export_video")).show(context, |ui| {
       ui.set_width(250.0);
 
       ui.heading("Export Video");

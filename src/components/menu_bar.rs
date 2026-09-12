@@ -1,4 +1,4 @@
-use egui::{Button, Context, Key, MenuBar, Modifiers, Sides, Ui};
+use egui::{Button, Key, MenuBar, Modifiers, Sides, Ui};
 use klib::{audio::info::AudioFileInfo, objects::track::TrackType};
 
 use crate::{

@@ -7,13 +7,11 @@ use crate::error::Error;
 pub trait AudioStream {
   fn read(&mut self, buffer_out: &mut [Vec<f32>]) -> Result<usize, Error>;
   fn seek(&mut self, to_frame: usize);
-  fn sample_rate(&self) -> usize;
 }
 
 struct RawAudioStream {
   out_buffer_size: usize,
   read_stream: ReadDiskStream<SymphoniaDecoder>,
-  sample_rate: usize,
 }
 
 impl AudioStream for RawAudioStream {
@@ -33,15 +31,10 @@ impl AudioStream for RawAudioStream {
   fn seek(&mut self, to_frame: usize) {
     let _ = self.read_stream.seek(to_frame, creek::SeekMode::Auto);
   }
-
-  fn sample_rate(&self) -> usize {
-    self.sample_rate
-  }
 }
 
 struct ResampledAudioStream {
   out_buffer_size: usize,
-  sample_rate: usize,
   raw_stream: RawAudioStream,
   resampler: rubato::Fft<f32>,
   input_buffers: Vec<Vec<f32>>,
@@ -114,10 +107,6 @@ impl AudioStream for ResampledAudioStream {
   fn seek(&mut self, to_frame: usize) {
     self.raw_stream.seek(to_frame)
   }
-
-  fn sample_rate(&self) -> usize {
-    self.sample_rate
-  }
 }
 
 pub fn new_stream(
@@ -133,7 +122,6 @@ pub fn new_stream(
     return Ok(Box::new(RawAudioStream {
       out_buffer_size,
       read_stream: stream,
-      sample_rate,
     }));
   }
 
@@ -152,14 +140,14 @@ pub fn new_stream(
   let num_channels = stream.info().num_channels.max(2) as usize;
 
   let mut input_buffers = Vec::with_capacity(num_channels);
-  for i in 0..num_channels {
+  for _ in 0..num_channels {
     let mut buffer = Vec::with_capacity(input_block_size);
     buffer.resize(input_block_size, 0.0_f32);
     input_buffers.push(buffer);
   }
 
   let mut resample_buffers = Vec::with_capacity(num_channels);
-  for i in 0..num_channels {
+  for _ in 0..num_channels {
     let mut buffer = Vec::with_capacity(output_block_size);
     buffer.resize(output_block_size, 0.0_f32);
     resample_buffers.push(buffer);
@@ -167,11 +155,9 @@ pub fn new_stream(
 
   Ok(Box::new(ResampledAudioStream {
     out_buffer_size,
-    sample_rate,
     raw_stream: RawAudioStream {
       out_buffer_size,
       read_stream: stream,
-      sample_rate,
     },
     resampler,
     input_buffers,

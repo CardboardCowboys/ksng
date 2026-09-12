@@ -228,8 +228,6 @@ impl eframe::App for KsngApp {
       ctx.request_repaint();
     }
 
-    drop(ctx);
-
     // Put your widgets into a `SidePanel`, `TopBottomPanel`, `CentralPanel`,
     // `Window` or `Area`. For inspiration and more examples, go to https://emilk.github.io/egui
 

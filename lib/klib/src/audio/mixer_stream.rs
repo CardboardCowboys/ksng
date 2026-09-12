@@ -9,9 +9,7 @@ use crate::{
   },
   timecode::Timecode,
 };
-use audioadapter_buffers::number_to_float::SequentialNumbers;
 use creek::{OpenError, ReadDiskStream, SymphoniaDecoder};
-use rubato::Resampler;
 use uuid::Uuid;
 
 pub const BLOCK_SIZE: usize = 1024;
@@ -188,7 +186,7 @@ impl AudioMixerStream {
 
           let stream = stream::new_stream(stream, BLOCK_SIZE, self.sample_rate)?;
           let mut read_buffers = Vec::with_capacity(num_channels);
-          for i in 0..num_channels {
+          for _ in 0..num_channels {
             let mut buffer = Vec::with_capacity(BLOCK_SIZE);
             buffer.resize(BLOCK_SIZE, 0.0_f32);
             read_buffers.push(buffer);

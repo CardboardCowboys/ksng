@@ -1,9 +1,9 @@
 use std::collections::{HashMap, HashSet, hash_map::Entry};
 
 use egui::{
-  Align2, Button, CentralPanel, Color32, Context, CursorIcon, FontId, Frame, Id, ImageSource,
-  Margin, Panel, PointerButton, Pos2, Rect, ScrollArea, Sense, Sides, Stroke, StrokeKind,
-  TextureOptions, Ui, UiBuilder, Vec2, scroll_area::ScrollSource,
+  Align2, Button, CentralPanel, Color32, CursorIcon, FontId, Frame, Id, ImageSource, Margin, Panel,
+  PointerButton, Pos2, Rect, ScrollArea, Sense, Sides, Stroke, StrokeKind, TextureOptions, Ui,
+  UiBuilder, Vec2, scroll_area::ScrollSource,
 };
 use klib::{
   objects::{
@@ -179,7 +179,7 @@ impl Timeline {
 
       Panel::left(Id::new("timeline#headers"))
         .frame(Frame::side_top_panel(ui.style()))
-        .show_inside(ui, |ui| {
+        .show(ui, |ui| {
           for track in &project.file.tracks {
             let mut frame = Frame::new()
               .corner_radius(0)

@@ -41,7 +41,7 @@ fn main() {
 fn find_libs(base_path: &Path, names: &[&str]) -> Option<Vec<PathBuf>> {
   let found: Vec<PathBuf> = names
     .iter()
-    .map(|n| find_lib(base_path, *n))
+    .map(|n| find_lib(base_path, n))
     .filter(|n| n.is_some())
     .flatten()
     .collect();
@@ -52,7 +52,7 @@ fn find_libs(base_path: &Path, names: &[&str]) -> Option<Vec<PathBuf>> {
 
   let found: Vec<PathBuf> = names
     .iter()
-    .map(|n| find_lib(&base_path.join("lib"), *n))
+    .map(|n| find_lib(&base_path.join("lib"), n))
     .filter(|n| n.is_some())
     .flatten()
     .collect();
@@ -63,7 +63,7 @@ fn find_libs(base_path: &Path, names: &[&str]) -> Option<Vec<PathBuf>> {
 
   let found: Vec<PathBuf> = names
     .iter()
-    .map(|n| find_lib(&base_path.join("bin"), *n))
+    .map(|n| find_lib(&base_path.join("bin"), n))
     .filter(|n| n.is_some())
     .flatten()
     .collect();

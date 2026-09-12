@@ -418,7 +418,7 @@ impl KWindow for SyncWindow {
 					handle_back = true;
 				}
 
-        egui::Panel::bottom("sync#buttons").show_inside(ui, |ui| {
+        egui::Panel::bottom("sync#buttons").show(ui, |ui| {
           ui.add_space(5.0);
           Sides::new().show(
             ui,
@@ -486,7 +486,7 @@ impl KWindow for SyncWindow {
           self.layout_cursor = cursor;
         }
 
-        egui::CentralPanel::default().show_inside(ui, |ui| {
+        egui::CentralPanel::default().show(ui, |ui| {
           egui::ScrollArea::both().auto_shrink(false).show(ui, |ui| {
             let mut layout = self.layout_job.as_ref().unwrap().clone();
             let mut text = layout.text.clone();

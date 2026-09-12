@@ -4,9 +4,8 @@ use std::{
 };
 
 use ffmpeg_next::{
-  codec::{self, Context},
-  encoder::{self, Encoder},
-  rescale::TIME_BASE,
+  codec::{self},
+  encoder::{self},
   util::format::{self, sample::Sample},
   ChannelLayout, Dictionary, Rational,
 };
@@ -14,10 +13,7 @@ use klib_macros::EditableConfig;
 use zerocopy::IntoBytes;
 
 use crate::{
-  audio::{
-    mixer_stream::{self, AudioMixerStream},
-    Reblocker, SampleProducer,
-  },
+  audio::{mixer_stream::AudioMixerStream, Reblocker, SampleProducer},
   error::Error,
   objects::file::File,
   timecode::Timecode,
