@@ -100,6 +100,11 @@ jobs:
     - name: Cache Rust Dependencies
       uses: Swatinem/rust-cache@v2
 
+    - name: Install Dependencies (MacOS)
+      if: contains(matrix.TARGET, 'apple')
+      run: |
+        brew install automake fdk-aac git lame libass libtool libvorbis libvpx opus sdl shtool texi2html theora wget x264 x265 xvid nasm
+
     - name: Install Dependencies (Ubuntu)
       uses: awalsh128/cache-apt-pkgs-action@v1
       if: contains(matrix.TARGET, 'linux')
@@ -121,16 +126,20 @@ jobs:
           gcc
           pkg-config
 
+    - name: Setup MSVC (Windows)
+      if: contains(matrix.TARGET, 'windows')
+      uses: mlocati/setup-msvc@v1
+
     - name: Build
       run: |
         cargo build --verbose --release --features=build-ffmpeg --target=${{ matrix.TARGET }}
 
     - name: Make Final Zip
       run: |
-        mkdir /tmp
-        mkdir /tmp/release
-        cp target/${{ matrix.TARGET }}/release/ksng${{ matrix.EXTENSION }} "/tmp/release\ksng-${{ matrix.TARGET }}${{ matrix.EXTENSION }}"
-        cp target/${{ matrix.TARGET }}/release/*.dll /tmp/release
+        mkdir tmp
+        mkdir tmp/release
+        cp target/${{ matrix.TARGET }}/release/ksng${{ matrix.EXTENSION }} "tmp/release\ksng-${{ matrix.TARGET }}${{ matrix.EXTENSION }}"
+        cp target/${{ matrix.TARGET }}/release/*.dll tmp/release
         cp target/${{ matrix.TARGET }}/release/*.so tmp/release
         cp target/${{ matrix.TARGET }}/release/*.dylib tmp/release
 
