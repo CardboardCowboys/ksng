@@ -1,3 +1,4 @@
+#[allow(unused_imports)]
 use std::{
   path::{Path, PathBuf},
   str::FromStr,
@@ -40,6 +41,7 @@ fn main() {
   }
 }
 
+#[allow(dead_code)]
 fn find_libs(base_path: &Path, names: &[&str]) -> Option<Vec<PathBuf>> {
   let found: Vec<PathBuf> = names
     .iter()
@@ -77,6 +79,7 @@ fn find_libs(base_path: &Path, names: &[&str]) -> Option<Vec<PathBuf>> {
   }
 }
 
+#[allow(dead_code)]
 fn find_lib(in_path: &Path, name: &str) -> Option<PathBuf> {
   let path = in_path.to_str().unwrap();
   let ext = if cfg!(target_os = "windows") {

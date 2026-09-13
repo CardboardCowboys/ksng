@@ -124,7 +124,7 @@ jobs:
       uses: actions/cache@v6
       with:
         path: C:/ffmpeg
-        key: ${{ runner.os }}-ffmpeg
+        key: ${{ runner.os }}-${{ runner.TARGET }}-ffmpeg
     - name: Install ffmpeg (Windows)
       shell: pwsh
       if: contains(matrix.TARGET, 'windows') && steps.cache-ffmpeg-windows.outputs.cache-hit != 'true'
