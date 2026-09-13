@@ -48,7 +48,6 @@ itertools = "0.15.0"
 
 [features]
 build-ffmpeg = ["klib/build-ffmpeg"]
-static-ffmpeg = ["klib/static-ffmpeg"]
 
 [build-dependencies]
 glob = "0.3.4"

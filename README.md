@@ -6,10 +6,9 @@ The goal is a fully-featured karaoke video creator.
 
 ## Building
 
-ksng uses ffmpeg to export videos. You have three options here:
+ksng uses ffmpeg to export videos. You have two options here:
 
 - Download a shared binary build of FFmpeg, such as from [BtbN/FFmpeg-builds](https://github.com/BtbN/FFmpeg-Builds/releases/). The location of the extracted archive (the directory containing `bin`, `lib`, etc), must be set in the `FFMPEG_DIR` environment variable. ksng's `build.rs` will take care of copying the required shared object files to the output directory.
-- Download a static binary build of FFmpeg and setup `FFMPEG_DIR` as listed above, building ksng with the `static-ffmpeg` feature (`cargo build --release --features=static-ffmpeg`).
 - Have ffmpeg be built automatically along with ksng using the `build-ffmpeg` feature. You must consult the ffmpeg [CompilationGuide](https://trac.ffmpeg.org/wiki/CompilationGuide) to see what packages need to be installed to get ffmpeg to build.
 
 ## License

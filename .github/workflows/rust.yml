@@ -145,22 +145,39 @@ jobs:
       shell: pwsh
       run: |
         echo $env:FFMPEG_DIR
-        cargo build --verbose --release --features=static-ffmpeg --target=${{ matrix.TARGET }}
+        cargo build --verbose --release --target=${{ matrix.TARGET }}
 
     - name: Build
       if: ${{ !contains(matrix.TARGET, 'windows') }}
       run: |
         cargo build --verbose --release --features=build-ffmpeg --target=${{ matrix.TARGET }}
 
-    - name: Make Final Zip
+    - name: Make release
+      if: ${{ !contains(matrix.TARGET, 'windows') }}
       run: |
         cp target/${{ matrix.TARGET }}/release/ksng${{ matrix.EXTENSION }} "ksng-${{ matrix.TARGET }}${{ matrix.EXTENSION }}"
 
-    - uses: actions/upload-artifact@master
+    - name: Make release (Windows)
+      if: contains(matrix.TARGET, 'windows')
+      run: |
+        mkdir /tmp
+        mkdir /tmp/ffmpeg
+        cp target/${{ matrix.TARGET }}/release/ksng${{ matrix.EXTENSION }} "/tmp/ffmpeg/ksng-${{ matrix.TARGET }}${{ matrix.EXTENSION }}"
+        cp target/${{ matrix.TARGET }}/release/*.dll /tmp/ffmpeg
+
+    - name: Upload artifact
+      if: ${{ !contains(matrix.TARGET, 'windows') }}
+      uses: actions/upload-artifact@master
       with:
         name: ksng-${{ matrix.TARGET }}
         path: ksng-${{ matrix.TARGET }}${{ matrix.EXTENSION }}
-        archive: true
+
+    - name: Upload artifact (Windows)
+      if: contains(matrix.TARGET, 'windows')
+      uses: actions/upload-artifact@master
+      with:
+        name: ksng-${{ matrix.TARGET }}
+        path: /tmp/ffmpeg
 #
 #    - uses: svenstaro/upload-release-action@v2
 #      name: Upload binaries to release
