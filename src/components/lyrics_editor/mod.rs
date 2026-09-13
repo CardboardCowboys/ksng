@@ -176,7 +176,8 @@ impl LyricsEditor {
         Sides::new().show(
           ui,
           |ui| {
-            // If there aren't any tracks available, we just want to show "No lyrics tracks"
+            // If there aren't any tracks available, we just want to show "No
+            // lyrics tracks"
             let has_lyrics_tracks = self
               .current_data
               .as_ref()
@@ -343,10 +344,12 @@ impl LyricsEditor {
           let prev_duration_per_event =
             Timecode(((old_end - old_start).0 as f64 / old_len as f64) as u32);
           let duration_per_event = if old_len >= new_len {
-            // old events covered an equal or greater span than these, just use that span
+            // old events covered an equal or greater span than these, just use
+            // that span
             Timecode(((old_end - old_start).0 as f64 / new_len as f64) as u32)
           } else if (old_index + old_len) < old_events.len() {
-            // there is a next event, we can use the span until then (if less than max)
+            // there is a next event, we can use the span until then (if less
+            // than max)
             Timecode(
               ((old_events[old_index + old_len].start_timecode - old_start).0 as f64
                 / new_len as f64) as u32,
@@ -371,8 +374,8 @@ impl LyricsEditor {
           new_index,
           new_len,
         } => {
-          // old_index is the index we're inserting to, the previous event is old_index -
-          // 1
+          // old_index is the index we're inserting to, the previous event is
+          // old_index - 1
           let mut current_start = if (old_index - 1) < old_events.len() && (old_index > 0) {
             old_events[old_index - 1].end_timecode
           } else {

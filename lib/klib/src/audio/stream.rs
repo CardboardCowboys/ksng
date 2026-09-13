@@ -21,8 +21,8 @@ impl AudioStream for RawAudioStream {
       .read(self.out_buffer_size)
       .map_err(|e| crate::error::Error::Audio(e.to_string()))?;
 
-    for i in 0..data.num_channels() {
-      buffer_out[i][0..data.num_frames()].copy_from_slice(data.read_channel(i));
+    for (i, ch) in buffer_out.iter_mut().enumerate().take(data.num_channels()) {
+      ch.copy_from_slice(data.read_channel(i));
     }
 
     Ok(data.num_frames())
@@ -49,10 +49,10 @@ struct ResampledAudioStream {
 impl AudioStream for ResampledAudioStream {
   fn read(&mut self, buffer_out: &mut [Vec<f32>]) -> Result<usize, Error> {
     let out_offset = if self.remaining_samples > 0 {
-      // There are samples remaining from last time we resampled a stream - copy those
-      // over before overwriting the buffers.
-      for i in 0..self.channels {
-        buffer_out[i][0..self.remaining_samples].copy_from_slice(
+      // There are samples remaining from last time we resampled a stream - copy
+      // those over before overwriting the buffers.
+      for (i, ch) in buffer_out.iter_mut().enumerate().take(self.channels) {
+        ch.copy_from_slice(
           &self.resample_buffers[i]
             [self.remaining_offset..(self.remaining_offset + self.remaining_samples)],
         );
@@ -93,9 +93,8 @@ impl AudioStream for ResampledAudioStream {
       assert!(self.output_block_size == output_frames);
     }
 
-    for i in 0..self.channels {
-      buffer_out[i][0..self.out_buffer_size]
-        .copy_from_slice(&self.resample_buffers[i][0..self.out_buffer_size]);
+    for (i, ch) in buffer_out.iter_mut().enumerate().take(self.channels) {
+      ch.copy_from_slice(&self.resample_buffers[i][0..self.out_buffer_size]);
     }
 
     self.remaining_offset = self.out_buffer_size;

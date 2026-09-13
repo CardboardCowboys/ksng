@@ -199,7 +199,8 @@ impl SyncWindow {
       let orig_length = orig_end - orig_start;
       let mut available_length = time - repos_start;
       let mut current_start = time;
-      // If we have a previous event we still need to end, give it half the length.
+      // If we have a previous event we still need to end, give it half the
+      // length.
       if !self.finished_last_syllable {
         available_length = Timecode::from_seconds_f64(available_length.to_seconds_f64() / 2.0)
           .max(Timecode::from_seconds(0.05));
@@ -209,7 +210,8 @@ impl SyncWindow {
       }
 
       if orig_length <= available_length {
-        // We have enough room to fit the events without changing their duration.
+        // We have enough room to fit the events without changing their
+        // duration.
         let mut next_end = current_start;
         for event_idx in &self.events_need_repositioning {
           let len = self.event_timings[*event_idx].1 - self.event_timings[*event_idx].0;

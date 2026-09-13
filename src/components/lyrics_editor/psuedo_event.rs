@@ -133,7 +133,8 @@ impl PsuedoEvent {
         continue;
       }
 
-      // not a line break or paragraph break, so push the last line break if we need
+      // not a line break or paragraph break, so push the last line break if we
+      // need
       if line_count > 0 {
         events.push(Self::synthetic_event(
           events.len(),
@@ -171,7 +172,8 @@ impl PsuedoEvent {
       if is_escaped {
         is_escaped = false;
         if c != ESCAPE_CHAR && c != SYLLABLE_SEPARATOR && c != BLOCK_OPEN && c != BLOCK_CLOSE {
-          // if it's not escaping something that needs to be escaped, just include it
+          // if it's not escaping something that needs to be escaped, just
+          // include it
           current_value.push(ESCAPE_CHAR);
         }
 

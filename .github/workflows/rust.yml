@@ -159,11 +159,13 @@ jobs:
 
     - name: Make release (Windows)
       if: contains(matrix.TARGET, 'windows')
+      shell: pwsh
       run: |
         mkdir /tmp
         mkdir /tmp/ffmpeg
         cp target/${{ matrix.TARGET }}/release/ksng${{ matrix.EXTENSION }} "/tmp/ffmpeg/ksng-${{ matrix.TARGET }}${{ matrix.EXTENSION }}"
-        cp target/${{ matrix.TARGET }}/release/*.dll /tmp/ffmpeg
+        cp "$env:FFMPEG_DIR/bin/*.dll" /tmp/ffmpeg
+        rm /tmp/ffmpeg-avfilter*
 
     - name: Upload artifact
       if: ${{ !contains(matrix.TARGET, 'windows') }}
@@ -178,6 +180,7 @@ jobs:
       with:
         name: ksng-${{ matrix.TARGET }}
         path: /tmp/ffmpeg
+        archive: true
 #
 #    - uses: svenstaro/upload-release-action@v2
 #      name: Upload binaries to release

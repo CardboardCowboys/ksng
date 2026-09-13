@@ -163,8 +163,8 @@ impl FfmpegEncoder {
     video_encoder.set_width(config.width as u32);
     video_encoder.set_height(config.height as u32);
     video_encoder.set_format(format::Pixel::YUV420P);
-    //video_encoder.set_frame_rate(Some(Rational::new(options.frame_rate as i32,
-    // 1)));
+    //video_encoder.set_frame_rate(Some(Rational::new(options.frame_rate as
+    // i32, 1)));
     video_encoder.set_time_base(Rational::new(1, options.frame_rate as i32));
     video_encoder.set_max_b_frames(1);
     video_encoder.set_gop(10);
