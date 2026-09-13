@@ -76,9 +76,14 @@ impl VacancyChecker {
     }
 
     let element_rect = &entry.rect;
-    for i in (index + 1)..self.element_rects.len() {
-      if self.element_rects[i].rect.intersects(element_rect) {
-        return Some(self.element_rects[i].start_time);
+    for e in self
+      .element_rects
+      .iter()
+      .take(self.element_rects.len())
+      .skip(index + 1)
+    {
+      if e.rect.intersects(element_rect) {
+        return Some(e.start_time);
       }
     }
 

@@ -165,7 +165,6 @@ jobs:
         mkdir /tmp/ffmpeg
         cp target/${{ matrix.TARGET }}/release/ksng${{ matrix.EXTENSION }} "/tmp/ffmpeg/ksng-${{ matrix.TARGET }}${{ matrix.EXTENSION }}"
         cp "$env:FFMPEG_DIR/bin/*.dll" /tmp/ffmpeg
-        rm /tmp/ffmpeg/avfilter*
 
     - name: Upload artifact
       if: ${{ !contains(matrix.TARGET, 'windows') }}
