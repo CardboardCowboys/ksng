@@ -124,7 +124,7 @@ jobs:
       uses: actions/cache@v6
       with:
         path: C:/ffmpeg
-        key: ${{ runner.os }}-${{ runner.TARGET }}-ffmpeg
+        key: ${{ runner.os }}-${{ matrix.TARGET }}-ffmpeg
     - name: Install ffmpeg (Windows)
       shell: pwsh
       if: contains(matrix.TARGET, 'windows') && steps.cache-ffmpeg-windows.outputs.cache-hit != 'true'
@@ -165,7 +165,7 @@ jobs:
         mkdir /tmp/ffmpeg
         cp target/${{ matrix.TARGET }}/release/ksng${{ matrix.EXTENSION }} "/tmp/ffmpeg/ksng-${{ matrix.TARGET }}${{ matrix.EXTENSION }}"
         cp "$env:FFMPEG_DIR/bin/*.dll" /tmp/ffmpeg
-        rm /tmp/ffmpeg-avfilter*
+        rm /tmp/ffmpeg/avfilter*
 
     - name: Upload artifact
       if: ${{ !contains(matrix.TARGET, 'windows') }}
