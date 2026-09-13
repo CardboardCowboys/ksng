@@ -142,7 +142,9 @@ jobs:
 
     - name: Build (Windows)
       if: contains(matrix.TARGET, 'windows')
+      shell: pwsh
       run: |
+        echo $env:FFMPEG_DIR
         cargo build --verbose --release --features=static-ffmpeg --target=${{ matrix.TARGET }}
 
     - name: Build
