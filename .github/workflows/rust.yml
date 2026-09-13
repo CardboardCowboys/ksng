@@ -82,11 +82,11 @@ jobs:
         - os: ubuntu-latest
           TARGET: x86_64-unknown-linux-gnu
 
-        - os: windows-11-arm
+        - os: ubuntu-24.04-arm
           TARGET: aarch64-pc-windows-msvc
           EXTENSION: .exe
 
-        - os: windows-latest
+        - os: ubuntu-latest
           TARGET: x86_64-pc-windows-msvc
           EXTENSION: .exe
 
@@ -96,6 +96,8 @@ jobs:
 
     - uses: actions/checkout@master
     - uses: actions-rust-lang/setup-rust-toolchain@v1
+      with:
+        target: ${{ matrix.TARGET }}
 
     - name: Cache Rust Dependencies
       uses: Swatinem/rust-cache@v2
@@ -107,39 +109,12 @@ jobs:
 
     - name: Install Dependencies (Ubuntu)
       uses: awalsh128/cache-apt-pkgs-action@v1
-      if: contains(matrix.TARGET, 'linux')
+      if: contains(matrix.os, 'ubuntu')
       with:
         packages: ${{ env.UBUNTU_DEPS }}
         version: 1.0
 
-    - name: Install msys2 (Windows)
-      if: contains(matrix.TARGET, 'windows')
-      uses: msys2/setup-msys2@v2
-      with:
-        pacboy: >-
-          opus
-          libvpx
-          x264
-          make
-          diffutils
-          yasm
-          gcc
-          pkg-config
-
-    - name: Setup MSVC (Windows)
-      if: contains(matrix.TARGET, 'windows')
-      id: windows-setup-msvc
-      uses: mlocati/setup-msvc@v1
-
-    - name: Build (Windows)
-      if: contains(matrix.TARGET, 'windows')
-      shell: msys2 {0}
-      run: |
-        which link
-        cargo build --verbose --release --features=build-ffmpeg --target=${{ matrix.TARGET }}
-
     - name: Build
-      if: ${{ !contains(matrix.TARGET, 'windows') }}
       run: |
         cargo build --verbose --release --features=build-ffmpeg --target=${{ matrix.TARGET }}
 
