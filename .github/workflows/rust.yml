@@ -136,7 +136,7 @@ jobs:
       if: contains(matrix.TARGET, 'windows')
       run: |
         $path = @(Get-ChildItem -Path C:\ffmpeg)[0]
-        echo "FFMPEG_DIR=$patg" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        echo "FFMPEG_DIR=$path" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
         echo "$path"
         Get-ChildItem $path
 
