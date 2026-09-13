@@ -143,7 +143,7 @@ jobs:
     - name: Build (Windows)
       if: contains(matrix.TARGET, 'windows')
       run: |
-        cargo build --verbose --release --features=build-ffmpeg --target=${{ matrix.TARGET }}
+        cargo build --verbose --release --features=static-ffmpeg --target=${{ matrix.TARGET }}
 
     - name: Build
       if: ${{ !contains(matrix.TARGET, 'windows') }}
