@@ -142,7 +142,6 @@ jobs:
 
     - name: Build (Windows)
       if: contains(matrix.TARGET, 'windows')
-      shell: msys2 {0}
       run: |
         cargo build --verbose --release --features=build-ffmpeg --target=${{ matrix.TARGET }}
 
