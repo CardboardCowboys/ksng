@@ -376,7 +376,7 @@ impl LyricsEditor {
         } => {
           // old_index is the index we're inserting to, the previous event is
           // old_index - 1
-          let mut current_start = if (old_index - 1) < old_events.len() && (old_index > 0) {
+          let mut current_start = if (old_index > 0) && (old_index - 1) < old_events.len() {
             old_events[old_index - 1].end_timecode
           } else {
             Timecode(0)

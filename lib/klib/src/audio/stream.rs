@@ -22,7 +22,7 @@ impl AudioStream for RawAudioStream {
       .map_err(|e| crate::error::Error::Audio(e.to_string()))?;
 
     for (i, ch) in buffer_out.iter_mut().enumerate().take(data.num_channels()) {
-      ch.copy_from_slice(data.read_channel(i));
+      ch[0..data.num_frames()].copy_from_slice(data.read_channel(i));
     }
 
     Ok(data.num_frames())

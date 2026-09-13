@@ -109,22 +109,29 @@ impl VideoElement for FadeTransitionElement {
       scratch_surface: None,
     });
 
-    let t = if context.time < self.element.start_time() {
-      self.easing_in.evaluate(
-        (context.time - self.start_time).to_seconds()
-          / (self.element.start_time() - self.start_time)
-            .min(self.transition_time)
-            .to_seconds(),
-      )
-    } else if context.time > self.element.end_time() {
-      self.easing_out.evaluate(
-        (self.end_time - context.time).to_seconds()
-          / (self.end_time - self.element.end_time())
-            .min(self.transition_time)
-            .to_seconds(),
-      )
-    } else {
-      1.0
+    let t = {
+      let p = context.time;
+      let ts = self.element.start_time();
+      let te = self.element.end_time();
+      let tl = self.start_time;
+      let tt = self.end_time;
+      let tin = (ts - self.transition_time).max(tl);
+      let tout = (te + self.transition_time).min(tt);
+
+      if p >= tin && p < ts {
+        self
+          .easing_in
+          .evaluate((p - tin).to_seconds() / (ts - tin).to_seconds())
+      } else if p >= te && p < tout {
+        1.0
+          - self
+            .easing_out
+            .evaluate((p - te).to_seconds() / (tout - te).to_seconds())
+      } else if p >= ts && p < te {
+        1.0
+      } else {
+        0.0
+      }
     };
 
     let paint = skia_safe::Paint::new(Color4f::new(1.0, 1.0, 1.0, t), None);

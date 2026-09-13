@@ -9,20 +9,21 @@ use glob::glob;
 fn main() {
   #[cfg(not(feature = "build-ffmpeg"))]
   {
-    let out_dir = PathBuf::from_str(&std::env::var("OUT_DIR").unwrap())
-      .unwrap()
-      .join("../../../")
-      .canonicalize()
-      .unwrap();
+    let crate_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
+    let profile = std::env::var("PROFILE").unwrap();
+    let out_dir = PathBuf::from_str(&format!("{}/target/{}", crate_dir, profile)).unwrap();
     let Some(ffmpeg_dir) = std::env::var("FFMPEG_DIR").ok() else {
       panic!("You must set your `FFMPEG_DIR` to a path containing the FFMPEG dll/so/dylib files");
     };
+
+    println!("copying ffmpeg libs from {ffmpeg_dir} to {out_dir:?}");
 
     let ffmpeg_dir = PathBuf::from_str(&ffmpeg_dir).unwrap();
     let libs = vec![
       "avcodec",
       "avdevice",
       "avformat",
+      "avfilter",
       "avutil",
       "swresample",
       "swscale",

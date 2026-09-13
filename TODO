@@ -1,5 +1,5 @@
 ☐ fix other layout modes
-☐ fix lyrics reappearing after transitioning out (the 10, 9, 8... etc for example)
+✔ fix lyrics reappearing after transitioning out (the 10, 9, 8... etc for example) @done(26-09-13 15:49)
 ☐ fix various UI weirdness
 	☐ being able to scrub the timeline while dragging the panel divider handle
 	☐ not being able to scroll the lyrics editor
@@ -11,6 +11,7 @@
 ✔ figure out why audio broke @done(26-09-11 22:18)
 	☐ make sure resampling actually works
 ☐ check that all output formats work (webm w/ vp9 seems scuffed)
+☐ fix audio EOF log spam
 
 ✔ replace audio engine @done(26-01-04 10:23)
 ✔ lyrics editor @done(26-01-12 04:41)
