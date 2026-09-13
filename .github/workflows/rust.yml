@@ -131,9 +131,16 @@ jobs:
       id: windows-setup-msvc
       uses: mlocati/setup-msvc@v1
 
-    - name: Build
+    - name: Build (Windows)
+      if: contains(matrix.TARGET, 'windows')
+      shell: msys2 {0}
       run: |
-        where link
+        which link
+        cargo build --verbose --release --features=build-ffmpeg --target=${{ matrix.TARGET }}
+
+    - name: Build
+      if: ${{ !contains(matrix.TARGET, 'windows') }}
+      run: |
         cargo build --verbose --release --features=build-ffmpeg --target=${{ matrix.TARGET }}
 
     - name: Make Final Zip
