@@ -19,6 +19,8 @@ jobs:
         with:
           packages: ${{ env.UBUNTU_DEPS }}
           version: 1.0
+      - name: Cache Rust Dependencies
+        uses: Swatinem/rust-cache@v2
       - uses: actions-rs/cargo@v1
         with:
           command: check
@@ -35,6 +37,8 @@ jobs:
         with:
           packages: ${{ env.UBUNTU_DEPS }}
           version: 1.0
+      - name: Cache Rust Dependencies
+        uses: Swatinem/rust-cache@v2
       - uses: actions-rs/cargo@v1
         with:
           command: test
@@ -91,7 +95,7 @@ jobs:
           TARGET: x86_64-pc-windows-msvc
           FFMPEG_URL: https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-09-02-13-13/ffmpeg-n9.0.1-11-ge47273f4d9-win64-gpl-shared-9.0.zip
           EXTENSION: .exe
-    name: Build ${{ matrix.TARGET }} on ${{ matrix.os }}
+    name: Build ${{ matrix.TARGET }}
     steps:
     - name: Building ${{ matrix.TARGET }}
       run: echo "${{ matrix.TARGET }}"
@@ -140,7 +144,6 @@ jobs:
       if: contains(matrix.TARGET, 'windows')
       shell: msys2 {0}
       run: |
-        which link
         cargo build --verbose --release --features=build-ffmpeg --target=${{ matrix.TARGET }}
 
     - name: Build
