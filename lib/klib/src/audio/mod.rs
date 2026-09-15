@@ -4,7 +4,7 @@ use crate::error::Error;
 
 pub mod info;
 pub mod mixer_stream;
-mod stream;
+pub mod stream;
 
 /// Trait for audio objects that produce interleaved 2-channel f32 samples.
 pub trait SampleProducer {
