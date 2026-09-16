@@ -59,4 +59,4 @@ opt-level = 2
 
 [workspace]
 resolver = "2"
-members = [".", "lib/klib", "lib/klib-macros", "lib/ksng-ml", "lib/ksng-ml-ipc"]
+members = [".", "lib/klib", "lib/klib-macros", "lib/ksng-ml", "lib/ksng-ml-ipc", "lib/spectrasonic"]
