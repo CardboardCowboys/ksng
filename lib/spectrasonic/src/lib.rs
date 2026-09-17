@@ -2,6 +2,7 @@ pub mod buffer;
 pub mod chain;
 pub mod error;
 pub mod filters;
+pub mod info;
 pub mod sources;
 
 pub use buffer::PlanarAudioBuffer;

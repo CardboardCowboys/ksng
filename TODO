@@ -11,7 +11,9 @@
 ✔ figure out why audio broke @done(26-09-11 22:18)
 	☐ make sure resampling actually works
 ☐ check that all output formats work (webm w/ vp9 seems scuffed)
-☐ fix audio EOF log spam
+✔ fix audio EOF log spam @done(26-09-17 18:28)
+☐ pause / mute audio while seeking (or issue only one seek?)
+☐ make channel remapper more robust (any input -> any output)
 
 ✔ replace audio engine @done(26-01-04 10:23)
 ✔ lyrics editor @done(26-01-12 04:41)
