@@ -27,7 +27,7 @@ spectrasonic = { path = "../spectrasonic", optional = true }
 
 [features]
 default = []
-audio = ["dep:rubato", "dep:creek", "dep:audioadapter-buffers", "dep:symphonia", "dep:infer", "dep:circular-buffer", "dep:spectrasonic"]
-ffmpeg = ["dep:ffmpeg-next", "spectrasonic/ffmpeg", "spectrasonic/symphonia"]
+audio = ["dep:rubato", "dep:creek", "dep:audioadapter-buffers", "dep:symphonia", "dep:infer", "dep:circular-buffer", "dep:spectrasonic", "spectrasonic/symphonia"]
+ffmpeg = ["dep:ffmpeg-next", "spectrasonic/ffmpeg"]
 export_video = ["audio", "ffmpeg"]
 build-ffmpeg = ["ffmpeg", "ffmpeg-next/build", "ffmpeg-next/build-license-gpl", "ffmpeg-next/build-lib-x264", "ffmpeg-next/build-lib-opus", "ffmpeg-next/build-lib-vpx"]

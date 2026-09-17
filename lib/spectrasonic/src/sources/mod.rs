@@ -1,4 +1,4 @@
-use crate::{AudioChainBuilder, AudioSource, Error, Timecode};
+use crate::{AudioSource, Error, Timecode, chain::AudioChainBuilder};
 use std::path::Path;
 
 #[cfg(feature = "symphonia")]
@@ -19,11 +19,16 @@ pub use ffmpeg::FfmpegAudioSource;
 /// If the `symphonia` feature is enabled, a `SymphoniaAudioSource` is returned.
 /// Else, a `NullAudioSource` is returned (and a warning is logged).
 pub fn source_for_file<P: AsRef<Path>>(file: P) -> Result<Box<dyn AudioSource>, Error> {
-  if cfg!(feature = "ffmpeg") {
+  #[cfg(feature = "ffmpeg")]
+  {
     Ok(Box::new(FfmpegAudioSource::new(file)?))
-  } else if cfg!(feature = "symphonia") {
+  }
+  #[cfg(all(feature = "symphonia", not(feature = "ffmpeg")))]
+  {
     Ok(Box::new(SymphoniaAudioSource::new(file)?))
-  } else {
+  }
+  #[cfg(all(not(feature = "symphonia"), not(feature = "ffmpeg")))]
+  {
     log::warn!(
       "spectrasonic has been built without any audio source features enabled - returning NullAudioSource from source_for_file"
     );
@@ -59,14 +64,14 @@ impl AudioSource for NullAudioSource {
     }
   }
 
-  fn info(&self) -> crate::AudioInfo {
-    crate::AudioInfo {
+  fn info(&self) -> crate::chain::AudioInfo {
+    crate::chain::AudioInfo {
       num_channels: self.channels,
       sample_rate: self.sample_rate,
     }
   }
 
-  fn builder(self) -> crate::AudioChainBuilder {
+  fn builder(self: Box<Self>) -> crate::chain::AudioChainBuilder {
     AudioChainBuilder::new(self)
   }
 }

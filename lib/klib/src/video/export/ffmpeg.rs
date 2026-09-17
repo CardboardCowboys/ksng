@@ -13,7 +13,7 @@ use klib_macros::EditableConfig;
 use zerocopy::IntoBytes;
 
 use crate::{
-  audio::{mixer_stream::AudioMixerStream, Reblocker, SampleProducer},
+  audio::mixer_stream::AudioMixerStream,
   error::Error,
   objects::file::File,
   timecode::Timecode,
@@ -93,7 +93,7 @@ impl FfmpegEncoder {
       FfmpegCodecSet::WebmVp9Opus | FfmpegCodecSet::WebmAv1Opus => (48000_usize, 960),
     };
 
-    let mut mixer = AudioMixerStream::new(2, sample_rate)?;
+    let mut mixer = AudioMixerStream::new(2, sample_rate, block_size)?;
     mixer.update_from_tracks(&file.tracks)?;
 
     let sequence = VideoSequence::from_file(file, &file.config.video);
@@ -220,36 +220,16 @@ impl FfmpegEncoder {
       let mut buffer = Vec::with_capacity(buffer_size);
       buffer.resize(buffer_size, 0.0_f32);
 
-      let mut frame = ffmpeg_next::frame::Audio::new(
-        Sample::F32(format::sample::Type::Packed),
-        block_size,
-        ChannelLayout::STEREO,
-      );
-      frame.set_rate(sample_rate as u32);
-
-      let mut planar_frame =
-        ffmpeg_next::frame::Audio::new(audio_encoder.format(), block_size, ChannelLayout::STEREO);
-
       let is_interleaved = matches!(
         audio_encoder.format(),
         format::sample::Sample::F32(format::sample::Type::Packed)
       );
 
-      let mut sample_converter = ffmpeg_next::software::resampler(
-        (
-          Sample::F32(format::sample::Type::Packed),
-          ChannelLayout::STEREO,
-          sample_rate as u32,
-        ),
-        (
-          audio_encoder.format(),
-          ChannelLayout::STEREO,
-          sample_rate as u32,
-        ),
-      )?;
+      let mut frame =
+        ffmpeg_next::frame::Audio::new(audio_encoder.format(), block_size, ChannelLayout::STEREO);
+      frame.set_rate(sample_rate as u32);
 
       let mut mixer = shared.mixer.write().unwrap();
-      let mut sample_blocker = Reblocker::<_, 8192>::new(&mut *mixer, block_size);
 
       while finished_samples < total {
         if *monitor.cancelled.read().unwrap() {
@@ -257,24 +237,19 @@ impl FfmpegEncoder {
           return Ok(());
         }
 
-        let num_samples = sample_blocker.process(&mut buffer)?;
+        let num_samples = if is_interleaved {
+          mixer.process_interleaved(&mut buffer)?
+        } else {
+          mixer.process_planar(&mut buffer)?
+        };
 
         let num_frames = num_samples / 2;
         let frame_data = &mut frame.data_mut(0)[0..num_samples * size_of::<f32>()];
         frame_data.copy_from_slice(buffer[0..num_samples].as_bytes());
-        if is_interleaved {
-          frame.set_samples(num_frames);
-          frame.set_pts(Some((finished_samples as i64) / 2));
+        frame.set_samples(num_frames);
+        frame.set_pts(Some((finished_samples as i64) / 2));
 
-          audio_encoder.send_frame(&frame)?;
-        } else {
-          let _ = sample_converter.run(&frame, &mut planar_frame)?;
-
-          planar_frame.set_samples(num_frames);
-          planar_frame.set_pts(Some((finished_samples as i64) / 2));
-
-          audio_encoder.send_frame(&planar_frame)?;
-        }
+        audio_encoder.send_frame(&frame)?;
 
         let mut packet = ffmpeg_next::Packet::empty();
         while audio_encoder.receive_packet(&mut packet).is_ok() {

@@ -1,4 +1,7 @@
-use crate::{AudioChainBuilder, AudioFilter, AudioInfo, Error, PlanarAudioBuffer, PlanarVecBuffer};
+use crate::{
+  AudioFilter, Error, PlanarAudioBuffer, buffer::PlanarVecBuffer, chain::AudioChainBuilder,
+  chain::AudioInfo,
+};
 
 const BLOCK_SIZE: usize = 1024;
 
@@ -29,7 +32,7 @@ impl AudioFilter for ChannelRemapperFilter {
   fn read(
     &mut self,
     buffer: &mut dyn crate::PlanarAudioBuffer,
-    mut ancestor: crate::AudioChainWalker,
+    mut ancestor: crate::chain::AudioChainWalker,
   ) -> Result<usize, Error> {
     assert!(buffer.num_channels() == self.to_channels);
     let mut frames_written = 0;
@@ -61,13 +64,13 @@ impl AudioFilter for ChannelRemapperFilter {
   fn seek(
     &mut self,
     pos: crate::Timecode,
-    mut ancestor: crate::AudioChainWalker,
+    mut ancestor: crate::chain::AudioChainWalker,
   ) -> Result<(), Error> {
     self.remaining_frames = 0;
     ancestor.seek(pos)
   }
 
-  fn duration(&self, ancestor: crate::AudioChainWalker) -> crate::Timecode {
+  fn duration(&self, ancestor: crate::chain::AudioChainWalker) -> crate::Timecode {
     ancestor.duration()
   }
 

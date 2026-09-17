@@ -77,6 +77,10 @@ impl Playback {
   }
 
   pub fn update_state(&mut self, new_state: PlaybackState) {
+    // Restart from the beginning if we're trying to play at the end.
+    if self.state == PlaybackState::Stopped && self.is_ended() {
+      self.mixer.seek(Timecode(0));
+    }
     match new_state {
       PlaybackState::Stopped => self.mixer.pause(),
       PlaybackState::Playing => self.mixer.play(),
@@ -94,5 +98,15 @@ impl Playback {
     self.mixer.seek(time);
     self.last_position = time;
     self.last_started = Instant::now();
+  }
+
+  pub fn update(&mut self) {
+    if self.is_ended() {
+      self.update_state(PlaybackState::Stopped);
+    }
+  }
+
+  pub fn is_ended(&self) -> bool {
+    self.mixer.position() >= self.mixer.duration()
   }
 }

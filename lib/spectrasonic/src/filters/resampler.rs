@@ -1,8 +1,9 @@
 use rubato::Resampler;
 
 use crate::{
-  AudioChainBuilder, AudioChainWalker, AudioFilter, AudioInfo, Error, PlanarAudioBuffer,
-  PlanarVecBuffer,
+  AudioFilter, Error, PlanarAudioBuffer,
+  buffer::PlanarVecBuffer,
+  chain::{AudioChainBuilder, AudioChainWalker, AudioInfo},
 };
 
 struct ResamplerFilter {

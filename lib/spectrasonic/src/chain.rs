@@ -1,4 +1,4 @@
-use std::{cell::RefCell, rc::Rc};
+use std::cell::RefCell;
 
 use crate::{Error, Timecode, buffer::PlanarAudioBuffer};
 
@@ -12,7 +12,7 @@ pub struct AudioInfo {
 }
 
 /// Defines an audio source that produces samples.
-pub trait AudioSource: 'static {
+pub trait AudioSource: Send + 'static {
   /// Reads samples from the source into `buffer`.
   /// The buffer can be any number of frames, but must match the number of
   /// channels of the source.
@@ -28,14 +28,14 @@ pub trait AudioSource: 'static {
   /// Creates an `AudioChainBuilder` from this source. If using this source with
   /// any number of filters, this should be used to chain those filters
   /// together.
-  fn builder(self) -> AudioChainBuilder;
+  fn builder(self: Box<Self>) -> AudioChainBuilder;
   /// Returns the `AudioInfo` of this source.
   fn info(&self) -> AudioInfo;
 }
 
 /// Defines a filter that takes samples from an ancestor source or filter and
 /// performs some sort of processing on them.
-pub trait AudioFilter {
+pub trait AudioFilter: Send + 'static {
   /// Writes processed samples into `buffer`. The buffer can be any number of
   /// frames long, but its channel count must match the filter's
   /// `info().num_channels`.
@@ -65,8 +65,8 @@ pub trait AudioFilter {
 }
 
 struct AudioChainInner {
-  source: RefCell<Box<dyn AudioSource>>,
-  filters: Vec<RefCell<Box<dyn AudioFilter>>>,
+  source: RefCell<Box<dyn AudioSource + Send>>,
+  filters: Vec<RefCell<Box<dyn AudioFilter + Send>>>,
 }
 
 /// An `AudioChain` represents a source along with optionally one or more
@@ -75,7 +75,7 @@ struct AudioChainInner {
 /// An `AudioChain` can be built using the `AudioChainBuilder` through an
 /// `AudioSource`'s `builder` method.
 pub struct AudioChain {
-  inner: Rc<AudioChainInner>,
+  inner: AudioChainInner,
   info: AudioInfo,
 }
 
@@ -99,9 +99,9 @@ impl AudioChain {
     self.info
   }
 
-  fn to_walker(&self) -> AudioChainWalker {
+  fn to_walker<'chain>(&'chain self) -> AudioChainWalker<'chain> {
     AudioChainWalker {
-      chain: self.inner.clone(),
+      chain: &self.inner,
       filter_pos: if self.inner.filters.is_empty() {
         0
       } else {
@@ -113,12 +113,12 @@ impl AudioChain {
 
 /// The `AudioChainWalker` allows filters to access the previous entry in the
 /// `AudioChain`, whether that be a source or filter.
-pub struct AudioChainWalker {
-  chain: Rc<AudioChainInner>,
+pub struct AudioChainWalker<'chain> {
+  chain: &'chain AudioChainInner,
   filter_pos: usize,
 }
 
-impl AudioChainWalker {
+impl<'chain> AudioChainWalker<'chain> {
   /// Writes samples to `buffer` from the previous entry in the chain.
   pub fn read(&mut self, buffer: &mut dyn PlanarAudioBuffer) -> Result<usize, Error> {
     if self.filter_pos == 0 {
@@ -128,7 +128,7 @@ impl AudioChainWalker {
     self.chain.filters[self.filter_pos - 1].borrow_mut().read(
       buffer,
       AudioChainWalker {
-        chain: self.chain.clone(),
+        chain: self.chain,
         filter_pos: self.filter_pos - 1,
       },
     )
@@ -142,7 +142,7 @@ impl AudioChainWalker {
     self.chain.filters[self.filter_pos - 1].borrow_mut().seek(
       pos,
       AudioChainWalker {
-        chain: self.chain.clone(),
+        chain: self.chain,
         filter_pos: self.filter_pos - 1,
       },
     )
@@ -156,23 +156,23 @@ impl AudioChainWalker {
     self.chain.filters[self.filter_pos - 1]
       .borrow()
       .duration(AudioChainWalker {
-        chain: self.chain.clone(),
+        chain: self.chain,
         filter_pos: self.filter_pos - 1,
       })
   }
 }
 
 pub struct AudioChainBuilder {
-  source: Box<dyn AudioSource>,
-  filters: Vec<Box<dyn AudioFilter>>,
+  source: Box<dyn AudioSource + Send>,
+  filters: Vec<Box<dyn AudioFilter + Send>>,
   info: AudioInfo,
 }
 
 impl AudioChainBuilder {
-  pub fn new(source: impl AudioSource + 'static) -> AudioChainBuilder {
+  pub fn new(source: Box<dyn AudioSource>) -> AudioChainBuilder {
     let info = source.info();
     AudioChainBuilder {
-      source: Box::new(source),
+      source,
       filters: Vec::new(),
       info,
     }
@@ -189,10 +189,10 @@ impl AudioChainBuilder {
 
   pub fn commit(self) -> AudioChain {
     AudioChain {
-      inner: Rc::new(AudioChainInner {
+      inner: AudioChainInner {
         source: RefCell::new(self.source),
         filters: self.filters.into_iter().map(RefCell::new).collect(),
-      }),
+      },
       info: self.info,
     }
   }

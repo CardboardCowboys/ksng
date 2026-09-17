@@ -14,13 +14,13 @@ pub fn player(app: &KsngApp, ui: &mut Ui) {
   Panel::bottom(Id::new("player#controls")).show(ui, |ui| {
     ui.add_enabled_ui(app.project.borrow().is_some(), |ui| {
       ui.vertical_centered(|ui| {
-        let position = app.playback.borrow().position();
         let duration = app
           .project
           .borrow()
           .as_ref()
           .map(|p| p.length)
           .unwrap_or_default();
+        let position = app.playback.borrow().position().min(duration);
 
         let mut slider_position = position.0;
         ui.style_mut().spacing.slider_width = ui.max_rect().width();

@@ -13,5 +13,6 @@ log = "0.4.34"
 audioadapter-buffers = "5.2.0"
 
 [features]
+default = ["ffmpeg", "symphonia"]
 ffmpeg = ["dep:ffmpeg-next"]
 symphonia = ["dep:symphonia"]

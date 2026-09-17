@@ -2,7 +2,7 @@ use std::{io::ErrorKind, path::Path};
 
 use infer::Infer;
 use symphonia::core::{
-  audio::{AudioBuffer, Signal, SignalSpec},
+  audio::{SampleBuffer, SignalSpec},
   codecs::{Decoder, DecoderOptions},
   formats::{FormatOptions, FormatReader},
   io::MediaSourceStream,
@@ -12,32 +12,37 @@ use symphonia::core::{
 };
 
 use crate::{
-  AudioChainBuilder, AudioInfo, AudioSource, Error, Timecode, buffer::PlanarAudioBuffer,
+  AudioSource, Error, Timecode,
+  buffer::PlanarAudioBuffer,
+  chain::{AudioChainBuilder, AudioInfo},
 };
 
-fn timecode_to_time(time: Timecode) -> Time {
-  let seconds = time.to_seconds_f64();
+fn timecode_to_time(seconds: f64) -> Time {
   Time {
     seconds: seconds as u64,
     frac: seconds.fract(),
   }
 }
 
-impl PlanarAudioBuffer for AudioBuffer<f32> {
+struct SampleBufferWrapper(usize, SampleBuffer<f32>);
+
+impl PlanarAudioBuffer for SampleBufferWrapper {
   fn num_frames(&self) -> usize {
-    self.capacity()
+    self.1.len() / self.0
   }
 
   fn num_channels(&self) -> usize {
-    self.spec().channels.count()
+    self.0
   }
 
   fn channel(&self, i: usize) -> &[f32] {
-    self.chan(i)
+    let num_frames = self.num_frames();
+    &self.1.samples()[(i * num_frames)..((i + 1) * num_frames)]
   }
 
   fn channel_mut(&mut self, i: usize) -> &mut [f32] {
-    self.chan_mut(i)
+    let num_frames = self.num_frames();
+    &mut self.1.samples_mut()[(i * num_frames)..((i + 1) * num_frames)]
   }
 
   fn fill(&mut self, v: f32) {
@@ -53,10 +58,12 @@ pub struct SymphoniaAudioSource {
   track_id: u32,
   duration: Timecode,
   required_offset: usize,
-  buffer: AudioBuffer<f32>,
+  wrote_frames: usize,
+  buffer: SampleBufferWrapper,
   frames_remaining: usize,
   sample_rate: usize,
   num_channels: usize,
+  frame_pos: usize,
 }
 
 impl SymphoniaAudioSource {
@@ -90,10 +97,6 @@ impl SymphoniaAudioSource {
       .codec_params
       .channels
       .ok_or(Error::msg("Could not get audio file channels"))?;
-    let duration = Timecode {
-      samples: n_frames as usize,
-      sample_rate: sample_rate as usize,
-    };
     let decoder = codecs.make(&track.codec_params, &decoder_opts)?;
 
     let buffer_size = if let Some(max_size) = track.codec_params.max_frames_per_packet {
@@ -101,10 +104,18 @@ impl SymphoniaAudioSource {
     } else {
       sample_rate as u64 * 2
     };
-    let buffer = AudioBuffer::new(buffer_size, SignalSpec::new(sample_rate, channels));
+    let buffer = SampleBuffer::new(buffer_size, SignalSpec::new(sample_rate, channels));
 
     let track_id = track.id;
     let required_offset = track.codec_params.delay.unwrap_or(0) as usize;
+    let padding = track.codec_params.padding.unwrap_or(0) as usize;
+
+    let duration = Timecode {
+      samples: (n_frames as usize)
+        .saturating_sub(required_offset)
+        .saturating_sub(padding),
+      sample_rate: sample_rate as usize,
+    };
 
     Ok(SymphoniaAudioSource {
       decoder,
@@ -112,10 +123,12 @@ impl SymphoniaAudioSource {
       track_id,
       duration,
       required_offset,
-      buffer,
+      wrote_frames: 0,
+      buffer: SampleBufferWrapper(channels.count(), buffer),
       frames_remaining: 0,
       sample_rate: sample_rate as usize,
       num_channels: channels.count(),
+      frame_pos: 0,
     })
   }
 }
@@ -126,14 +139,11 @@ impl AudioSource for SymphoniaAudioSource {
 
     if self.frames_remaining > 0 {
       let num = self.frames_remaining.min(buffer.num_frames());
-      buffer.copy_from_buffer(
-        &self.buffer,
-        self.buffer.num_frames() - self.frames_remaining,
-        0,
-        num,
-      );
+      let from_offset = self.wrote_frames - self.frames_remaining;
+      buffer.copy_from_buffer(&self.buffer, from_offset, 0, num);
       self.frames_remaining -= num;
       frames_written += num;
+      self.frame_pos += num;
     }
 
     loop {
@@ -152,7 +162,9 @@ impl AudioSource for SymphoniaAudioSource {
 
           return Err(symphonia::core::errors::Error::IoError(e).into());
         }
-        Err(e) => return Err(e.into()),
+        Err(e) => {
+          return Err(e.into());
+        }
       };
 
       if packet.track_id() != self.track_id {
@@ -160,40 +172,49 @@ impl AudioSource for SymphoniaAudioSource {
       }
 
       let audio_buf = self.decoder.decode(&packet)?;
-      audio_buf.convert(&mut self.buffer);
+      let frames_read = audio_buf.frames();
+      self.buffer.1.copy_planar_ref(audio_buf);
 
-      if self.required_offset >= self.buffer.frames() {
-        self.required_offset -= self.buffer.frames();
+      let frames_read = (self.duration.samples - self.frame_pos).min(frames_read);
+
+      if self.required_offset >= frames_read {
+        self.required_offset -= frames_read;
       } else if self.required_offset > 0 {
-        let num =
-          (self.buffer.frames() - self.required_offset).min(buffer.num_frames() - frames_written);
+        let num = (frames_read - self.required_offset).min(buffer.num_frames() - frames_written);
         buffer.copy_from_buffer(&self.buffer, self.required_offset, frames_written, num);
         self.required_offset = 0;
         frames_written += num;
-        self.frames_remaining = self.buffer.frames() - num;
+        self.frames_remaining = frames_read - num;
+        self.frame_pos += num;
+        self.wrote_frames = frames_read;
       } else {
-        let num = self
-          .buffer
-          .frames()
-          .min(buffer.num_frames() - frames_written);
+        let num = frames_read.min(buffer.num_frames() - frames_written);
         buffer.copy_from_buffer(&self.buffer, 0, frames_written, num);
         frames_written += num;
-        self.frames_remaining = self.buffer.frames() - num;
+        self.frames_remaining = frames_read - num;
+        self.frame_pos += num;
+        self.wrote_frames = frames_read;
       }
     }
   }
 
   fn seek(&mut self, pos: crate::Timecode) -> Result<(), Error> {
+    let mut pos_seconds = pos.to_seconds_f64();
+    if pos_seconds == self.duration.to_seconds_f64() {
+      pos_seconds = self.duration.to_seconds_f64() - 0.0001;
+    }
     let seeked_to = self.format.seek(
       symphonia::core::formats::SeekMode::Accurate,
       symphonia::core::formats::SeekTo::Time {
-        time: timecode_to_time(pos),
-        track_id: None,
+        time: timecode_to_time(pos_seconds),
+        track_id: Some(self.track_id),
       },
     )?;
     self.required_offset = (seeked_to.required_ts - seeked_to.actual_ts) as usize;
+    self.frame_pos = seeked_to.actual_ts as usize;
     // Force re-read instead of using cached data
     self.frames_remaining = 0;
+    self.wrote_frames = 0;
     Ok(())
   }
 
@@ -201,7 +222,7 @@ impl AudioSource for SymphoniaAudioSource {
     self.duration
   }
 
-  fn builder(self) -> crate::AudioChainBuilder {
+  fn builder(self: Box<Self>) -> crate::chain::AudioChainBuilder {
     AudioChainBuilder::new(self)
   }
 
@@ -211,4 +232,105 @@ impl AudioSource for SymphoniaAudioSource {
       sample_rate: self.sample_rate,
     }
   }
+}
+
+#[test]
+fn test_symphonia_source_silence() -> Result<(), Error> {
+  let proj_path = std::path::PathBuf::from("test/data/silence.flac");
+  let mut source = SymphoniaAudioSource::new(proj_path)?;
+  let mut buf = crate::buffer::PlanarVecBuffer::new(1, 44100);
+  let samples = source.read(&mut buf)?;
+  assert!(samples == 4410);
+  assert!(buf.channel(0).iter().all(|f| *f == 0.0));
+  Ok(())
+}
+
+#[test]
+fn test_symphonia_source_sine() -> Result<(), Error> {
+  let proj_path = std::path::PathBuf::from("test/data/sine.flac");
+  let mut source = SymphoniaAudioSource::new(proj_path)?;
+  let mut buf = crate::buffer::PlanarVecBuffer::new(1, 44100);
+  let samples = source.read(&mut buf)?;
+  assert!(samples == 4410);
+  let tincr = 2.0 * std::f32::consts::PI * 1000.0 / 44100.0;
+  for i in 0..4410 {
+    let predicted = (i as f32 * tincr).sin();
+    let actual = buf.channel(0)[i];
+    assert!((actual.abs() - predicted.abs()).abs() < 0.001);
+  }
+  Ok(())
+}
+
+#[test]
+fn test_symphonia_source_sine_stereo() -> Result<(), Error> {
+  let proj_path = std::path::PathBuf::from("test/data/sine_stereo.flac");
+  let mut source = SymphoniaAudioSource::new(proj_path)?;
+  let mut buf = crate::buffer::PlanarVecBuffer::new(2, 44100);
+  let frames = source.read(&mut buf)?;
+  assert!(frames == 4410);
+  let tincr = 2.0 * std::f32::consts::PI * 1000.0 / 44100.0;
+  for i in 0..4410 {
+    let predicted = (i as f32 * tincr).sin();
+    let actual = buf.channel(0)[i];
+    let actual2 = buf.channel(1)[i];
+    assert!((actual.abs() - predicted.abs()).abs() < 0.01);
+    assert!((actual2.abs() - predicted.abs()).abs() < 0.01);
+  }
+  Ok(())
+}
+
+#[test]
+fn test_symphonia_source_sine_stereo_10s() -> Result<(), Error> {
+  let proj_path = std::path::PathBuf::from("test/data/sine_stereo_10s.flac");
+  let mut source = SymphoniaAudioSource::new(proj_path)?;
+  let mut buf = crate::buffer::PlanarVecBuffer::new(2, 44100);
+  let mut n = 0;
+  for _ in 0..10 {
+    let frames = source.read(&mut buf)?;
+    assert!(frames == 44100);
+    let tincr = 2.0 * std::f32::consts::PI * 1000.0 / 44100.0;
+    for i in 0..44100 {
+      let predicted = ((n + i) as f32 * tincr).sin();
+      let actual = buf.channel(0)[i];
+      let actual2 = buf.channel(1)[i];
+      assert!((actual.abs() - predicted.abs()).abs() < 0.01);
+      assert!((actual2.abs() - predicted.abs()).abs() < 0.01);
+    }
+
+    n += 44100;
+  }
+  let frames = source.read(&mut buf)?;
+  assert!(frames == 0);
+  Ok(())
+}
+
+#[test]
+fn test_symphonia_source_sine_stereo_10s_mp3() -> Result<(), Error> {
+  let proj_path = std::path::PathBuf::from("test/data/sine_stereo_10s.mp3");
+  let mut source = SymphoniaAudioSource::new(proj_path)?;
+  let mut buf = crate::buffer::PlanarVecBuffer::new(2, 1024);
+  let mut n = 0;
+  loop {
+    let frames = source.read(&mut buf)?;
+    let tincr = 2.0 * std::f32::consts::PI * 1000.0 / 44100.0;
+    for i in 0..frames {
+      let predicted = ((n + i) as f32 * tincr).sin();
+      let actual = buf.channel(0)[i];
+      let actual2 = buf.channel(1)[i];
+      if (actual.abs() - predicted.abs()).abs() > 0.01 {
+        println!("{} {} {} {}", n + i, predicted, actual, actual2);
+        break;
+      }
+      assert!((actual.abs() - predicted.abs()).abs() < 0.01);
+      assert!((actual2.abs() - predicted.abs()).abs() < 0.01);
+    }
+
+    n += frames;
+    if frames < 1024 {
+      break;
+    }
+  }
+  let frames = source.read(&mut buf)?;
+  assert!(frames == 0);
+  Ok(())
 }

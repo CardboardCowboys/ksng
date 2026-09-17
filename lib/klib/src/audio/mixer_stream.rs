@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use crate::{
-  audio::{stream, SampleProducer},
+  error::Error,
   objects::{
     audio::AudioFileSource,
     event::EventValue,
@@ -9,10 +9,12 @@ use crate::{
   },
   timecode::Timecode,
 };
-use creek::{OpenError, ReadDiskStream, SymphoniaDecoder};
+use spectrasonic::{
+  buffer::PlanarVecBuffer,
+  filters::{WithChannelRemapperFilter, WithResamplerFilter},
+  AudioChain, PlanarAudioBuffer,
+};
 use uuid::Uuid;
-
-pub const BLOCK_SIZE: usize = 1024;
 
 struct AudioMixerEventStream {
   #[allow(dead_code)]
@@ -22,19 +24,8 @@ struct AudioMixerEventStream {
   end_timecode: Timecode,
   offset: Timecode,
   volume: f32,
-  read_stream: Box<dyn stream::AudioStream + Send>,
-  read_buffers: Vec<Vec<f32>>,
-  channels: usize,
-  sample_rate: usize,
-}
-
-impl AudioMixerEventStream {
-  /// Computes the location of `position` within this event in frames.
-  fn position_to_frame(&self, pos_sample_rate: usize, position: usize) -> usize {
-    (position as f64 * (self.sample_rate as f64 / pos_sample_rate as f64)
-      - (self.start_timecode.to_seconds_f64() * self.sample_rate as f64
-        + self.offset.to_seconds_f64() * self.sample_rate as f64)) as usize
-  }
+  read_stream: AudioChain,
+  read_buffer: PlanarVecBuffer,
 }
 
 /// The `AudioMixerStream` performs the raw audio processing necessary for
@@ -48,29 +39,20 @@ pub struct AudioMixerStream {
   time_factor: f64,
   channels: usize,
   sample_rate: usize,
-
-  // time_stretch_stream: bungee_rs::Stream,
-  // Buffer of samples after timestretching.
-  #[allow(dead_code)]
-  stretched_buffer: Vec<Vec<f32>>,
-  /// `channels` numbers of `BLOCK_SIZE` buffers.
-  planar_buffers: Vec<Vec<f32>>,
-
+  buffer: PlanarVecBuffer,
   // Duration in number of frames at `sample_rate`
   duration: usize,
   // Position in number of frames at `sample_rate`
   position: usize,
+  block_size: usize,
 }
 
 impl AudioMixerStream {
-  pub fn new(channels: usize, sample_rate: usize) -> Result<Self, crate::error::Error> {
-    let mut planar_buffers = Vec::new();
-    for _ in 0..channels {
-      let mut buffer = Vec::with_capacity(BLOCK_SIZE);
-      buffer.resize(BLOCK_SIZE, 0.0f32);
-      planar_buffers.push(buffer);
-    }
-
+  pub fn new(
+    channels: usize,
+    sample_rate: usize,
+    block_size: usize,
+  ) -> Result<Self, crate::error::Error> {
     Ok(Self {
       event_streams: Default::default(),
       time_factor: 1.0,
@@ -78,10 +60,8 @@ impl AudioMixerStream {
       sample_rate,
       duration: 0,
       position: 0,
-      planar_buffers,
-      stretched_buffer: Default::default(),
-      // time_stretch_stream: bungee_rs::Stream::new(sample_rate, channels, BLOCK_SIZE)
-      //   .map_err(|e| crate::error::Error::Audio(e.to_string()))?,
+      buffer: PlanarVecBuffer::new(channels, block_size),
+      block_size,
     })
   }
 
@@ -93,22 +73,33 @@ impl AudioMixerStream {
     self.channels
   }
 
+  pub fn duration_timecode(&self) -> Timecode {
+    Timecode::from_seconds_f64(self.duration as f64 / self.sample_rate as f64)
+  }
+
   pub fn position_timecode(&self) -> Timecode {
     Timecode::from_seconds_f64(self.position as f64 / self.sample_rate as f64)
   }
 
-  pub fn seek(&mut self, new_timecode: Timecode) {
-    let new_position = (new_timecode.to_seconds_f64() * self.sample_rate as f64) as usize;
+  pub fn seek(&mut self, new_timecode: Timecode) -> Result<(), Error> {
+    let new_position =
+      ((new_timecode.to_seconds_f64() * self.sample_rate as f64) as usize).min(self.duration);
     self.position = new_position;
     // Seek immediately in all of the events we can to start buffering them.
     for es in &mut self.event_streams {
-      if new_timecode < es.start_timecode || new_timecode >= es.end_timecode {
+      if new_timecode < es.start_timecode {
+        es.read_stream.seek(Timecode(0).into())?;
+        continue;
+      } else if new_timecode >= es.end_timecode {
+        es.read_stream.seek(es.read_stream.duration())?;
         continue;
       }
 
-      es.read_stream
-        .seek(es.position_to_frame(self.sample_rate, new_position));
+      let new_pos = (new_timecode - es.start_timecode + es.offset).into();
+      es.read_stream.seek(new_pos)?;
     }
+
+    Ok(())
   }
 
   /// Resets the position to zero and clears all loaded streams.
@@ -155,52 +146,43 @@ impl AudioMixerStream {
           existing_event_stream.start_timecode = ev.start_timecode;
           existing_event_stream.end_timecode = ev.end_timecode;
         } else {
-          // We don't know about this event yet, we need to load it.
-          let mut stream: ReadDiskStream<SymphoniaDecoder> = match &file.source {
-            AudioFileSource::Path(path_buf) => ReadDiskStream::new(path_buf, 0, Default::default())
-              .map_err(|e: OpenError| crate::error::Error::Audio(e.to_string()))?,
+          let source = match &file.source {
+            AudioFileSource::Path(path_buf) => spectrasonic::sources::source_for_file(path_buf)?,
             // TODO: handle managed files
             AudioFileSource::Managed => todo!(),
           };
 
-          let sample_rate = stream.info().sample_rate.ok_or(crate::error::Error::Audio(
-            "Tried to load audio file without sample rate".into(),
-          ))? as usize;
+          log::info!("loaded file {:?}", file.source);
 
-          log::info!(
-            "loaded file {:?} with sample rate {sample_rate}",
-            file.source
-          );
-
-          // Cache the start of the stream.
-          stream
-            .cache(0, (offset.to_seconds_f64() * sample_rate as f64) as usize)
-            .map_err(|e| crate::error::Error::Audio(e.to_string()))?;
-
-          stream.seek(0, creek::SeekMode::Auto).unwrap();
-
-          stream.block_until_ready().unwrap();
-
-          // If there are more than two channels, we pretend there's only two.
-          let num_channels = stream.info().num_channels.max(2) as usize;
-
-          let stream = stream::new_stream(stream, BLOCK_SIZE, self.sample_rate)?;
-          let mut read_buffers = Vec::with_capacity(num_channels);
-          for _ in 0..num_channels {
-            let mut buffer = Vec::with_capacity(BLOCK_SIZE);
-            buffer.resize(BLOCK_SIZE, 0.0_f32);
-            read_buffers.push(buffer);
+          let mut builder = source.builder();
+          if builder.info().num_channels > 1 && self.channels == 1 {
+            builder = builder.with_channel_remapper(1, &[0])?;
+          } else if builder.info().num_channels == 1 && self.channels == 2 {
+            builder = builder.with_channel_remapper(2, &[0, 0])?;
+          } else if builder.info().num_channels > 2 && self.channels == 2 {
+            builder = builder.with_channel_remapper(2, &[0, 1])?;
+          } else if builder.info().num_channels != self.channels {
+            return Err(Error::Audio(format!(
+              "Loaded file with {} channels but outputting {} - don't know how to remap",
+              builder.info().num_channels,
+              self.channels
+            )));
           }
+
+          if builder.info().sample_rate != self.sample_rate {
+            builder = builder.with_resampler(self.sample_rate)?;
+          }
+
+          let chain = builder.commit();
+          let buffer = PlanarVecBuffer::new(chain.info().num_channels, self.block_size);
 
           self.event_streams.push(AudioMixerEventStream {
             track_id: track.id,
             event_id: ev.id,
             volume: track_volume,
             offset: *offset,
-            channels: num_channels,
-            read_stream: stream,
-            read_buffers,
-            sample_rate,
+            read_stream: chain,
+            read_buffer: buffer,
             start_timecode: ev.start_timecode,
             end_timecode: ev.end_timecode,
           });
@@ -227,119 +209,64 @@ impl AudioMixerStream {
       .max()
       .map(|t| ((t.to_seconds_f64() / self.time_factor) * self.sample_rate as f64).ceil() as usize)
       .unwrap_or_default();
-
-    let stretched_block_size = BLOCK_SIZE as f64 * self.time_factor;
-    let needed_raw_buffer = stretched_block_size.ceil() as usize;
-    self.planar_buffers.clear();
-    for _ in 0..self.channels {
-      let mut buffer = Vec::with_capacity(needed_raw_buffer);
-      buffer.resize(needed_raw_buffer, 0.0f32);
-      self.planar_buffers.push(buffer);
-    }
   }
 
-  // Obtain samples before time stretching.
-  fn process_raw(&mut self) -> Result<(), crate::error::Error> {
-    // Obtain the actual position in the stream from the timestretched position.
-    let _position = (self.position as f64 / self.time_factor).ceil() as usize;
+  /// Reads up to `self.block_size` frames into the planar `buffer`, returning
+  /// the number of frames written.
+  pub fn process_planar(&mut self, buffer: &mut [f32]) -> Result<usize, Error> {
+    let num_read = self.process_impl()?;
+
+    for ch in 0..self.channels {
+      let channel = self.buffer.channel(ch);
+      buffer[(ch * self.block_size)..((ch + 1) * self.block_size)].copy_from_slice(channel);
+    }
+
+    Ok(num_read)
+  }
+
+  /// Reads up to `self.block_size` frames into the interleaved `buffer`,
+  /// returning the number of frames written.
+  ///
+  /// The internal representation of `AudioMixerStream` is planar, so this is
+  /// more than a simple copy. If you can work with it, use `process_planar`.
+  pub fn process_interleaved(&mut self, buffer: &mut [f32]) -> Result<usize, Error> {
+    let num_read = self.process_impl()?;
+    for ch in 0..self.channels {
+      let channel = self.buffer.channel(ch);
+      for i in 0..self.buffer.num_frames() {
+        buffer[i * self.channels + ch] = channel[i];
+      }
+    }
+
+    Ok(num_read)
+  }
+
+  fn process_impl(&mut self) -> Result<usize, Error> {
     let timecode =
       Timecode::from_seconds_f64(self.position as f64 / self.time_factor / self.sample_rate as f64);
-    // Initialize to zero.
-    for i in 0..self.channels {
-      self.planar_buffers[i].fill(0.0);
-    }
+    self.buffer.fill(0.0_f32);
 
-    for es in &mut self.event_streams {
-      // Event is not relevant.
-      if es.start_timecode > timecode || es.end_timecode <= timecode {
-        continue;
-      }
-
-      // Number of frames we are into the audio file.
-      /*let frame_pos = es.position_to_frame(self.sample_rate, position);
-
-      es.read_stream
-      .seek(frame_pos, creek::SeekMode::Auto)
-      .map_err(|e| crate::error::Error::Audio(e.to_string()))?;*/
-
-      let frames = es.read_stream.read(&mut es.read_buffers)?;
-
-      if es.channels == 2 {
-        for i in 0..es.channels {
-          for j in 0..frames {
-            self.planar_buffers[i][j] += es.read_buffers[i][j] * es.volume;
-          }
-        }
-      } else if es.channels == 1 && self.channels == 2 {
-        for i in 0..self.channels {
-          for j in 0..frames {
-            self.planar_buffers[i][j] += es.read_buffers[0][j] * es.volume;
-          }
-        }
-      } else if self.channels == 1 && es.channels == 2 {
-        for i in 0..es.channels {
-          for j in 0..frames {
-            self.planar_buffers[0][j] += es.read_buffers[i][j] * es.volume;
-          }
-        }
-      } else {
-        log::warn!(
-          "unknown channel combination, mixer {} event {}",
-          self.channels,
-          es.channels
-        );
-      }
-    }
-
-    Ok(())
-  }
-}
-
-impl SampleProducer for AudioMixerStream {
-  /// Fills `buffer` with up to `BLOCK_SIZE * self.channels` of interleaved
-  /// audio.
-  fn process(&mut self, buffer: &mut [f32]) -> Result<usize, crate::error::Error> {
-    assert!(buffer.len() == BLOCK_SIZE * self.channels);
-
-    // Stream has ended.
     if self.position >= self.duration {
       return Ok(0);
     }
 
-    // Don't add overhead of time stretching if not necessary.
-    let frame_count = if self.time_factor == 1.0 {
-      self.process_raw()?;
-      interleave_buffers(&self.planar_buffers, BLOCK_SIZE, buffer);
-      BLOCK_SIZE
-    } else {
-      /*self.process_raw()?;
-      let output_frames = self.time_stretch_stream.process(
-        Some(&self.planar_buffers),
-        &mut self.stretched_buffer,
-        BLOCK_SIZE,
-        BLOCK_SIZE as f64 / self.time_factor,
-        1.0,
-      );
-      interleave_buffers(&self.stretched_buffer, output_frames, buffer);
-      output_frames
-      */
-      0
-    };
+    for es in &mut self.event_streams {
+      if es.start_timecode > timecode || es.end_timecode <= timecode {
+        continue;
+      }
 
-    self.position += frame_count;
-    Ok(frame_count * self.channels)
-  }
-
-  fn block_size(&self) -> usize {
-    BLOCK_SIZE
-  }
-}
-
-fn interleave_buffers(input: &[Vec<f32>], num_frames: usize, out_buffer: &mut [f32]) {
-  let frame_len = input.len();
-  for i in 0..frame_len {
-    for j in 0..num_frames {
-      out_buffer[j * frame_len + i] = input[i][j];
+      let num_read = es.read_stream.read(&mut es.read_buffer)?;
+      for ch in 0..self.channels {
+        let from_channel = es.read_buffer.channel_mut(ch);
+        let to_channel = self.buffer.channel_mut(ch);
+        for i in 0..num_read {
+          to_channel[i] += from_channel[i] * es.volume;
+        }
+      }
     }
+
+    self.position += self.block_size;
+
+    Ok(self.block_size)
   }
 }

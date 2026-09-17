@@ -142,3 +142,15 @@ impl From<Duration> for Timecode {
     Timecode(value.as_millis() as u32)
   }
 }
+
+impl From<spectrasonic::Timecode> for Timecode {
+  fn from(value: spectrasonic::Timecode) -> Self {
+    Timecode::from_seconds_f64(value.to_seconds_f64())
+  }
+}
+
+impl From<Timecode> for spectrasonic::Timecode {
+  fn from(value: Timecode) -> Self {
+    spectrasonic::Timecode::from_ms(value.0)
+  }
+}

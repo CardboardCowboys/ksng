@@ -37,6 +37,7 @@ impl From<std::io::Error> for Error {
   }
 }
 
+#[cfg(feature = "symphonia")]
 impl From<symphonia::core::errors::Error> for Error {
   fn from(value: symphonia::core::errors::Error) -> Self {
     Error::Symphonia(value)
@@ -61,6 +62,7 @@ impl From<audioadapter_buffers::SizeError> for Error {
   }
 }
 
+#[cfg(feature = "ffmpeg")]
 impl From<ffmpeg_next::Error> for Error {
   fn from(value: ffmpeg_next::Error) -> Self {
     Error::Ffmpeg(value)

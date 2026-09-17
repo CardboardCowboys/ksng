@@ -4,8 +4,8 @@ pub mod error;
 pub mod filters;
 pub mod sources;
 
-pub use buffer::*;
-pub use chain::*;
+pub use buffer::PlanarAudioBuffer;
+pub use chain::{AudioChain, AudioFilter, AudioSource};
 pub use error::Error;
 
 #[derive(Debug, Clone, Copy)]
@@ -15,6 +15,13 @@ pub struct Timecode {
 }
 
 impl Timecode {
+  pub const fn from_ms(ms: u32) -> Timecode {
+    Timecode {
+      samples: ms as usize,
+      sample_rate: 1000,
+    }
+  }
+
   pub const fn to_seconds(&self) -> f32 {
     self.samples as f32 / self.sample_rate as f32
   }

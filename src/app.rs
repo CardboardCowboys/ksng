@@ -216,6 +216,7 @@ impl eframe::App for KsngApp {
     self.logger.wrap(self.commands.process(self));
     self.modals.process(self, ctx);
     self.windows.process(self, ctx);
+    self.playback.borrow_mut().update();
 
     self.logger.wrap(
       self

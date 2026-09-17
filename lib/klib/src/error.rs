@@ -10,6 +10,7 @@ pub enum Error {
   Skia(String),
   Audio(String),
   VideoExport(String),
+  Spectrasonic(String),
 }
 
 impl std::error::Error for Error {}
@@ -25,6 +26,7 @@ impl Display for Error {
       Error::Skia(str) => f.write_str(&format!("Error::Skia ({str})")),
       Error::Audio(str) => f.write_str(&format!("Error::Audio ({str})")),
       Error::VideoExport(str) => f.write_str(&format!("Error::VideoExport ({str})")),
+      Error::Spectrasonic(str) => f.write_str(&format!("Error::Spectrasonic ({str})")),
     }
   }
 }
@@ -60,5 +62,11 @@ impl From<symphonia::core::errors::Error> for Error {
 impl From<ffmpeg_next::Error> for Error {
   fn from(value: ffmpeg_next::Error) -> Self {
     Error::VideoExport(format!("FFmpeg error: {value:?}"))
+  }
+}
+
+impl From<spectrasonic::Error> for Error {
+  fn from(value: spectrasonic::Error) -> Self {
+    Error::Spectrasonic(format!("Spectrasonic error: {value:?}"))
   }
 }

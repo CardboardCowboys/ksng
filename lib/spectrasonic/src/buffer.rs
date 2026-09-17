@@ -21,8 +21,8 @@ pub trait PlanarAudioBuffer {
     count: usize,
   ) {
     assert!(buffer.num_channels() == self.num_channels());
-    assert!(from_offset < buffer.num_frames() && (from_offset + count) < buffer.num_frames());
-    assert!(to_offset < self.num_frames() && (to_offset + count) < self.num_frames());
+    assert!(from_offset < buffer.num_frames() && (from_offset + count) <= buffer.num_frames());
+    assert!(to_offset < self.num_frames() && (to_offset + count) <= self.num_frames());
     for i in 0..self.num_channels() {
       self.channel_mut(i)[to_offset..(to_offset + count)]
         .copy_from_slice(&buffer.channel(i)[from_offset..(from_offset + count)]);
@@ -32,7 +32,7 @@ pub trait PlanarAudioBuffer {
   fn fill(&mut self, v: f32);
 }
 
-pub type PlanarSliceBuffer<'slice> = (usize, &'slice mut [f32]);
+pub struct PlanarSliceBuffer<'slice>(usize, &'slice mut [f32]);
 
 impl<'slice> PlanarAudioBuffer for PlanarSliceBuffer<'slice> {
   fn num_frames(&self) -> usize {
@@ -106,4 +106,17 @@ impl PlanarAudioBuffer for PlanarVecBuffer {
   fn fill(&mut self, v: f32) {
     self.1.fill(v)
   }
+}
+
+#[test]
+pub fn test_slice_buffer() {
+  let mut data = [0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0];
+  let mut slice_buffer = PlanarSliceBuffer(2, &mut data);
+  assert!(slice_buffer.num_frames() == 4);
+  assert!(slice_buffer.num_channels() == 2);
+  assert!(slice_buffer.channel(0).iter().all(|f| *f == 0.0));
+  assert!(slice_buffer.channel(1).iter().all(|f| *f == 1.0));
+  slice_buffer.fill(3.0);
+  assert!(slice_buffer.channel(0).iter().all(|f| *f == 3.0));
+  assert!(slice_buffer.channel(1).iter().all(|f| *f == 3.0));
 }
