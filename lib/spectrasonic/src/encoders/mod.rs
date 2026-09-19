@@ -1,6 +1,11 @@
 use std::path::{Path, PathBuf};
 
+use crate::{Error, PlanarAudioBuffer, chain::AudioInfo};
+
+#[cfg(feature = "ffmpeg")]
 pub mod ffmpeg;
+#[cfg(feature = "encoder-flac")]
+pub mod flac;
 
 #[derive(Debug, Clone)]
 pub enum AudioCodec {
@@ -9,7 +14,17 @@ pub enum AudioCodec {
   //Vorbis,
   //Opus,
   Wav,
-  //Flac,
+  Flac,
+}
+
+/// Options to pass to an encoder.
+#[derive(Debug, Clone)]
+pub struct AudioEncoderOptions {
+  /// The bit rate to use when encoding. This is not used by all encoders.
+  pub bit_rate: usize,
+  /// A raw string of options to pass to the encoder. The format of this string
+  /// depends on the encoder.
+  pub options: String,
 }
 
 impl AudioCodec {
@@ -21,7 +36,42 @@ impl AudioCodec {
       //AudioCodec::Vorbis => "ogg",
       //AudioCodec::Opus => "opus",
       AudioCodec::Wav => "wav",
-      //AudioCodec::Flac => "flac",
+      AudioCodec::Flac => "flac",
     })
   }
+}
+
+pub trait AudioEncoder {
+  fn write(&mut self, buffer: &dyn PlanarAudioBuffer) -> Result<(), Error>;
+  fn finalize(&mut self) -> Result<(), Error>;
+}
+
+pub fn encoder_for_file<P: AsRef<Path>>(
+  output: P,
+  codec: AudioCodec,
+  options: AudioEncoderOptions,
+  info: AudioInfo,
+) -> Result<Box<dyn AudioEncoder>, Error> {
+  #[cfg(feature = "ffmpeg")]
+  {
+    if matches!(codec, AudioCodec::Aac | AudioCodec::Mp3 | AudioCodec::Wav) {
+      use crate::encoders::ffmpeg::FfmpegAudioEncoder;
+
+      return Ok(Box::new(FfmpegAudioEncoder::new(
+        output, codec, options, info,
+      )?));
+    }
+  }
+  #[cfg(feature = "encoder-flac")]
+  {
+    if matches!(codec, AudioCodec::Flac) {
+      use crate::encoders::flac::FlacAudioEncoder;
+
+      return Ok(Box::new(FlacAudioEncoder::new(output, info)?));
+    }
+  }
+
+  Err(Error::msg(format!(
+    "Cannot find encoder for codec {codec:?}"
+  )))
 }

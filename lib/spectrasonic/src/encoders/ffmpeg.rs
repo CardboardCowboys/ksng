@@ -1,23 +1,16 @@
-use std::{
-  path::{Path, PathBuf},
-  sync::Once,
-};
+use std::{path::Path, sync::Once};
 
 use ffmpeg_next::{ChannelLayout, Dictionary, Packet, Rational, codec, encoder, format, frame};
 
-use crate::{Error, PlanarAudioBuffer, chain::AudioInfo, encoders::AudioCodec};
+use crate::{
+  Error, PlanarAudioBuffer,
+  chain::AudioInfo,
+  encoders::{AudioCodec, AudioEncoder, AudioEncoderOptions},
+};
 
 static FFMPEG_INIT: Once = Once::new();
 
-#[derive(Debug, Clone)]
-pub struct FfmpegAudioEncoderOptions {
-  pub codec: AudioCodec,
-  pub options: String,
-  pub bit_rate: usize,
-}
-
 pub struct FfmpegAudioEncoder {
-  output_path: PathBuf,
   sample_conv: ffmpeg_next::software::resampling::context::Context,
   encoder: ffmpeg_next::encoder::audio::Encoder,
   output: ffmpeg_next::format::context::Output,
@@ -34,29 +27,33 @@ impl FfmpegAudioEncoder {
   /// Creates a new encoder with the given options and output path.
   pub fn new<P: AsRef<Path>>(
     output: P,
-    options: FfmpegAudioEncoderOptions,
+    audio_codec: AudioCodec,
+    options: AudioEncoderOptions,
     info: AudioInfo,
   ) -> Result<FfmpegAudioEncoder, Error> {
     FFMPEG_INIT.call_once(|| {
       ffmpeg_next::init().unwrap();
     });
 
-    let output_path = options.codec.set_extension(output.as_ref());
+    let output_path = audio_codec.set_extension(output.as_ref());
 
     let mut output = format::output(&output_path)?;
-    let codec = match &options.codec {
+    let codec = match &audio_codec {
       AudioCodec::Mp3 => encoder::find(codec::Id::MP3),
       AudioCodec::Aac => encoder::find(codec::Id::AAC),
-      //AudioCodec::Vorbis => encoder::find(codec::Id::VORBIS),
-      //AudioCodec::Opus => encoder::find(codec::Id::OPUS),
       AudioCodec::Wav => encoder::find(codec::Id::PCM_F32LE),
-      //AudioCodec::Flac => encoder::find(codec::Id::FLAC),
+      _ => {
+        return Err(Error::msg(format!(
+          "FfmpegAudioEncoder does not support {:?} codec",
+          audio_codec,
+        )));
+      }
     };
 
     let Some(codec) = codec else {
       return Err(Error::msg(format!(
         "Could not find FFmpeg encoder for {:?}",
-        options.codec
+        audio_codec
       )));
     };
 
@@ -89,20 +86,10 @@ impl FfmpegAudioEncoder {
     encoder.set_channel_layout(layout);
     encoder.set_rate(sample_rate);
     encoder.set_time_base(Rational::new(1, sample_rate));
-    if
-    /* !matches!(options.codec, AudioCodec::Flac) && */
-    !matches!(options.codec, AudioCodec::Wav) {
+    if !matches!(audio_codec, AudioCodec::Wav) {
       encoder.set_bit_rate(options.bit_rate);
     }
     ost.set_parameters(&encoder);
-
-    // ffmpeg-next doesn't expose extradata so we have to use unsafe to alloc it
-    // directly
-    /*if matches!(options.codec, AudioCodec::Opus) {
-      Self::alloc_extradata(&mut ost, 19);
-    } else if matches!(options.codec, AudioCodec::Flac) {
-      Self::alloc_extradata(&mut ost, 34);
-    }*/
 
     let opts = Self::parse_opts(&options.options)
       .ok_or(Error::msg("Could not parse options for FFmpeg encoder"))?;
@@ -140,7 +127,6 @@ impl FfmpegAudioEncoder {
     output.write_header()?;
 
     Ok(FfmpegAudioEncoder {
-      output_path,
       sample_conv,
       encoder,
       output,
@@ -152,89 +138,6 @@ impl FfmpegAudioEncoder {
       finalized: false,
       samples_written: 0,
     })
-  }
-
-  pub fn write(&mut self, buffer: &dyn PlanarAudioBuffer) -> Result<(), Error> {
-    if self.finalized {
-      return Err(Error::msg("Trying to write frames to a finalized encoder"));
-    }
-
-    let mut num_read = 0;
-    loop {
-      let num_expected = self.frame_size - self.waiting_frames;
-      let num = num_expected.min(buffer.num_frames() - num_read);
-      self
-        .in_frame
-        .copy_from_buffer(buffer, num_read, self.waiting_frames, num);
-      self.waiting_frames += num;
-      num_read += num;
-
-      if num < num_expected {
-        // Not enough to fill the frame - come back to it next call.
-        break;
-      }
-
-      if self.is_same {
-        self
-          .out_frame
-          .copy_from_buffer(&self.in_frame, 0, 0, self.in_frame.num_frames());
-      } else {
-        self.out_frame.set_samples(self.frame_size);
-        self.sample_conv.run(&self.in_frame, &mut self.out_frame)?;
-      }
-
-      self.send_frame()?;
-
-      self.waiting_frames = 0;
-    }
-
-    Ok(())
-  }
-
-  /// Finalizes the encoder, writing any remaining frames and closing the
-  /// stream.
-  pub fn finalize(&mut self) -> Result<(), Error> {
-    if self.waiting_frames > 0 {
-      self.in_frame.set_samples(self.waiting_frames);
-      if self.is_same {
-        self
-          .out_frame
-          .copy_from_buffer(&self.in_frame, 0, 0, self.in_frame.num_frames());
-        self.out_frame.set_samples(self.waiting_frames);
-      } else {
-        self.out_frame.set_samples(self.frame_size);
-        self.sample_conv.run(&self.in_frame, &mut self.out_frame)?;
-      }
-
-      if self.out_frame.samples() > 0 {
-        self.send_frame()?;
-      }
-
-      while let Some(_delay) = self.sample_conv.flush(&mut self.out_frame)? {
-        if self.out_frame.samples() > 0 {
-          self.send_frame()?;
-        } else {
-          break;
-        }
-      }
-    }
-
-    self.encoder.send_eof()?;
-    let mut packet = Packet::empty();
-    while self.encoder.receive_packet(&mut packet).is_ok() {
-      packet.set_stream(0);
-      packet.write_interleaved(&mut self.output)?;
-    }
-    self.output.write_trailer()?;
-
-    self.finalized = true;
-
-    Ok(())
-  }
-
-  /// Returns the output path of this encoder.
-  pub fn output_path(&self) -> PathBuf {
-    self.output_path.clone()
   }
 
   fn send_frame(&mut self) -> Result<(), Error> {
@@ -281,13 +184,84 @@ impl FfmpegAudioEncoder {
 
     target_rate
   }
+}
 
-  /*fn alloc_extradata(ost: &mut StreamMut, size: usize) {
-    unsafe {
-      let padded_size = size + ffmpeg_next::ffi::AV_INPUT_BUFFER_PADDING_SIZE as usize;
-      let ptr = ost.parameters().as_mut_ptr();
-      (*ptr).extradata = ffmpeg_next::ffi::av_malloc(padded_size) as *mut u8;
-      (*ptr).extradata_size = size as i32;
+impl AudioEncoder for FfmpegAudioEncoder {
+  fn write(&mut self, buffer: &dyn PlanarAudioBuffer) -> Result<(), Error> {
+    if self.finalized {
+      return Err(Error::msg("Trying to write frames to a finalized encoder"));
     }
-  }*/
+
+    let mut num_read = 0;
+    loop {
+      let num_expected = self.frame_size - self.waiting_frames;
+      let num = num_expected.min(buffer.num_frames() - num_read);
+      self
+        .in_frame
+        .copy_from_buffer(buffer, num_read, self.waiting_frames, num);
+      self.waiting_frames += num;
+      num_read += num;
+
+      if num < num_expected {
+        // Not enough to fill the frame - come back to it next call.
+        break;
+      }
+
+      if self.is_same {
+        self
+          .out_frame
+          .copy_from_buffer(&self.in_frame, 0, 0, self.in_frame.num_frames());
+      } else {
+        self.out_frame.set_samples(self.frame_size);
+        self.sample_conv.run(&self.in_frame, &mut self.out_frame)?;
+      }
+
+      self.send_frame()?;
+
+      self.waiting_frames = 0;
+    }
+
+    Ok(())
+  }
+
+  /// Finalizes the encoder, writing any remaining frames and closing the
+  /// stream.
+  fn finalize(&mut self) -> Result<(), Error> {
+    if self.waiting_frames > 0 {
+      self.in_frame.set_samples(self.waiting_frames);
+      if self.is_same {
+        self
+          .out_frame
+          .copy_from_buffer(&self.in_frame, 0, 0, self.in_frame.num_frames());
+        self.out_frame.set_samples(self.waiting_frames);
+      } else {
+        self.out_frame.set_samples(self.frame_size);
+        self.sample_conv.run(&self.in_frame, &mut self.out_frame)?;
+      }
+
+      if self.out_frame.samples() > 0 {
+        self.send_frame()?;
+      }
+
+      while let Some(_delay) = self.sample_conv.flush(&mut self.out_frame)? {
+        if self.out_frame.samples() > 0 {
+          self.send_frame()?;
+        } else {
+          break;
+        }
+      }
+    }
+
+    self.encoder.send_eof()?;
+    let mut packet = Packet::empty();
+    while self.encoder.receive_packet(&mut packet).is_ok() {
+      packet.set_stream(0);
+      packet.write_interleaved(&mut self.output)?;
+    }
+    self.output.write_trailer()?;
+
+    self.finalized = true;
+
+    Ok(())
+  }
 }

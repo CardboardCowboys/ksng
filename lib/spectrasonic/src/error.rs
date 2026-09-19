@@ -15,6 +15,8 @@ pub enum Error {
   Rubato(RubatoError),
   #[cfg(feature = "ffmpeg")]
   Ffmpeg(ffmpeg_next::Error),
+  #[cfg(feature = "encoder-flac")]
+  Flac(String),
 }
 
 impl Error {
@@ -66,5 +68,26 @@ impl From<audioadapter_buffers::SizeError> for Error {
 impl From<ffmpeg_next::Error> for Error {
   fn from(value: ffmpeg_next::Error) -> Self {
     Error::Ffmpeg(value)
+  }
+}
+
+#[cfg(feature = "encoder-flac")]
+impl From<flacenc::error::VerifyError> for Error {
+  fn from(value: flacenc::error::VerifyError) -> Self {
+    Error::Flac(value.to_string())
+  }
+}
+
+#[cfg(feature = "encoder-flac")]
+impl From<flacenc::error::EncodeError> for Error {
+  fn from(value: flacenc::error::EncodeError) -> Self {
+    Error::Flac(value.to_string())
+  }
+}
+
+#[cfg(feature = "encoder-flac")]
+impl From<flacenc::error::SourceError> for Error {
+  fn from(value: flacenc::error::SourceError) -> Self {
+    Error::Flac(value.to_string())
   }
 }

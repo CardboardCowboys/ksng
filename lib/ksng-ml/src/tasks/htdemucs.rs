@@ -5,7 +5,7 @@ use ort::{
   session::Session,
   value::{Tensor, TensorRef},
 };
-use spectrasonic::encoders::ffmpeg::FfmpegAudioEncoderOptions;
+use spectrasonic::encoders::AudioEncoderOptions;
 
 use crate::audio::{AudioChunkProvider, AudioChunkWriter};
 
@@ -23,9 +23,9 @@ impl HtdemucsSeparator {
     let mut audio = AudioChunkProvider::new(&self.input_path, 44100, 2, 7.8)?;
     let mut audio_out = AudioChunkWriter::new(
       &self.output_paths,
-      FfmpegAudioEncoderOptions {
+      spectrasonic::encoders::AudioCodec::Flac,
+      AudioEncoderOptions {
         options: String::default(),
-        codec: spectrasonic::encoders::AudioCodec::Aac,
         bit_rate: 128000,
       },
       audio.total_frames(),

@@ -11,9 +11,11 @@ symphonia = { version = "0.5.4", features = ["mp3", "aac"], optional = true }
 ffmpeg-next = { version = "9.0.0", optional = true, default-features = false, features = ["codec", "device", "format", "software-resampling", "software-scaling" ]}
 log = "0.4.34"
 audioadapter-buffers = "5.2.0"
+flacenc = { version = "0.5.1", optional = true }
 
 [features]
 default = ["ffmpeg", "symphonia"]
 ffmpeg = ["dep:ffmpeg-next"]
 symphonia = ["dep:symphonia"]
 encoding = []
+encoder-flac = ["dep:flacenc"]

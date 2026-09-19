@@ -6,7 +6,7 @@ use spectrasonic::{
   AudioChain, PlanarAudioBuffer,
   buffer::PlanarVecBuffer,
   chain::AudioInfo,
-  encoders::ffmpeg::{FfmpegAudioEncoder, FfmpegAudioEncoderOptions},
+  encoders::{AudioCodec, AudioEncoder, AudioEncoderOptions},
   filters::{WithChannelRemapperFilter, WithResamplerFilter},
 };
 
@@ -146,7 +146,7 @@ impl AudioChunkProvider {
 }
 
 pub struct AudioChunkWriter {
-  encoders: Vec<FfmpegAudioEncoder>,
+  encoders: Vec<Box<dyn AudioEncoder>>,
   output_paths: Vec<PathBuf>,
   full_chunks: Vec<PlanarVecBuffer>,
   crossfade_chunks: Vec<PlanarVecBuffer>,
@@ -159,7 +159,8 @@ pub struct AudioChunkWriter {
 impl AudioChunkWriter {
   pub fn new(
     output_paths: &[PathBuf],
-    options: FfmpegAudioEncoderOptions,
+    codec: AudioCodec,
+    options: AudioEncoderOptions,
     total_frames: usize,
     num_channels: usize,
     sample_rate: usize,
@@ -171,8 +172,9 @@ impl AudioChunkWriter {
     let mut paths = Vec::with_capacity(output_paths.len());
     let overlap = overlap_size(chunk_size);
     for path in output_paths {
-      encoders.push(FfmpegAudioEncoder::new(
+      encoders.push(spectrasonic::encoders::encoder_for_file(
         path,
+        codec.clone(),
         options.clone(),
         AudioInfo {
           num_channels,
@@ -181,7 +183,7 @@ impl AudioChunkWriter {
       )?);
       chunks.push(PlanarVecBuffer::new(num_channels, chunk_size - overlap * 2));
       crossfade_chunks.push(PlanarVecBuffer::new(num_channels, overlap));
-      paths.push(options.codec.set_extension(path));
+      paths.push(codec.set_extension(path));
     }
 
     log::info!("duration: {}", total_frames as f64 / sample_rate as f64);
