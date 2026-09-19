@@ -5,3 +5,9 @@
 I am so god damn tired of writing audio processing code. This library is meant to abstract the process of reading from audio sources, applying processing, and obtaining outputs.
 
 This is not meant to be a be-all end-all audio processing library. It's meant to abstract away the process of "I need this many frames of audio at this sample rate from this file and I don't care how I get it."
+
+spectrasonic requires an audio decoder to function. FFmpeg implementations are provided using the `ffmpeg` feature. If this does not work from a license perspective, or you simply prefer a more "rusty" implementation, Symphonia-based implementations are provided using the `symphonia` feature.
+
+If using the `encoding` feature, the `ffmpeg` feature flag is also currently required.
+
+This library is MIT licensed.

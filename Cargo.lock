@@ -2750,6 +2750,7 @@ dependencies = [
  "rubato",
  "serde",
  "serde_json",
+ "spectrasonic",
  "tokio",
  "url",
  "uuid",

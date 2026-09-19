@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::{path::Path, sync::Once};
 
 use ffmpeg_next::{Rational, Rescale, decoder, format::context::StreamIo, frame, rescale};
 
@@ -6,29 +6,7 @@ use crate::{
   AudioSource, Error, PlanarAudioBuffer, Timecode, chain::AudioChainBuilder, chain::AudioInfo,
 };
 
-impl PlanarAudioBuffer for frame::Audio {
-  fn num_frames(&self) -> usize {
-    self.samples()
-  }
-
-  fn num_channels(&self) -> usize {
-    self.channels() as usize
-  }
-
-  fn channel(&self, i: usize) -> &[f32] {
-    self.plane(i)
-  }
-
-  fn channel_mut(&mut self, i: usize) -> &mut [f32] {
-    self.plane_mut(i)
-  }
-
-  fn fill(&mut self, v: f32) {
-    for ch in 0..self.channels() {
-      self.plane_mut(ch as usize).fill(v);
-    }
-  }
-}
+static FFMPEG_INIT: Once = Once::new();
 
 pub struct FfmpegAudioSource {
   decoder: decoder::Audio,
@@ -46,6 +24,9 @@ pub struct FfmpegAudioSource {
 
 impl FfmpegAudioSource {
   pub fn new<P: AsRef<Path>>(path: P) -> Result<FfmpegAudioSource, Error> {
+    FFMPEG_INIT.call_once(|| {
+      ffmpeg_next::init().unwrap();
+    });
     let stream = std::fs::File::open(path.as_ref())?;
     let filename = path.as_ref().file_name().and_then(|f| f.to_str());
     let input = ffmpeg_next::format::input_from_stream(

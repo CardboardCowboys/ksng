@@ -16,3 +16,4 @@ audioadapter-buffers = "5.2.0"
 default = ["ffmpeg", "symphonia"]
 ffmpeg = ["dep:ffmpeg-next"]
 symphonia = ["dep:symphonia"]
+encoding = []

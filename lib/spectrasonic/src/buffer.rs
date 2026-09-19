@@ -108,6 +108,31 @@ impl PlanarAudioBuffer for PlanarVecBuffer {
   }
 }
 
+#[cfg(feature = "ffmpeg")]
+impl PlanarAudioBuffer for ffmpeg_next::frame::Audio {
+  fn num_frames(&self) -> usize {
+    self.samples()
+  }
+
+  fn num_channels(&self) -> usize {
+    self.channels() as usize
+  }
+
+  fn channel(&self, i: usize) -> &[f32] {
+    self.plane(i)
+  }
+
+  fn channel_mut(&mut self, i: usize) -> &mut [f32] {
+    self.plane_mut(i)
+  }
+
+  fn fill(&mut self, v: f32) {
+    for ch in 0..self.channels() {
+      self.plane_mut(ch as usize).fill(v);
+    }
+  }
+}
+
 #[test]
 pub fn test_slice_buffer() {
   let mut data = [0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0];

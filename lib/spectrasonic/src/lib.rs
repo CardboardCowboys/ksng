@@ -1,5 +1,7 @@
 pub mod buffer;
 pub mod chain;
+#[cfg(feature = "encoding")]
+pub mod encoders;
 pub mod error;
 pub mod filters;
 pub mod info;
