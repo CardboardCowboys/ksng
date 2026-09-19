@@ -47,7 +47,7 @@ impl AudioFilter for ResamplerFilter {
         self
           .resampler
           .process_into_buffer(&in_adapter, &mut out_adapter, None)?;
-      assert!(in_frames == 0); // should be true if we did everything right
+      assert!(in_frames == self.in_buffer.num_frames()); // should be true if we did everything right
 
       let num_to_write = (buffer.num_frames() - frames_written).min(out_frames);
       buffer.copy_from_buffer(&self.out_buffer, 0, frames_written, num_to_write);

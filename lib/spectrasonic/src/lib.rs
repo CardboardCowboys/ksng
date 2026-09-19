@@ -32,4 +32,13 @@ impl Timecode {
   pub const fn to_seconds_f64(&self) -> f64 {
     self.samples as f64 / self.sample_rate as f64
   }
+
+  pub fn to_frames_at_rate(&self, rate: usize) -> usize {
+    if rate == self.sample_rate {
+      return self.samples;
+    }
+
+    let ratio = rate as f64 / self.sample_rate as f64;
+    (ratio * self.samples as f64) as usize
+  }
 }

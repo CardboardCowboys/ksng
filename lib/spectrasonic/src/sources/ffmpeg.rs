@@ -11,7 +11,6 @@ static FFMPEG_INIT: Once = Once::new();
 pub struct FfmpegAudioSource {
   decoder: decoder::Audio,
   input: ffmpeg_next::format::context::Input,
-  time_base: Rational,
   num_channels: usize,
   sample_rate: usize,
   remaining_frames: usize,
@@ -45,7 +44,6 @@ impl FfmpegAudioSource {
 
     let context = ffmpeg_next::codec::context::Context::from_parameters(in_stream.parameters())?;
     let decoder = context.decoder().audio()?;
-    let time_base = in_stream.time_base();
 
     let num_channels = decoder.channels() as usize;
     let sample_rate = decoder.rate() as usize;
@@ -78,7 +76,6 @@ impl FfmpegAudioSource {
     Ok(FfmpegAudioSource {
       decoder,
       input,
-      time_base,
       num_channels,
       sample_rate,
       remaining_frames: 0,
@@ -156,10 +153,11 @@ impl AudioSource for FfmpegAudioSource {
   }
 
   fn duration(&self) -> Timecode {
+    let time_base = rescale::TIME_BASE;
     let duration = self.input.duration() as usize;
     Timecode {
-      sample_rate: self.time_base.1 as usize,
-      samples: duration * self.time_base.0 as usize,
+      sample_rate: time_base.1 as usize,
+      samples: duration * time_base.0 as usize,
     }
   }
 

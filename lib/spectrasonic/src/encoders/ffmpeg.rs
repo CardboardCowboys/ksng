@@ -3,17 +3,17 @@ use std::{
   sync::Once,
 };
 
-use ffmpeg_next::{
-  ChannelLayout, Dictionary, Packet, codec, encoder, format, frame, software::resampling::Delay,
-};
+use ffmpeg_next::{ChannelLayout, Dictionary, Packet, Rational, codec, encoder, format, frame};
 
 use crate::{Error, PlanarAudioBuffer, chain::AudioInfo, encoders::AudioCodec};
 
 static FFMPEG_INIT: Once = Once::new();
 
+#[derive(Debug, Clone)]
 pub struct FfmpegAudioEncoderOptions {
-  codec: AudioCodec,
-  options: String,
+  pub codec: AudioCodec,
+  pub options: String,
+  pub bit_rate: usize,
 }
 
 pub struct FfmpegAudioEncoder {
@@ -27,6 +27,7 @@ pub struct FfmpegAudioEncoder {
   waiting_frames: usize,
   frame_size: usize,
   finalized: bool,
+  samples_written: usize,
 }
 
 impl FfmpegAudioEncoder {
@@ -40,16 +41,16 @@ impl FfmpegAudioEncoder {
       ffmpeg_next::init().unwrap();
     });
 
-    let output_path = Self::path_for_codec(&options.codec, output.as_ref());
+    let output_path = options.codec.set_extension(output.as_ref());
 
     let mut output = format::output(&output_path)?;
     let codec = match &options.codec {
       AudioCodec::Mp3 => encoder::find(codec::Id::MP3),
       AudioCodec::Aac => encoder::find(codec::Id::AAC),
-      AudioCodec::Vorbis => encoder::find(codec::Id::VORBIS),
-      AudioCodec::Opus => encoder::find(codec::Id::OPUS),
+      //AudioCodec::Vorbis => encoder::find(codec::Id::VORBIS),
+      //AudioCodec::Opus => encoder::find(codec::Id::OPUS),
       AudioCodec::Wav => encoder::find(codec::Id::PCM_F32LE),
-      AudioCodec::Flac => encoder::find(codec::Id::FLAC),
+      //AudioCodec::Flac => encoder::find(codec::Id::FLAC),
     };
 
     let Some(codec) = codec else {
@@ -65,20 +66,54 @@ impl FfmpegAudioEncoder {
       sample_rate = Self::select_sample_rate(&mut rates, info.sample_rate as i32);
     }
 
+    let mut format = format::Sample::F32(format::sample::Type::Planar);
+    if let Some(iter) = codec.audio()?.formats() {
+      for f in iter {
+        if matches!(f, format::Sample::F32(..)) {
+          format = f;
+          break;
+        }
+
+        if matches!(f, format::Sample::I16(..)) {
+          format = f;
+        }
+      }
+    }
+
     let layout = ChannelLayout::default(info.num_channels as i32);
     let mut ost = output.add_stream(codec)?;
     let mut encoder = codec::context::Context::new_with_codec(codec)
       .encoder()
       .audio()?;
+    encoder.set_format(format);
     encoder.set_channel_layout(layout);
-    encoder.set_rate(info.sample_rate as i32);
+    encoder.set_rate(sample_rate);
+    encoder.set_time_base(Rational::new(1, sample_rate));
+    if
+    /* !matches!(options.codec, AudioCodec::Flac) && */
+    !matches!(options.codec, AudioCodec::Wav) {
+      encoder.set_bit_rate(options.bit_rate);
+    }
     ost.set_parameters(&encoder);
+
+    // ffmpeg-next doesn't expose extradata so we have to use unsafe to alloc it
+    // directly
+    /*if matches!(options.codec, AudioCodec::Opus) {
+      Self::alloc_extradata(&mut ost, 19);
+    } else if matches!(options.codec, AudioCodec::Flac) {
+      Self::alloc_extradata(&mut ost, 34);
+    }*/
 
     let opts = Self::parse_opts(&options.options)
       .ok_or(Error::msg("Could not parse options for FFmpeg encoder"))?;
     let encoder = encoder.open_with(opts)?;
 
-    let frame_size = encoder.frame_size() as usize;
+    let frame_size = if encoder.frame_size() > 0 {
+      encoder.frame_size() as usize
+    } else {
+      1024
+    };
+    log::info!("frame_size: {frame_size}");
 
     let sample_conv = ffmpeg_next::software::resampler(
       (
@@ -115,6 +150,7 @@ impl FfmpegAudioEncoder {
       frame_size,
       is_same,
       finalized: false,
+      samples_written: 0,
     })
   }
 
@@ -125,33 +161,26 @@ impl FfmpegAudioEncoder {
 
     let mut num_read = 0;
     loop {
-      // Handle delay
-      // Delay is only set after we convert samples, which means that
-      // self.waiting_frames should be 0.
-      let delay = Delay::from(&self.sample_conv);
-      if delay.input > 0 {
-        self.sample_conv.flush(&mut self.out_frame)?;
-      } else {
-        let num_expected = self.frame_size - self.waiting_frames;
-        let num = num_expected.min(buffer.num_frames() - num_read);
+      let num_expected = self.frame_size - self.waiting_frames;
+      let num = num_expected.min(buffer.num_frames() - num_read);
+      self
+        .in_frame
+        .copy_from_buffer(buffer, num_read, self.waiting_frames, num);
+      self.waiting_frames += num;
+      num_read += num;
+
+      if num < num_expected {
+        // Not enough to fill the frame - come back to it next call.
+        break;
+      }
+
+      if self.is_same {
         self
-          .in_frame
-          .copy_from_buffer(buffer, num_read, self.waiting_frames, num);
-        self.waiting_frames = num;
-        num_read += num;
-
-        if num < num_expected {
-          // Not enough to fill the frame - come back to it next call.
-          break;
-        }
-
-        if self.is_same {
-          self
-            .out_frame
-            .copy_from_buffer(&self.in_frame, 0, 0, self.in_frame.num_frames());
-        } else {
-          self.sample_conv.run(&self.in_frame, &mut self.out_frame)?;
-        }
+          .out_frame
+          .copy_from_buffer(&self.in_frame, 0, 0, self.in_frame.num_frames());
+      } else {
+        self.out_frame.set_samples(self.frame_size);
+        self.sample_conv.run(&self.in_frame, &mut self.out_frame)?;
       }
 
       self.send_frame()?;
@@ -173,32 +202,34 @@ impl FfmpegAudioEncoder {
           .copy_from_buffer(&self.in_frame, 0, 0, self.in_frame.num_frames());
         self.out_frame.set_samples(self.waiting_frames);
       } else {
+        self.out_frame.set_samples(self.frame_size);
         self.sample_conv.run(&self.in_frame, &mut self.out_frame)?;
       }
 
-      self.send_frame()?;
-      while let Some(_delay) = self.sample_conv.flush(&mut self.out_frame)? {
+      if self.out_frame.samples() > 0 {
         self.send_frame()?;
+      }
+
+      while let Some(_delay) = self.sample_conv.flush(&mut self.out_frame)? {
+        if self.out_frame.samples() > 0 {
+          self.send_frame()?;
+        } else {
+          break;
+        }
       }
     }
 
+    self.encoder.send_eof()?;
+    let mut packet = Packet::empty();
+    while self.encoder.receive_packet(&mut packet).is_ok() {
+      packet.set_stream(0);
+      packet.write_interleaved(&mut self.output)?;
+    }
     self.output.write_trailer()?;
 
     self.finalized = true;
 
     Ok(())
-  }
-
-  /// Returns the given path with an extension that matches the given codec.
-  pub fn path_for_codec(codec: &AudioCodec, path: &Path) -> PathBuf {
-    path.with_extension(match &codec {
-      AudioCodec::Mp3 => "mp3",
-      AudioCodec::Aac => "aac",
-      AudioCodec::Vorbis => "ogg",
-      AudioCodec::Opus => "opus",
-      AudioCodec::Wav => "wav",
-      AudioCodec::Flac => "flac",
-    })
   }
 
   /// Returns the output path of this encoder.
@@ -207,7 +238,9 @@ impl FfmpegAudioEncoder {
   }
 
   fn send_frame(&mut self) -> Result<(), Error> {
+    self.out_frame.set_pts(Some(self.samples_written as i64));
     self.encoder.send_frame(&self.out_frame)?;
+    self.samples_written += self.out_frame.samples();
     let mut packet = Packet::empty();
     while self.encoder.receive_packet(&mut packet).is_ok() {
       packet.set_stream(0);
@@ -248,4 +281,13 @@ impl FfmpegAudioEncoder {
 
     target_rate
   }
+
+  /*fn alloc_extradata(ost: &mut StreamMut, size: usize) {
+    unsafe {
+      let padded_size = size + ffmpeg_next::ffi::AV_INPUT_BUFFER_PADDING_SIZE as usize;
+      let ptr = ost.parameters().as_mut_ptr();
+      (*ptr).extradata = ffmpeg_next::ffi::av_malloc(padded_size) as *mut u8;
+      (*ptr).extradata_size = size as i32;
+    }
+  }*/
 }

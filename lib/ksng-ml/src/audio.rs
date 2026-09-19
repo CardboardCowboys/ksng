@@ -1,12 +1,14 @@
-use std::{
-  io::Write,
-  path::{Path, PathBuf},
-};
+use std::path::{Path, PathBuf};
 
-use creek::{ReadDiskStream, SymphoniaDecoder};
+use itertools::izip;
 use ndarray::s;
-use rubato::{Resampler, audioadapter::Adapter};
-use zerocopy::IntoBytes;
+use spectrasonic::{
+  AudioChain, PlanarAudioBuffer,
+  buffer::PlanarVecBuffer,
+  chain::AudioInfo,
+  encoders::ffmpeg::{FfmpegAudioEncoder, FfmpegAudioEncoderOptions},
+  filters::{WithChannelRemapperFilter, WithResamplerFilter},
+};
 
 const fn chunk_size(chunk_s: f64, target_sample_rate: usize) -> usize {
   (target_sample_rate as f64 * chunk_s) as usize
@@ -18,96 +20,61 @@ const fn overlap_size(chunk_size: usize) -> usize {
 
 pub struct AudioChunkProvider {
   target_sample_rate: usize,
-  from_sample_rate: usize,
   chunk_frames: usize,
   overlap: usize,
   channels: usize,
   total_frames: usize,
-  file_buffer: Vec<Vec<f32>>,
   current_chunk: usize,
+  current_source_chunk: usize,
+  source: AudioChain,
+  chunk_buffer: PlanarVecBuffer,
 }
 
 impl AudioChunkProvider {
   pub fn new(
     file_path: &Path,
     target_sample_rate: usize,
+    target_channels: usize,
     chunk_s: f64,
   ) -> Result<AudioChunkProvider, anyhow::Error> {
-    let mut decoder = ReadDiskStream::<SymphoniaDecoder>::new(file_path, 0, Default::default())?;
-    decoder.cache(0, 0)?;
-    decoder.seek(0, creek::SeekMode::Auto).unwrap();
-    decoder.block_until_ready()?;
+    let source = spectrasonic::sources::source_for_file(file_path)?;
+    let mut builder = source.builder();
 
-    let num_channels = decoder.info().num_channels as usize;
-    let from_sample_rate = decoder
-      .info()
-      .sample_rate
-      .ok_or(anyhow::Error::msg("File has no sample rate!"))? as usize;
+    if target_sample_rate != builder.info().sample_rate {
+      builder = builder.with_resampler(target_sample_rate)?;
+    }
+
+    if target_channels != builder.info().num_channels {
+      if builder.info().num_channels == 1 && target_channels == 2 {
+        builder = builder.with_channel_remapper(2, &[0, 0])?;
+      } else if builder.info().num_channels > 2 && target_channels == 2 {
+        builder = builder.with_channel_remapper(2, &[0, 1])?;
+      } else if builder.info().num_channels > 1 && target_channels == 1 {
+        builder = builder.with_channel_remapper(1, &[0])?;
+      } else {
+        return Err(anyhow::Error::msg(format!(
+          "Can't figure out how to remap {} channels to {target_channels} channels",
+          builder.info().num_channels
+        )));
+      }
+    }
 
     let chunk_frames = chunk_size(chunk_s, target_sample_rate);
-
-    // For now, read the entire file into the buffer... I'm not writing another
-    // audio streaming implementation.
-    let file_frames = decoder.info().num_frames;
-    let mut buffer = Vec::with_capacity(num_channels);
-    for ch in 0..num_channels {
-      let mut ch_buffer = Vec::with_capacity(file_frames);
-      ch_buffer.resize(file_frames, 0.0_f32);
-      buffer.push(ch_buffer);
-    }
-
-    let mut frames_written = 0;
-    // Read entire file into buffer
-    loop {
-      decoder.block_until_ready().unwrap();
-      let data = decoder.read(decoder.block_size())?;
-      for ch in 0..data.num_channels() {
-        buffer[ch][frames_written..(frames_written + data.num_frames())]
-          .copy_from_slice(data.read_channel(ch));
-      }
-
-      frames_written += data.num_frames();
-      if data.num_frames() < decoder.block_size() {
-        break;
-      }
-    }
-
-    if from_sample_rate != target_sample_rate {
-      let mut resampler = rubato::Fft::<f32>::new(
-        from_sample_rate,
-        target_sample_rate,
-        1024,
-        2,
-        rubato::FixedSync::Both,
-      )?;
-
-      let slice = audioadapter_buffers::direct::SequentialSliceOfVecs::new(
-        &buffer,
-        num_channels,
-        frames_written,
-      )?;
-      let result = resampler.process_all(&slice, frames_written, None)?;
-
-      buffer.clear();
-      for ch in 0..num_channels {
-        let mut ch_buffer = Vec::with_capacity(result.frames());
-        ch_buffer.resize(result.frames(), 0.0_f32);
-        result.copy_from_channel_to_slice(ch, 0, &mut ch_buffer);
-        buffer.push(ch_buffer);
-      }
-
-      frames_written = result.frames();
-    }
+    let chunk_buffer = PlanarVecBuffer::new(target_channels, chunk_frames);
+    let source = builder.commit();
+    let duration = source.duration();
+    log::info!("duration: {duration:?} {}", duration.to_seconds_f64());
 
     Ok(AudioChunkProvider {
       target_sample_rate,
-      from_sample_rate,
-      channels: num_channels,
+      channels: source.info().num_channels,
       chunk_frames,
       overlap: overlap_size(chunk_frames),
-      file_buffer: buffer,
-      total_frames: frames_written,
+      chunk_buffer,
+      total_frames: duration.to_frames_at_rate(target_sample_rate),
+      current_source_chunk: 0,
       current_chunk: 0,
+      source,
     })
   }
 
@@ -119,17 +86,40 @@ impl AudioChunkProvider {
     let start = self.current_chunk * stride;
     let end = (start + self.chunk_frames).min(self.total_frames);
     let num_frames = end.saturating_sub(start);
+    let source_pos = self.current_source_chunk * self.chunk_frames;
 
     if start >= end {
       return Ok(0);
     }
 
+    let mut frames_written = 0;
+    let num_current = source_pos - start;
+    if num_current > 0 {
+      let num = num_current.min(num_frames);
+      for ch in 0..self.channels {
+        let mut row = buffer.row_mut(ch);
+        let dest = row.as_slice_mut().unwrap();
+        let n = self.chunk_buffer.num_frames();
+        dest[0..num].copy_from_slice(&self.chunk_buffer.channel(ch)[(n - num)..n]);
+      }
+      frames_written = num;
+    }
+
+    if frames_written >= self.chunk_frames {
+      self.current_chunk += 1;
+      return Ok(frames_written);
+    }
+
+    let frames_read = self.source.read(&mut self.chunk_buffer)?;
+    self.current_source_chunk += 1;
+    let num = frames_read.min(self.chunk_frames - frames_written);
     for ch in 0..self.channels {
       let mut row = buffer.row_mut(ch);
       let dest = row.as_slice_mut().unwrap();
-      dest[0..num_frames].copy_from_slice(&self.file_buffer[ch][start..end]);
-      if num_frames < self.chunk_frames {
-        dest[num_frames..self.chunk_frames].fill(0.0_f32);
+      let end = frames_written + num;
+      dest[frames_written..end].copy_from_slice(&self.chunk_buffer.channel(ch)[0..num]);
+      if end < self.chunk_frames {
+        dest[end..self.chunk_frames].fill(0.0_f32);
       }
     }
 
@@ -156,42 +146,55 @@ impl AudioChunkProvider {
 }
 
 pub struct AudioChunkWriter {
-  buffers: Vec<Vec<f32>>,
+  encoders: Vec<FfmpegAudioEncoder>,
   output_paths: Vec<PathBuf>,
-  total_frames: usize,
-  num_channels: usize,
+  full_chunks: Vec<PlanarVecBuffer>,
+  crossfade_chunks: Vec<PlanarVecBuffer>,
   chunk_size: usize,
+  total_frames: usize,
   overlap: usize,
   current_chunk: usize,
-  chunk_buf: Vec<f32>,
 }
 
 impl AudioChunkWriter {
   pub fn new(
     output_paths: &[PathBuf],
+    options: FfmpegAudioEncoderOptions,
     total_frames: usize,
     num_channels: usize,
+    sample_rate: usize,
     chunk_size: usize,
   ) -> Result<AudioChunkWriter, anyhow::Error> {
-    let mut buffers = Vec::with_capacity(output_paths.len());
-    for _ in output_paths {
-      let mut buffer = Vec::with_capacity(total_frames * num_channels);
-      buffer.resize(total_frames * num_channels, 0.0_f32);
-      buffers.push(buffer);
+    let mut encoders = Vec::with_capacity(output_paths.len());
+    let mut chunks = Vec::with_capacity(output_paths.len());
+    let mut crossfade_chunks = Vec::with_capacity(output_paths.len());
+    let mut paths = Vec::with_capacity(output_paths.len());
+    let overlap = overlap_size(chunk_size);
+    for path in output_paths {
+      encoders.push(FfmpegAudioEncoder::new(
+        path,
+        options.clone(),
+        AudioInfo {
+          num_channels,
+          sample_rate,
+        },
+      )?);
+      chunks.push(PlanarVecBuffer::new(num_channels, chunk_size - overlap * 2));
+      crossfade_chunks.push(PlanarVecBuffer::new(num_channels, overlap));
+      paths.push(options.codec.set_extension(path));
     }
 
-    let mut chunk_buf = Vec::with_capacity(chunk_size);
-    chunk_buf.resize(chunk_size, 0.0_f32);
+    log::info!("duration: {}", total_frames as f64 / sample_rate as f64);
 
     Ok(AudioChunkWriter {
-      buffers,
-      output_paths: output_paths.iter().map(|p| p.to_path_buf()).collect(),
-      total_frames,
-      num_channels,
-      chunk_size,
+      output_paths: paths,
+      encoders,
+      full_chunks: chunks,
+      crossfade_chunks,
       overlap: overlap_size(chunk_size),
+      chunk_size,
+      total_frames,
       current_chunk: 0,
-      chunk_buf,
     })
   }
 
@@ -199,25 +202,61 @@ impl AudioChunkWriter {
     let stride = self.chunk_size - self.overlap;
     let first_chunk = self.current_chunk == 0;
     let last_chunk = (self.current_chunk + 1) * stride >= self.total_frames;
-    let fade_out_start = self.chunk_size - self.overlap;
 
-    for i in 0..self.output_paths.len() {
-      for ch in 0..self.num_channels {
-        let slice = buffer.slice(s![0, i, ch, ..]);
+    // The output stream is basically:
+    // - [crossfade][chunk][crossfade][chunk][crossfade][chunk]
+    // So we need to:
+    // - Mix [crossfade] samples into the crossfade chunk from last write
+    // - Send [crossfade] to the encoder.
+    // - Send [chunk] to the encoder.
+    // - Write [crossfade] samples into the crossfade chunk for next write.
+    // Two special cases:
+    // - On the first chunk we send [crossfade] directly to the encoder and do
+    //   not fade it.
+    // - On the last chunk we send the last [crossfade] directly to the encoder
+    //   and do not fade it.
+
+    for (out_idx, (enc, chunk, crossfade)) in izip!(
+      self.encoders.iter_mut(),
+      self.full_chunks.iter_mut(),
+      self.crossfade_chunks.iter_mut()
+    )
+    .enumerate()
+    {
+      for ch in 0..chunk.num_channels() {
+        let slice = buffer.slice(s![0, out_idx, ch, ..]);
         let samples = slice.as_slice().unwrap();
-        for (j, sample) in samples.into_iter().enumerate() {
-          let out = (self.current_chunk * stride + j) * self.num_channels + ch;
-          if out >= (self.total_frames * self.num_channels) {
-            break;
+        if first_chunk {
+          crossfade
+            .channel_mut(ch)
+            .copy_from_slice(&samples[0..self.overlap]);
+        } else {
+          let out = crossfade.channel_mut(ch);
+          for i in 0..self.overlap {
+            out[i] += (i as f32 / self.overlap as f32) * samples[i];
           }
-          if !first_chunk && j < self.overlap {
-            let n = j as f32 / self.overlap as f32;
-            self.buffers[i][out] += sample * n;
-          } else if !last_chunk && j >= fade_out_start {
-            let n = 1.0 - ((j - fade_out_start) as f32 / self.overlap as f32);
-            self.buffers[i][out] += sample * n;
-          } else {
-            self.buffers[i][out] += sample;
+        }
+      }
+
+      enc.write(crossfade)?;
+
+      for ch in 0..chunk.num_channels() {
+        let slice = buffer.slice(s![0, out_idx, ch, ..]);
+        let samples = &slice.as_slice().unwrap()[self.overlap..(self.overlap + chunk.num_frames())];
+        chunk.channel_mut(ch).copy_from_slice(samples);
+      }
+
+      enc.write(chunk)?;
+
+      for ch in 0..chunk.num_channels() {
+        let slice = buffer.slice(s![0, out_idx, ch, ..]);
+        let samples = &slice.as_slice().unwrap()[(self.overlap + chunk.num_frames())..slice.len()];
+        if last_chunk {
+          crossfade.channel_mut(ch).copy_from_slice(&samples);
+        } else {
+          let out = crossfade.channel_mut(ch);
+          for i in 0..self.overlap {
+            out[i] = (1.0 - (i as f32 / self.overlap as f32)) * samples[i];
           }
         }
       }
@@ -228,13 +267,12 @@ impl AudioChunkWriter {
     Ok(())
   }
 
-  pub fn finalize(&self) -> Result<(), anyhow::Error> {
-    for (i, buffer) in self.buffers.iter().enumerate() {
-      let path = &self.output_paths[i];
-      let mut stream = std::fs::File::create(path)?;
-      stream.write_all(buffer.as_bytes())?;
+  pub fn finalize(&mut self) -> Result<Vec<PathBuf>, anyhow::Error> {
+    for (enc, crossfade) in self.encoders.iter_mut().zip(self.crossfade_chunks.iter()) {
+      enc.write(crossfade)?;
+      enc.finalize()?;
     }
 
-    Ok(())
+    Ok(self.output_paths.clone())
   }
 }

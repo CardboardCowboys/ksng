@@ -5,6 +5,7 @@ use ort::{
   session::Session,
   value::{Tensor, TensorRef},
 };
+use spectrasonic::encoders::ffmpeg::FfmpegAudioEncoderOptions;
 
 use crate::audio::{AudioChunkProvider, AudioChunkWriter};
 
@@ -18,29 +19,28 @@ struct HtdemucsSeparator {
 
 impl HtdemucsSeparator {
   pub fn separate(&self) -> Result<(), anyhow::Error> {
+    log::info!("loading audio file from {:?}", self.input_path);
+    let mut audio = AudioChunkProvider::new(&self.input_path, 44100, 2, 7.8)?;
+    let mut audio_out = AudioChunkWriter::new(
+      &self.output_paths,
+      FfmpegAudioEncoderOptions {
+        options: String::default(),
+        codec: spectrasonic::encoders::AudioCodec::Aac,
+        bit_rate: 128000,
+      },
+      audio.total_frames(),
+      2,
+      44100,
+      audio.chunk_size(),
+    )?;
+
     log::info!("loading model file from {:?}", self.model_path);
     let mut model = Session::builder()?
       .with_optimization_level(ort::session::builder::GraphOptimizationLevel::Level3)
       .map_err(|e| anyhow::Error::msg(e.message().to_string()))?
       .with_intra_threads(4)
       .map_err(|e| anyhow::Error::msg(e.message().to_string()))?
-      .with_execution_providers([
-        ort::ep::NVRTX::default().build(),
-        ort::ep::TensorRT::default().build(),
-        ort::ep::DirectML::default().build(),
-        ort::ep::CUDA::default().build(),
-      ])
-      .map_err(|e| anyhow::Error::msg(e.message().to_string()))?
       .commit_from_file(&self.model_path)?;
-
-    log::info!("loading audio file from {:?}", self.input_path);
-    let mut audio = AudioChunkProvider::new(&self.input_path, 44100, 7.8)?;
-    let mut audio_out = AudioChunkWriter::new(
-      &self.output_paths,
-      audio.total_frames(),
-      2,
-      audio.chunk_size(),
-    )?;
 
     for inp in model.inputs() {
       log::info!("- {}: {:?}", inp.name(), inp.dtype());
@@ -63,6 +63,7 @@ impl HtdemucsSeparator {
     loop {
       let num_read = audio.next_chunk(&mut chunk)?;
       if num_read == 0 {
+        log::info!("num_read: {num_read}");
         break;
       }
 
@@ -79,6 +80,7 @@ impl HtdemucsSeparator {
       audio_out.write_chunk(&arr)?;
 
       if num_read < audio.chunk_size() {
+        log::info!("num_read: {num_read}");
         break;
       }
     }
@@ -95,10 +97,26 @@ impl HtdemucsSeparator {
 pub fn test_htdemucs() -> Result<(), anyhow::Error> {
   colog::init();
 
+  let path = std::env::var("PATH").unwrap();
+  let paths = std::env::split_paths(&path);
+  let mut paths_arr = Vec::new();
+  for path in paths {
+    paths_arr.push(path);
+  }
+
+  paths_arr.push(PathBuf::from(
+    "C:/Program Files/NVIDIA/CUDNN/v9.26/bin/13.4/x64",
+  ));
+  let paths_env = std::env::join_paths(&paths_arr)?;
+  unsafe {
+    std::env::set_var("PATH", paths_env);
+  }
+
   ort::init_from("C:/Tools/ort/onnxruntime.dll")
     .unwrap()
     .with_execution_providers([ort::ep::CUDA::default().build()])
     .commit();
+  println!("{}", ort::info());
   let sep = HtdemucsSeparator {
     input_path: PathBuf::from("C:/Users/Ashley/Music/Burning Airlines - Outside The Aviary.mp3"),
     model_path: PathBuf::from("C:/Users/Ashley/Downloads/htdemucs.onnx"),

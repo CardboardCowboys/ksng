@@ -20,6 +20,9 @@ pub trait PlanarAudioBuffer {
     to_offset: usize,
     count: usize,
   ) {
+    if count == 0 {
+      return;
+    }
     assert!(buffer.num_channels() == self.num_channels());
     assert!(from_offset < buffer.num_frames() && (from_offset + count) <= buffer.num_frames());
     assert!(to_offset < self.num_frames() && (to_offset + count) <= self.num_frames());
