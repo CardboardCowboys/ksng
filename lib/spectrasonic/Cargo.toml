@@ -4,7 +4,6 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-circular-buffer = "2.0.1"
 infer = "0.22.0"
 rubato = "5.0.0"
 symphonia = { version = "0.5.4", features = ["mp3", "aac"], optional = true }

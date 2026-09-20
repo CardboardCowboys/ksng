@@ -1,29 +1,25 @@
 use {
-  crate::models::ModelManager,
+  crate::{models::ModelManager, tasks::TaskManager},
   futures_util::FutureExt,
   interprocess::local_socket::{
     GenericFilePath, GenericNamespaced,
     tokio::{Stream, prelude::*},
   },
   ksng_ml_ipc::packet::host_packet,
-  std::{
-    pin::Pin,
-    task::{Context, Waker},
-  },
-  tokio::{
-    io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
-    try_join,
-  },
+  std::task::Waker,
+  tokio::io::BufReader,
   uuid::Uuid,
 };
 
 mod audio;
 mod models;
+mod ort;
 mod tasks;
 
 #[tokio::main]
 async fn main() {
   colog::init();
+  ort::init_ort().unwrap();
 
   let args: Vec<String> = std::env::args().collect();
   if args.len() < 2 {
@@ -40,6 +36,7 @@ async fn run(name: &str) -> Result<(), anyhow::Error> {
     name.to_string().to_fs_name::<GenericFilePath>().unwrap()
   };
 
+  let mut tasks = TaskManager::new();
   let models = ModelManager::new().unwrap();
 
   let conn = Stream::connect(name).await.unwrap();
@@ -71,6 +68,14 @@ async fn run(name: &str) -> Result<(), anyhow::Error> {
             log::info!("received kill");
             break;
           }
+          host_packet::Contents::StartTask(task) => {
+            tasks.start_task(&models, task).await?;
+          }
+          host_packet::Contents::CancelTask(cancel) => {
+            if let Some(id) = cancel.id {
+              tasks.cancel_task(id.into()).await?;
+            }
+          }
         }
         drop(recv_future);
         recv_future = Box::pin(ksng_ml_ipc::read_next_packet::<
@@ -84,6 +89,7 @@ async fn run(name: &str) -> Result<(), anyhow::Error> {
     }
 
     models.poll_jobs(&mut send).await?;
+    tasks.poll_tasks(&mut send).await?;
   }
 
   Ok(())

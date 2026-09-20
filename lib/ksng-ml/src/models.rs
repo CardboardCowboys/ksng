@@ -1,7 +1,7 @@
 use futures_util::StreamExt;
 use interprocess::local_socket::tokio::SendHalf;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashSet, io::Write, path::PathBuf, sync::Arc};
+use std::{path::PathBuf, sync::Arc};
 use tokio::{io::AsyncWriteExt, sync::RwLock};
 use uuid::Uuid;
 
@@ -44,6 +44,7 @@ struct Model {
   name: String,
   size: usize,
   model_type: ModelType,
+  ext: String,
 }
 
 enum ModelDownloadStatus {
@@ -186,6 +187,7 @@ impl ModelManager {
         name: model.name.to_string(),
         size: model.size,
         model_type: model.model_type,
+        ext: model.ext.to_string(),
       },
     }));
 
@@ -310,5 +312,20 @@ impl ModelManager {
     }
 
     Ok(())
+  }
+
+  pub async fn find_model_path(&self, id: Uuid) -> Option<PathBuf> {
+    let models = self.models.read().await;
+    for model in models.iter() {
+      if model.id == id {
+        let path = self
+          .models_dir
+          .join(model.id.to_string())
+          .with_extension(&model.ext);
+        return Some(path);
+      }
+    }
+
+    None
   }
 }

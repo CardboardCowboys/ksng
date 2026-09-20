@@ -19,7 +19,6 @@ const fn overlap_size(chunk_size: usize) -> usize {
 }
 
 pub struct AudioChunkProvider {
-  target_sample_rate: usize,
   chunk_frames: usize,
   overlap: usize,
   channels: usize,
@@ -66,7 +65,6 @@ impl AudioChunkProvider {
     log::info!("duration: {duration:?} {}", duration.to_seconds_f64());
 
     Ok(AudioChunkProvider {
-      target_sample_rate,
       channels: source.info().num_channels,
       chunk_frames,
       overlap: overlap_size(chunk_frames),
@@ -132,16 +130,16 @@ impl AudioChunkProvider {
     self.chunk_frames
   }
 
-  pub const fn total_samples(&self) -> usize {
-    self.total_frames * self.channels
-  }
-
   pub const fn total_frames(&self) -> usize {
     self.total_frames
   }
 
-  pub const fn overlap(&self) -> usize {
-    self.overlap
+  pub const fn current_chunk(&self) -> usize {
+    self.current_chunk
+  }
+
+  pub const fn total_chunks(&self) -> usize {
+    self.total_frames.div_ceil(self.chunk_frames - self.overlap)
   }
 }
 
@@ -254,7 +252,7 @@ impl AudioChunkWriter {
         let slice = buffer.slice(s![0, out_idx, ch, ..]);
         let samples = &slice.as_slice().unwrap()[(self.overlap + chunk.num_frames())..slice.len()];
         if last_chunk {
-          crossfade.channel_mut(ch).copy_from_slice(&samples);
+          crossfade.channel_mut(ch).copy_from_slice(samples);
         } else {
           let out = crossfade.channel_mut(ch);
           for i in 0..self.overlap {

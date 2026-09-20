@@ -4,7 +4,6 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-klib = { path = "../klib", features = ["audio"] }
 anyhow = "1.0.104"
 colog = "1.4.0"
 directories = "6.0.0"
@@ -23,3 +22,5 @@ uuid = { version = "1.26.1", features = ["serde", "v4"] }
 zerocopy = "0.8.57"
 spectrasonic = { path = "../spectrasonic", features = ["encoding", "ffmpeg", "encoder-flac"] }
 itertools = "0.15.0"
+regex = "1.13.1"
+deadqueue = { version = "0.2.5", features = ["unlimited"], default-features = false }

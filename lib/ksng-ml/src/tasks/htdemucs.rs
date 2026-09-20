@@ -1,24 +1,28 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Arc};
 
+use ksng_ml_ipc::packet::{HtdemucsResult, worker_task_result};
 use ndarray::{ArrayView4, ArrayViewD, NewAxis, s};
-use ort::{
-  session::Session,
-  value::{Tensor, TensorRef},
-};
+use ort::value::TensorRef;
 use spectrasonic::encoders::AudioEncoderOptions;
 
-use crate::audio::{AudioChunkProvider, AudioChunkWriter};
+use crate::{
+  audio::{AudioChunkProvider, AudioChunkWriter},
+  tasks::{TaskImpl, TaskMonitor},
+};
 
-const SOURCES: [&'static str; 4] = ["drums", "bass", "other", "vocals"];
+//const SOURCES: [&'static str; 4] = ["drums", "bass", "other", "vocals"];
 
-struct HtdemucsSeparator {
-  model_path: PathBuf,
-  input_path: PathBuf,
-  output_paths: [PathBuf; 4],
+pub struct HtdemucsSeparator {
+  pub model_path: PathBuf,
+  pub input_path: PathBuf,
+  pub output_paths: [PathBuf; 4],
 }
 
-impl HtdemucsSeparator {
-  pub fn separate(&self) -> Result<(), anyhow::Error> {
+impl TaskImpl for HtdemucsSeparator {
+  async fn process(
+    &self,
+    monitor: Arc<TaskMonitor>,
+  ) -> Result<Option<worker_task_result::Result>, anyhow::Error> {
     log::info!("loading audio file from {:?}", self.input_path);
     let mut audio = AudioChunkProvider::new(&self.input_path, 44100, 2, 7.8)?;
     let mut audio_out = AudioChunkWriter::new(
@@ -35,12 +39,7 @@ impl HtdemucsSeparator {
     )?;
 
     log::info!("loading model file from {:?}", self.model_path);
-    let mut model = Session::builder()?
-      .with_optimization_level(ort::session::builder::GraphOptimizationLevel::Level3)
-      .map_err(|e| anyhow::Error::msg(e.message().to_string()))?
-      .with_intra_threads(4)
-      .map_err(|e| anyhow::Error::msg(e.message().to_string()))?
-      .commit_from_file(&self.model_path)?;
+    let mut model = crate::ort::session_with_model(&self.model_path)?;
 
     for inp in model.inputs() {
       log::info!("- {}: {:?}", inp.name(), inp.dtype());
@@ -51,16 +50,13 @@ impl HtdemucsSeparator {
     }
 
     log::info!("running chunks");
-    let mut stems = Vec::with_capacity(SOURCES.len());
-    for _ in SOURCES {
-      let size = audio.total_samples();
-      let mut buf = Vec::with_capacity(size);
-      buf.resize(size, 0.0_f32);
-      stems.push(buf);
-    }
-
     let mut chunk = ndarray::Array2::default((2, audio.chunk_size()));
+    let total_chunks = audio.total_chunks();
     loop {
+      if *monitor.cancelled.read().await {
+        return Ok(None);
+      }
+
       let num_read = audio.next_chunk(&mut chunk)?;
       if num_read == 0 {
         log::info!("num_read: {num_read}");
@@ -79,6 +75,9 @@ impl HtdemucsSeparator {
 
       audio_out.write_chunk(&arr)?;
 
+      let progress = audio.current_chunk() as f32 / total_chunks as f32;
+      *monitor.progress.write().await = progress.clamp(0.0, 1.0);
+
       if num_read < audio.chunk_size() {
         log::info!("num_read: {num_read}");
         break;
@@ -87,48 +86,14 @@ impl HtdemucsSeparator {
 
     log::info!("writing outputs");
 
-    audio_out.finalize()?;
+    let paths = audio_out.finalize()?;
+    assert!(paths.len() == 4);
 
-    Ok(())
+    Ok(Some(worker_task_result::Result::Htdemucs(HtdemucsResult {
+      output_path_drums: paths[0].to_str().unwrap().to_string(),
+      output_path_bass: paths[1].to_str().unwrap().to_string(),
+      output_path_other: paths[2].to_str().unwrap().to_string(),
+      output_path_vocals: paths[3].to_str().unwrap().to_string(),
+    })))
   }
-}
-
-#[test]
-pub fn test_htdemucs() -> Result<(), anyhow::Error> {
-  colog::init();
-
-  let path = std::env::var("PATH").unwrap();
-  let paths = std::env::split_paths(&path);
-  let mut paths_arr = Vec::new();
-  for path in paths {
-    paths_arr.push(path);
-  }
-
-  paths_arr.push(PathBuf::from(
-    "C:/Program Files/NVIDIA/CUDNN/v9.26/bin/13.4/x64",
-  ));
-  let paths_env = std::env::join_paths(&paths_arr)?;
-  unsafe {
-    std::env::set_var("PATH", paths_env);
-  }
-
-  ort::init_from("C:/Tools/ort/onnxruntime.dll")
-    .unwrap()
-    .with_execution_providers([ort::ep::CUDA::default().build()])
-    .commit();
-  println!("{}", ort::info());
-  let sep = HtdemucsSeparator {
-    input_path: PathBuf::from("C:/Users/Ashley/Music/Burning Airlines - Outside The Aviary.mp3"),
-    model_path: PathBuf::from("C:/Users/Ashley/Downloads/htdemucs.onnx"),
-    output_paths: [
-      PathBuf::from("C:/Users/Ashley/Downloads/aviary-drums.bin"),
-      PathBuf::from("C:/Users/Ashley/Downloads/aviary-bass.bin"),
-      PathBuf::from("C:/Users/Ashley/Downloads/aviary-other.bin"),
-      PathBuf::from("C:/Users/Ashley/Downloads/aviary-vocals.bin"),
-    ],
-  };
-
-  sep.separate()?;
-
-  Ok(())
 }

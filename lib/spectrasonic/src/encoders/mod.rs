@@ -41,7 +41,7 @@ impl AudioCodec {
   }
 }
 
-pub trait AudioEncoder {
+pub trait AudioEncoder: 'static + Send {
   fn write(&mut self, buffer: &dyn PlanarAudioBuffer) -> Result<(), Error>;
   fn finalize(&mut self) -> Result<(), Error>;
 }
