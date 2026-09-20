@@ -29,6 +29,7 @@ pub struct WaveformGenerator {
 
 impl WaveformGenerator {
   pub fn create_waveform(&self, path: &Path) -> Result<Vec<u8>, UiError> {
+    // TODO: refactor to use spectrasonic
     let file = std::fs::File::open(path)?;
     let mss = MediaSourceStream::new(Box::new(file), Default::default());
 

@@ -3,7 +3,8 @@ use std::{path::PathBuf, sync::Arc};
 use ksng_ml_ipc::packet::{HtdemucsResult, worker_task_result};
 use ndarray::{ArrayView4, ArrayViewD, NewAxis, s};
 use ort::value::TensorRef;
-use spectrasonic::encoders::AudioEncoderOptions;
+use serde::{Deserialize, Serialize};
+use spectrasonic::encoders::{AudioCodec, AudioEncoderOptions};
 
 use crate::{
   audio::{AudioChunkProvider, AudioChunkWriter},
@@ -12,10 +13,45 @@ use crate::{
 
 //const SOURCES: [&'static str; 4] = ["drums", "bass", "other", "vocals"];
 
+#[derive(Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+enum OutputType {
+  Drums,
+  Bass,
+  Other,
+  Vocals,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct HtdemucsParameters {
+  outputs: Vec<OutputType>,
+  chunk_size: usize,
+  sample_rate: usize,
+  channels: usize,
+}
+
 pub struct HtdemucsSeparator {
   pub model_path: PathBuf,
   pub input_path: PathBuf,
-  pub output_paths: [PathBuf; 4],
+  pub parameters: HtdemucsParameters,
+  pub output_path_drums: PathBuf,
+  pub output_path_bass: PathBuf,
+  pub output_path_other: PathBuf,
+  pub output_path_vocals: PathBuf,
+  pub codec: AudioCodec,
+  pub audio_options: AudioEncoderOptions,
+}
+
+impl HtdemucsSeparator {
+  fn output_path_for(outputs: &[OutputType], paths: &[PathBuf], output_type: OutputType) -> String {
+    for (i, output) in outputs.iter().enumerate() {
+      if *output == output_type {
+        return paths[i].to_str().unwrap().to_string();
+      }
+    }
+
+    String::default()
+  }
 }
 
 impl TaskImpl for HtdemucsSeparator {
@@ -24,14 +60,25 @@ impl TaskImpl for HtdemucsSeparator {
     monitor: Arc<TaskMonitor>,
   ) -> Result<Option<worker_task_result::Result>, anyhow::Error> {
     log::info!("loading audio file from {:?}", self.input_path);
-    let mut audio = AudioChunkProvider::new(&self.input_path, 44100, 2, 7.8)?;
+    let mut audio = AudioChunkProvider::new(
+      &self.input_path,
+      self.parameters.sample_rate,
+      self.parameters.channels,
+      self.parameters.chunk_size,
+    )?;
+    let mut output_paths = Vec::new();
+    for output in &self.parameters.outputs {
+      output_paths.push(match output {
+        OutputType::Drums => self.output_path_drums.clone(),
+        OutputType::Bass => self.output_path_bass.clone(),
+        OutputType::Other => self.output_path_other.clone(),
+        OutputType::Vocals => self.output_path_vocals.clone(),
+      });
+    }
     let mut audio_out = AudioChunkWriter::new(
-      &self.output_paths,
-      spectrasonic::encoders::AudioCodec::Flac,
-      AudioEncoderOptions {
-        options: String::default(),
-        bit_rate: 128000,
-      },
+      &output_paths,
+      self.codec.clone(),
+      self.audio_options.clone(),
       audio.total_frames(),
       2,
       44100,
@@ -39,7 +86,7 @@ impl TaskImpl for HtdemucsSeparator {
     )?;
 
     log::info!("loading model file from {:?}", self.model_path);
-    let mut model = crate::ort::session_with_model(&self.model_path)?;
+    let mut model = crate::libs::ort::session_with_model(&self.model_path)?;
 
     for inp in model.inputs() {
       log::info!("- {}: {:?}", inp.name(), inp.dtype());
@@ -90,10 +137,26 @@ impl TaskImpl for HtdemucsSeparator {
     assert!(paths.len() == 4);
 
     Ok(Some(worker_task_result::Result::Htdemucs(HtdemucsResult {
-      output_path_drums: paths[0].to_str().unwrap().to_string(),
-      output_path_bass: paths[1].to_str().unwrap().to_string(),
-      output_path_other: paths[2].to_str().unwrap().to_string(),
-      output_path_vocals: paths[3].to_str().unwrap().to_string(),
+      output_path_drums: Self::output_path_for(
+        &self.parameters.outputs,
+        &output_paths,
+        OutputType::Drums,
+      ),
+      output_path_bass: Self::output_path_for(
+        &self.parameters.outputs,
+        &output_paths,
+        OutputType::Bass,
+      ),
+      output_path_other: Self::output_path_for(
+        &self.parameters.outputs,
+        &output_paths,
+        OutputType::Other,
+      ),
+      output_path_vocals: Self::output_path_for(
+        &self.parameters.outputs,
+        &output_paths,
+        OutputType::Vocals,
+      ),
     })))
   }
 }

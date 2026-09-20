@@ -4,6 +4,7 @@ mod audio;
 mod commands;
 mod components;
 mod fs;
+mod ml;
 mod modals;
 mod playback;
 mod preferences;

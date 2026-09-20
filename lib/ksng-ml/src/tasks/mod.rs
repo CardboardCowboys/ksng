@@ -5,12 +5,32 @@ use ksng_ml_ipc::packet::{
   self, HostStartTask, WorkerPacket, WorkerTaskCancelled, WorkerTaskComplete, WorkerTaskFailed,
   WorkerTaskResult, WorkerTaskRunning, worker_task_info, worker_task_result,
 };
+use spectrasonic::encoders::{AudioCodec, AudioEncoderOptions};
 use tokio::sync::RwLock;
 use uuid::Uuid;
 
-use crate::{models::ModelManager, tasks::htdemucs::HtdemucsSeparator};
+use crate::{
+  models::ModelManager,
+  tasks::htdemucs::{HtdemucsParameters, HtdemucsSeparator},
+};
 
 pub mod htdemucs;
+
+fn packet_codec_to_codec(packet: ksng_ml_ipc::packet::AudioCodec) -> AudioCodec {
+  match packet {
+    packet::AudioCodec::Mp3 => AudioCodec::Mp3,
+    packet::AudioCodec::Aac => AudioCodec::Aac,
+    packet::AudioCodec::Wav => AudioCodec::Wav,
+    packet::AudioCodec::Flac => AudioCodec::Flac,
+  }
+}
+
+fn packet_options_to_options(packet: ksng_ml_ipc::packet::AudioOptions) -> AudioEncoderOptions {
+  AudioEncoderOptions {
+    bit_rate: packet.bit_rate as usize,
+    options: packet.options_str,
+  }
+}
 
 pub trait TaskImpl {
   async fn process(
@@ -73,7 +93,7 @@ impl TaskManager {
 
     let model_id: Uuid = model_id.into();
 
-    let Some(path) = models.find_model_path(model_id).await else {
+    let Some((path, params)) = models.find_model_path_params(model_id).await else {
       return Err(Error::msg(format!(
         "Could not find model for ID {:?}",
         model_id
@@ -85,19 +105,24 @@ impl TaskManager {
     };
 
     let (title, task) = match task {
-      packet::host_start_task::Task::Htdemucs(htdemucs) => (
-        "Htdemucs stem separation",
-        HtdemucsSeparator {
-          model_path: path,
-          input_path: PathBuf::from(htdemucs.input_path),
-          output_paths: [
-            PathBuf::from(htdemucs.output_path_drums),
-            PathBuf::from(htdemucs.output_path_bass),
-            PathBuf::from(htdemucs.output_path_other),
-            PathBuf::from(htdemucs.output_path_vocals),
-          ],
-        },
-      ),
+      packet::host_start_task::Task::Htdemucs(htdemucs) => {
+        let params = serde_json::from_value::<HtdemucsParameters>(params)?;
+        let codec = packet_codec_to_codec(htdemucs.codec());
+        (
+          "Htdemucs stem separation",
+          HtdemucsSeparator {
+            model_path: path,
+            input_path: PathBuf::from(htdemucs.input_path),
+            parameters: params,
+            output_path_drums: PathBuf::from(htdemucs.output_path_drums),
+            output_path_bass: PathBuf::from(htdemucs.output_path_bass),
+            output_path_other: PathBuf::from(htdemucs.output_path_other),
+            output_path_vocals: PathBuf::from(htdemucs.output_path_vocals),
+            codec,
+            audio_options: packet_options_to_options(htdemucs.audio_options.unwrap()),
+          },
+        )
+      }
     };
 
     let task_id_ret = task_id;

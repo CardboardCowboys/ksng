@@ -4,6 +4,7 @@ use klib::{audio::info::AudioFileInfo, objects::track::TrackType};
 use crate::{
   KsngApp,
   commands::{event::AddAudioEventCommand, track::AddTrackCommand},
+  ml::ui::models_window::ModelsWindow,
   modals::{alert::AlertModal, open_file::OpenFileModal},
   util::ui_event::KsngEvent,
   windows::{preferences::PreferencesWindow, sync::SyncWindow},
@@ -219,6 +220,10 @@ pub fn menu_bar(app: &KsngApp, ui: &mut Ui) {
               });
             });
           });
+
+          if ui.button("Models").clicked() {
+            app.windows.add(ModelsWindow::new());
+          }
         });
       },
       |ui| {

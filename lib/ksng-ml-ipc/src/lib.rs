@@ -48,7 +48,7 @@ where
 
 /// Reads the next packet from the stream if one is waiting, otherwise returns
 /// None.
-pub fn try_read_next_packet<T>(
+pub fn read_next_packet_sync<T>(
   reader: &mut std::io::BufReader<interprocess::local_socket::RecvHalf>,
 ) -> Result<Option<T>, anyhow::Error>
 where

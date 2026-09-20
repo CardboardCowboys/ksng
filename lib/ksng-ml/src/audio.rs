@@ -10,10 +10,6 @@ use spectrasonic::{
   filters::{WithChannelRemapperFilter, WithResamplerFilter},
 };
 
-const fn chunk_size(chunk_s: f64, target_sample_rate: usize) -> usize {
-  (target_sample_rate as f64 * chunk_s) as usize
-}
-
 const fn overlap_size(chunk_size: usize) -> usize {
   chunk_size / 4
 }
@@ -34,7 +30,7 @@ impl AudioChunkProvider {
     file_path: &Path,
     target_sample_rate: usize,
     target_channels: usize,
-    chunk_s: f64,
+    chunk_frames: usize,
   ) -> Result<AudioChunkProvider, anyhow::Error> {
     let source = spectrasonic::sources::source_for_file(file_path)?;
     let mut builder = source.builder();
@@ -58,7 +54,6 @@ impl AudioChunkProvider {
       }
     }
 
-    let chunk_frames = chunk_size(chunk_s, target_sample_rate);
     let chunk_buffer = PlanarVecBuffer::new(target_channels, chunk_frames);
     let source = builder.commit();
     let duration = source.duration();

@@ -3,17 +3,9 @@ use std::{
   process::Command,
 };
 
-use ort::session::Session;
 use regex::Regex;
 
-macro_rules! check_path {
-  ($base:expr, $rel:literal) => {{
-    let r = $base.join($rel);
-    if std::fs::exists(&r)? {
-      return Ok(Some(r));
-    }
-  };};
-}
+use crate::libs::check_path;
 
 fn find_nvcc(path: &Path) -> Result<Option<PathBuf>, anyhow::Error> {
   check_path!(path, "nvcc");
@@ -125,7 +117,7 @@ fn find_cudnn(paths: &[PathBuf]) -> Result<Option<PathBuf>, anyhow::Error> {
   Ok(None)
 }
 
-fn find_cuda_cudnn(paths: &[PathBuf]) -> Result<Option<(PathBuf, PathBuf)>, anyhow::Error> {
+pub fn find_cuda_cudnn(paths: &[PathBuf]) -> Result<Option<(PathBuf, PathBuf)>, anyhow::Error> {
   let cuda = find_cuda(paths)?;
   let cudnn = find_cudnn(paths)?;
 
@@ -136,78 +128,4 @@ fn find_cuda_cudnn(paths: &[PathBuf]) -> Result<Option<(PathBuf, PathBuf)>, anyh
   }
 
   Ok(None)
-}
-
-fn find_ort_runtime(path: &Path) -> Result<Option<PathBuf>, anyhow::Error> {
-  check_path!(path, "onnxruntime.dll");
-  check_path!(path, "onnxruntime.so");
-  check_path!(path, "onnxruntime.dylib");
-
-  Ok(None)
-}
-
-fn find_ort(paths: &[PathBuf]) -> Result<Option<PathBuf>, anyhow::Error> {
-  let cwd = std::env::current_dir()?;
-  if let Some(ort) = find_ort_runtime(&cwd)? {
-    return Ok(Some(ort));
-  }
-
-  let exe = std::env::current_exe()?;
-  if let Some(dir) = exe.parent()
-    && let Some(ort) = find_ort_runtime(dir)?
-  {
-    return Ok(Some(ort));
-  }
-
-  for path in paths {
-    if let Some(ort) = find_ort_runtime(path)? {
-      return Ok(Some(ort));
-    }
-  }
-
-  Ok(None)
-}
-
-pub fn init_ort() -> Result<(), anyhow::Error> {
-  let path = std::env::var("PATH")?;
-  let paths = std::env::split_paths(&path);
-  let mut paths_arr = Vec::new();
-  for path in paths {
-    paths_arr.push(path);
-  }
-
-  let mut providers = Vec::new();
-  if let Some((cuda, cudnn)) = find_cuda_cudnn(&paths_arr)? {
-    log::info!("using CUDA for onnxruntime, found CUDA at {cuda:?} and cuDNN at {cudnn:?}");
-    paths_arr.push(cuda);
-    paths_arr.push(cudnn);
-    providers.push(ort::ep::CUDA::default().build());
-  }
-
-  let ort = find_ort(&paths_arr)?;
-
-  let paths_env = std::env::join_paths(&paths_arr)?;
-  unsafe {
-    std::env::set_var("PATH", paths_env);
-  }
-
-  let builder = if let Some(ort) = ort {
-    ort::init_from(ort)?
-  } else {
-    ort::init()
-  };
-
-  builder.with_execution_providers(providers).commit();
-
-  Ok(())
-}
-
-pub fn session_with_model(model: &Path) -> Result<Session, anyhow::Error> {
-  let model = Session::builder()?
-    .with_optimization_level(ort::session::builder::GraphOptimizationLevel::Level3)
-    .map_err(|e| anyhow::Error::msg(e.message().to_string()))?
-    .with_intra_threads(4)
-    .map_err(|e| anyhow::Error::msg(e.message().to_string()))?
-    .commit_from_file(model)?;
-  Ok(model)
 }

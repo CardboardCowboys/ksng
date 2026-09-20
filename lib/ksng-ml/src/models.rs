@@ -5,38 +5,30 @@ use std::{path::PathBuf, sync::Arc};
 use tokio::{io::AsyncWriteExt, sync::RwLock};
 use uuid::Uuid;
 
+// TODO: download json from github
+const DOWNLOADABLE_MODELS_JSON: &str = include_str!("models.json");
+
 #[derive(Serialize, Deserialize, Clone, Copy, Debug)]
+#[serde(rename_all = "snake_case")]
 pub enum ModelType {
-  ExtractStems,
+  Htdemucs,
 }
 
-pub struct DownloadableModelDefinition {
-  pub id: Uuid,
-  pub name: &'static str,
-  pub model_type: ModelType,
-  pub size: usize,
-  pub url: &'static str,
-  pub ext: &'static str,
+#[derive(Serialize, Deserialize)]
+struct DownloadableModelDefinition {
+  id: Uuid,
+  name: String,
+  model_type: ModelType,
+  url: String,
+  size: usize,
+  description: String,
+  parameters: serde_json::Value,
 }
 
-const DOWNLOADABLE_MODELS: [DownloadableModelDefinition; 2] = [
-  DownloadableModelDefinition {
-    id: Uuid::from_u128(0x0b2750059d2044d681df1d9e21b59d10),
-    name: "UVR-MDX-NET-Inst_HQ_5",
-    model_type: ModelType::ExtractStems,
-    size: 59_074_342,
-    url: "https://huggingface.co/Politrees/UVR_resources/resolve/b9cd581f1d7826c6f4ccd4923d2c9f03ae3017d7/MDXNet_models/UVR-MDX-NET-Inst_HQ_5.onnx",
-    ext: "onnx",
-  },
-  DownloadableModelDefinition {
-    id: Uuid::from_u128(0x7c9cdf798b894312a0d8cd3b7f47f9f3),
-    name: "HT-Demucs-karaoke",
-    model_type: ModelType::ExtractStems,
-    size: 29_704_436,
-    url: "https://huggingface.co/ModernMube/HTDemucs_onnx/resolve/edd8347a8191d6b73635675688d01e125d3ae336/karaoke.onnx",
-    ext: "onnx",
-  },
-];
+#[derive(Serialize, Deserialize)]
+struct DownloadableModels {
+  models: Vec<DownloadableModelDefinition>,
+}
 
 #[derive(Serialize, Deserialize, Clone)]
 struct Model {
@@ -44,7 +36,8 @@ struct Model {
   name: String,
   size: usize,
   model_type: ModelType,
-  ext: String,
+  description: String,
+  parameters: serde_json::Value,
 }
 
 enum ModelDownloadStatus {
@@ -55,6 +48,7 @@ enum ModelDownloadStatus {
 
 struct ModelDownloadJob {
   id: Uuid,
+  model_id: Uuid,
   size: Option<usize>,
   downloaded: usize,
   status: ModelDownloadStatus,
@@ -73,6 +67,7 @@ pub struct ModelManager {
   models_dir: PathBuf,
   models: RwLock<Vec<Model>>,
   jobs: RwLock<Vec<JobHandle>>,
+  dl_models: DownloadableModels,
 }
 
 impl ModelManager {
@@ -94,10 +89,13 @@ impl ModelManager {
       models = model_cache.models;
     }
 
+    let dl_models = serde_json::from_str(DOWNLOADABLE_MODELS_JSON)?;
+
     Ok(ModelManager {
       models_dir,
       models: RwLock::new(models),
       jobs: RwLock::new(Vec::new()),
+      dl_models,
     })
   }
 
@@ -123,12 +121,13 @@ impl ModelManager {
         size: model.size as u64,
         r#type: format!("{:?}", model.model_type),
         id: Some(model.id.into()),
+        description: model.description.clone(),
       });
     }
 
     let packet = packet::WorkerPacket {
-      contents: Some(packet::worker_packet::Contents::DlModelsListResponse(
-        packet::WorkerGetDownloadableModelsListResponse { models },
+      contents: Some(packet::worker_packet::Contents::ModelsListResponse(
+        packet::WorkerGetAvailableModelsListResponse { models },
       )),
     };
 
@@ -140,12 +139,13 @@ impl ModelManager {
     use ksng_ml_ipc::packet;
 
     let mut models = Vec::new();
-    for model in &DOWNLOADABLE_MODELS {
+    for model in &self.dl_models.models {
       models.push(packet::Model {
-        name: model.name.to_string(),
+        name: model.name.clone(),
         size: model.size as u64,
         r#type: format!("{:?}", model.model_type),
         id: Some(model.id.into()),
+        description: model.description.clone(),
       });
     }
 
@@ -160,7 +160,7 @@ impl ModelManager {
   }
 
   pub async fn download_model_id(&self, model_id: Uuid, job_id: Uuid) -> Result<(), anyhow::Error> {
-    for model in &DOWNLOADABLE_MODELS {
+    for model in &self.dl_models.models {
       if model.id == model_id {
         return self.download_model(model, job_id).await;
       }
@@ -178,16 +178,18 @@ impl ModelManager {
   ) -> Result<(), anyhow::Error> {
     let job = Arc::new(RwLock::new(ModelDownloadJob {
       id: job_id,
+      model_id: model.id,
       size: Some(model.size),
       downloaded: 0,
       status: ModelDownloadStatus::Downloading,
       finalized: false,
       model: Model {
         id: model.id,
-        name: model.name.to_string(),
+        name: model.name.clone(),
         size: model.size,
         model_type: model.model_type,
-        ext: model.ext.to_string(),
+        description: model.description.clone(),
+        parameters: model.parameters.clone(),
       },
     }));
 
@@ -195,7 +197,7 @@ impl ModelManager {
     let out_path = self
       .models_dir
       .join(model.id.to_string())
-      .with_extension(model.ext);
+      .with_extension("onnx");
 
     self.jobs.write().await.push(job.clone());
 
@@ -255,6 +257,7 @@ impl ModelManager {
           let packet = packet::WorkerPacket {
             contents: Some(packet::worker_packet::Contents::JobStatusResponse(
               packet::WorkerJobStatusResponse {
+                model_id: Some(job.model_id.into()),
                 job_id: Some(job.id.into()),
                 total_size: job.size.map(|s| s as u64).unwrap_or(u64::MAX),
                 downloaded_size: job.downloaded as u64,
@@ -270,6 +273,7 @@ impl ModelManager {
           let packet = packet::WorkerPacket {
             contents: Some(packet::worker_packet::Contents::JobStatusResponse(
               packet::WorkerJobStatusResponse {
+                model_id: Some(job.model_id.into()),
                 job_id: Some(job.id.into()),
                 total_size: job.size.map(|s| s as u64).unwrap_or(u64::MAX),
                 downloaded_size: job.downloaded as u64,
@@ -289,6 +293,7 @@ impl ModelManager {
           let packet = packet::WorkerPacket {
             contents: Some(packet::worker_packet::Contents::JobStatusResponse(
               packet::WorkerJobStatusResponse {
+                model_id: Some(job.model_id.into()),
                 job_id: Some(job.id.into()),
                 total_size: job.size.map(|s| s as u64).unwrap_or(u64::MAX),
                 downloaded_size: job.downloaded as u64,
@@ -314,15 +319,15 @@ impl ModelManager {
     Ok(())
   }
 
-  pub async fn find_model_path(&self, id: Uuid) -> Option<PathBuf> {
+  pub async fn find_model_path_params(&self, id: Uuid) -> Option<(PathBuf, serde_json::Value)> {
     let models = self.models.read().await;
     for model in models.iter() {
       if model.id == id {
         let path = self
           .models_dir
           .join(model.id.to_string())
-          .with_extension(&model.ext);
-        return Some(path);
+          .with_extension("onnx");
+        return Some((path, model.parameters.clone()));
       }
     }
 

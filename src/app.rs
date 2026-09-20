@@ -9,6 +9,7 @@ use crate::{
   commands::CommandDispatcher,
   components::{self, lyrics_editor::LyricsEditor, timeline::Timeline},
   fs::Data,
+  ml::worker::WorkerManager,
   modals::{
     ModalManager, dirty_warning::DirtyWarningModal, export_video::ExportVideoModal,
     open_project::OpenProjectModal, save_project::SaveProjectModal,
@@ -33,6 +34,7 @@ pub struct KsngApp {
   pub playback: RefCell<Playback>,
   pub video: RefCell<VideoState>,
   pub lyrics_editor: RefCell<LyricsEditor>,
+  pub worker: WorkerManager,
 
   pub preferences: RefCell<Preferences>,
 
@@ -57,6 +59,7 @@ impl Default for KsngApp {
       waveforms: RefCell::new(AudioWaveformProvider::new(logger.clone())),
       playback: Playback::new(&preferences.audio_config, logger.clone()).into(),
       video: RefCell::new(VideoState::new().unwrap()),
+      worker: WorkerManager::new(logger.clone()),
       logger,
       commands: CommandDispatcher::default(),
       selection: SelectionManager::default(),
@@ -181,6 +184,12 @@ impl KsngApp {
         .unwrap_or_default();
       app.preferences.replace(preferences);
       app.playback.borrow_mut().on_audio_device_change(&app);
+
+      if let Some(b) = app.logger.wrap(WorkerManager::is_installed())
+        && b
+      {
+        app.logger.wrap(app.worker.start());
+      }
     }
 
     egui_extras::install_image_loaders(&cc.egui_ctx);

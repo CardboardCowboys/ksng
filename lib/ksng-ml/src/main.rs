@@ -12,14 +12,14 @@ use {
 };
 
 mod audio;
+mod libs;
 mod models;
-mod ort;
 mod tasks;
 
 #[tokio::main]
 async fn main() {
   colog::init();
-  ort::init_ort().unwrap();
+  libs::ort::init_ort().unwrap();
 
   let args: Vec<String> = std::env::args().collect();
   if args.len() < 2 {
@@ -31,17 +31,20 @@ async fn main() {
 
 async fn run(name: &str) -> Result<(), anyhow::Error> {
   let name = if GenericNamespaced::is_supported() {
-    name.to_string().to_ns_name::<GenericNamespaced>().unwrap()
+    name.to_ns_name::<GenericNamespaced>().unwrap()
   } else {
-    name.to_string().to_fs_name::<GenericFilePath>().unwrap()
+    name.to_fs_name::<GenericFilePath>().unwrap()
   };
 
   let mut tasks = TaskManager::new();
   let models = ModelManager::new().unwrap();
 
+  let name_s = format!("{name:?}");
   let conn = Stream::connect(name).await.unwrap();
   let (mut recv, mut send) = conn.split();
   let mut recv_reader = BufReader::new(&mut recv);
+
+  log::info!("worker listening on socket {name_s}");
 
   let mut recv_future = Box::pin(ksng_ml_ipc::read_next_packet::<
     ksng_ml_ipc::packet::HostPacket,
@@ -51,7 +54,7 @@ async fn run(name: &str) -> Result<(), anyhow::Error> {
   loop {
     match recv_future.poll_unpin(&mut ctx) {
       std::task::Poll::Ready(Ok(packet)) => {
-        log::debug!("received packet: {packet:?}");
+        log::info!("received packet: {packet:?}");
         match packet.contents.unwrap() {
           host_packet::Contents::DlModelsList(_) => {
             models.list_dl_models(&mut send).await?;
@@ -84,6 +87,7 @@ async fn run(name: &str) -> Result<(), anyhow::Error> {
       }
       std::task::Poll::Ready(Err(err)) => {
         log::error!("Failed to read host packet from IPC: {err:?}");
+        break;
       }
       std::task::Poll::Pending => {}
     }

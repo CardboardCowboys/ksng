@@ -24,6 +24,7 @@ message Worker_JobStatusResponse {
 	Uuid job_id = 1;
 	uint64 total_size = 2;
 	uint64 downloaded_size = 3;
+	Uuid model_id = 7;
 	oneof status {
 		JobStatusDownloading downloading = 4;
 		JobStatusComplete complete = 5;
@@ -38,6 +39,7 @@ message Model {
 	uint64 size = 2;
 	string type = 3;
 	Uuid id = 4;
+	string description = 5;
 }
 
 message Worker_GetDownloadableModelsListResponse {

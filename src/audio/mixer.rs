@@ -111,17 +111,6 @@ impl AudioMixer {
         "Failed to get supported output configs for audio device.".into(),
       ))?;
 
-    for c in device.supported_output_configs().unwrap() {
-      log::info!(
-        "Supported config: buffer size {:?}, channels {}, min sample rate {:?}, max sample rate {:?}, format {:?}",
-        c.buffer_size(),
-        c.channels(),
-        c.min_sample_rate(),
-        c.max_sample_rate(),
-        c.sample_format()
-      );
-    }
-
     let context = Arc::new(SharedOutputContext {
       mixer_stream: Mutex::new(AudioMixerStream::new(
         output_config.channels() as usize,
