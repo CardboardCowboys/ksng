@@ -1,7 +1,7 @@
 use egui::{Context, Id, Modal, Sides};
 
 use crate::{
-  KsngApp,
+  KsngContext,
   modals::{KModal, save_project::SaveProjectModal},
   util::ui_event::KsngEvent,
 };
@@ -18,7 +18,7 @@ impl DirtyWarningModal {
 }
 
 impl KModal for DirtyWarningModal {
-  fn process(&mut self, app: &KsngApp, context: &Context) {
+  fn process(&mut self, app: &KsngContext, context: &Context) {
     if !self.open {
       return;
     }

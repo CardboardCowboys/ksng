@@ -3,7 +3,7 @@ use std::time::Instant;
 use klib::timecode::Timecode;
 
 use crate::{
-  KsngApp,
+  KsngContext,
   audio::{config::AudioConfig, mixer::AudioMixer},
   util::logger::Logger,
 };
@@ -34,7 +34,7 @@ impl Playback {
     }
   }
 
-  pub fn on_audio_change(&mut self, app: &KsngApp) {
+  pub fn on_audio_change(&mut self, app: &KsngContext) {
     if let Some(project) = app.project.borrow().as_ref() {
       self.logger.wrap(self.mixer.update_streams(project));
     } else {
@@ -43,7 +43,7 @@ impl Playback {
     }
   }
 
-  pub fn on_audio_device_change(&mut self, app: &KsngApp) {
+  pub fn on_audio_device_change(&mut self, app: &KsngContext) {
     let pos = self.mixer.position();
     self.logger.wrap(
       self

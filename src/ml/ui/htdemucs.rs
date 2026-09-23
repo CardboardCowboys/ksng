@@ -9,7 +9,7 @@ use ksng_ml_ipc::packet::{AudioCodec, AudioOptions, HtdemucsTask, host_start_tas
 use uuid::Uuid;
 
 use crate::{
-  KsngApp,
+  KsngContext,
   fs::KsngAttachmentResolver,
   ml::{
     ui::{model_select_dropdown, task::TaskModal},
@@ -34,7 +34,7 @@ impl Default for HtdemucsTab {
 }
 
 impl HtdemucsTab {
-  pub fn htdemucs_tab(&mut self, app: &KsngApp, ui: &mut Ui, worker: &WorkerManager) {
+  pub fn htdemucs_tab(&mut self, app: &KsngContext, ui: &mut Ui, worker: &WorkerManager) {
     let project_ref = app.project.borrow();
     let Some(project) = &*project_ref else {
       ui.label("No project loaded.");

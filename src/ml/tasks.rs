@@ -6,7 +6,7 @@ use ksng_ml_ipc::packet::{
 };
 use uuid::Uuid;
 
-use crate::{KsngApp, commands::models::HtdemucsResultCommand, util::error::UiError};
+use crate::{KsngContext, commands::models::HtdemucsResultCommand, util::error::UiError};
 
 pub enum TaskResult {
   Htdemucs {
@@ -155,7 +155,7 @@ impl TaskManager {
     }
   }
 
-  pub fn poll_tasks(&mut self, app: &KsngApp) {
+  pub fn poll_tasks(&mut self, app: &KsngContext) {
     for task in &mut self.tasks {
       if task.pending_completion {
         match &task.status {

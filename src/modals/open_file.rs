@@ -1,12 +1,12 @@
 use crate::{
-  KsngApp,
+  KsngContext,
   modals::KModal,
   util::r#async::{AsyncResult, AsyncValue},
 };
 use rfd::{AsyncFileDialog, FileHandle};
 use std::path::PathBuf;
 
-type OpenFileCallback = dyn Fn(&KsngApp, PathBuf);
+type OpenFileCallback = dyn Fn(&KsngContext, PathBuf);
 
 pub struct OpenFileModal {
   open: bool,
@@ -17,7 +17,7 @@ pub struct OpenFileModal {
 impl OpenFileModal {
   pub fn new<F>(filter_name: String, extensions: Vec<&'static str>, after: F) -> Self
   where
-    F: Fn(&KsngApp, PathBuf) + 'static,
+    F: Fn(&KsngContext, PathBuf) + 'static,
   {
     let dialog = AsyncValue::new(Self::pick_file(filter_name, extensions));
 
@@ -44,7 +44,7 @@ impl KModal for OpenFileModal {
     !self.open
   }
 
-  fn process(&mut self, app: &KsngApp, _context: &egui::Context) {
+  fn process(&mut self, app: &KsngContext, _context: &egui::Context) {
     if !self.open {
       return;
     }

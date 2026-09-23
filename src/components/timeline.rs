@@ -16,7 +16,7 @@ use klib::{
 use uuid::Uuid;
 
 use crate::{
-  KsngApp,
+  KsngContext,
   commands::{event::SetEventTimingsCommand, track::MuteTrackCommand},
   project::Project,
   style::{
@@ -132,7 +132,7 @@ impl Default for Timeline {
 }
 
 impl Timeline {
-  pub fn update(&mut self, app: &KsngApp, ui: &mut Ui) {
+  pub fn update(&mut self, app: &KsngContext, ui: &mut Ui) {
     let zoom_delta = ui.input_mut(|input| {
       if input.modifiers.alt {
         Vec2::new(0.0, input.zoom_delta() - 1.0)

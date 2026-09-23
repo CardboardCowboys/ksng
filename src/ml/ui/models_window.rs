@@ -2,7 +2,7 @@ use egui::Window;
 use egui_dock::{DockArea, DockState, Style, TabViewer};
 
 use crate::{
-  KsngApp,
+  KsngContext,
   ml::{
     ui::{htdemucs::HtdemucsTab, models::ModelsTab},
     worker::WorkerManager,
@@ -20,7 +20,7 @@ struct ModelsWindowTabViewer<'worker> {
   worker: &'worker WorkerManager,
   models: &'worker mut ModelsTab,
   htdemucs: &'worker mut HtdemucsTab,
-  app: &'worker KsngApp,
+  app: &'worker KsngContext,
 }
 
 impl<'worker> TabViewer for ModelsWindowTabViewer<'worker> {
@@ -43,6 +43,14 @@ impl<'worker> TabViewer for ModelsWindowTabViewer<'worker> {
       ModelsWindowTab::StemSeparation => self.htdemucs.htdemucs_tab(self.app, ui, self.worker),
       ModelsWindowTab::Models => self.models.models_tab(ui, self.worker),
     }
+  }
+
+  fn closeable(&mut self, _tab: &mut Self::Tab) -> bool {
+    false
+  }
+
+  fn on_close(&mut self, _tab: &mut Self::Tab) -> egui_dock::tab_viewer::OnCloseResponse {
+    egui_dock::tab_viewer::OnCloseResponse::Ignore
   }
 }
 
@@ -74,7 +82,7 @@ impl KWindow for ModelsWindow {
     !self.open
   }
 
-  fn process(&mut self, app: &crate::KsngApp, context: &egui::Context) {
+  fn process(&mut self, app: &crate::KsngContext, context: &egui::Context) {
     if !self.open {
       return;
     }

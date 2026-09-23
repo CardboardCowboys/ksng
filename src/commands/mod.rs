@@ -4,7 +4,7 @@ use std::{
   ops::BitOr,
 };
 
-use crate::{KsngApp, util::error::UiError};
+use crate::{KsngContext, util::error::UiError};
 
 pub mod event;
 pub mod models;
@@ -39,8 +39,8 @@ pub trait Command {
     UpdateFlags::MAKE_DIRTY
   }
 
-  fn execute(&self, app: &KsngApp) -> Result<(), UiError>;
-  fn undo(&self, _app: &KsngApp) -> Result<(), UiError> {
+  fn execute(&self, app: &KsngContext) -> Result<(), UiError>;
+  fn undo(&self, _app: &KsngContext) -> Result<(), UiError> {
     Ok(())
   }
 }
@@ -60,7 +60,7 @@ impl CommandDispatcher {
     self.queue.borrow_mut().push_back(Box::new(command));
   }
 
-  pub fn process(&self, app: &KsngApp) -> Result<(), UiError> {
+  pub fn process(&self, app: &KsngContext) -> Result<(), UiError> {
     let mut queue = self.queue.borrow_mut();
     let mut undo_queue = self.undo_queue.borrow_mut();
     let mut did_command = false;
@@ -94,7 +94,7 @@ impl CommandDispatcher {
     self.redo_queue.borrow().back().map(|u| u.description())
   }
 
-  pub fn undo(&self, app: &KsngApp) -> Result<(), UiError> {
+  pub fn undo(&self, app: &KsngContext) -> Result<(), UiError> {
     if let Some(command) = self.undo_queue.borrow_mut().pop_back() {
       command.undo(app)?;
       Self::apply_flags(command.update_flags(), app);
@@ -104,7 +104,7 @@ impl CommandDispatcher {
     Ok(())
   }
 
-  pub fn redo(&self, app: &KsngApp) -> Result<(), UiError> {
+  pub fn redo(&self, app: &KsngContext) -> Result<(), UiError> {
     if let Some(command) = self.redo_queue.borrow_mut().pop_back() {
       command.execute(app)?;
       Self::apply_flags(command.update_flags(), app);
@@ -114,7 +114,7 @@ impl CommandDispatcher {
     Ok(())
   }
 
-  fn apply_flags(flags: UpdateFlags, app: &KsngApp) {
+  fn apply_flags(flags: UpdateFlags, app: &KsngContext) {
     if flags.has_flag(UpdateFlags::MAKE_DIRTY) {
       app.set_dirty_state(true);
 

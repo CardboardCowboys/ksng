@@ -47,7 +47,7 @@ impl Command for HtdemucsResultCommand {
     super::UpdateFlags::MAKE_DIRTY | super::UpdateFlags::AUDIO_CHANGED
   }
 
-  fn execute(&self, app: &crate::KsngApp) -> Result<(), crate::util::error::UiError> {
+  fn execute(&self, app: &crate::KsngContext) -> Result<(), crate::util::error::UiError> {
     let mut project = app.project.borrow_mut();
     let file = project
       .as_mut()
@@ -121,7 +121,7 @@ impl Command for HtdemucsResultCommand {
     Ok(())
   }
 
-  fn undo(&self, app: &crate::KsngApp) -> Result<(), crate::util::error::UiError> {
+  fn undo(&self, app: &crate::KsngContext) -> Result<(), crate::util::error::UiError> {
     let mut project = app.project.borrow_mut();
     let file = project
       .as_mut()

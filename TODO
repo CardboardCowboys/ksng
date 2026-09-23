@@ -1,8 +1,8 @@
 ☐ fix other layout modes
 ✔ fix lyrics reappearing after transitioning out (the 10, 9, 8... etc for example) @done(26-09-13 15:49)
 ☐ fix various UI weirdness
-	☐ being able to scrub the timeline while dragging the panel divider handle
-	☐ not being able to scroll the lyrics editor
+	✔ being able to scrub the timeline while dragging the panel divider handle @done(26-09-23 19:25)
+	✔ not being able to scroll the lyrics editor @done(26-09-23 19:25)
 	✔ not being able to click to set scrub position @done(26-02-05 23:20)
 	☐ multi-event moving should use per-track min-max len (moving audio event and lyric event at same time issues)
 	✔ fix no longer being able to select tracks @done(26-03-11 02:12)
@@ -14,7 +14,7 @@
 ✔ fix audio EOF log spam @done(26-09-17 18:28)
 ☐ pause / mute audio while seeking (or issue only one seek?)
 ☐ make channel remapper more robust (any input -> any output)
-☐ fix file selector on export window (just use native selector?)
+✔ fix file selector on export window (just use native selector?) @done(26-09-23 19:25)
 ☐ timeline doesn't work with too many tracks
 ☐ waveform hitting texture limits with too-long track
 ☐ importing audio seems to import it a lot of times
@@ -25,6 +25,7 @@
 ✔ lyrics sync wizard @done(26-06-14 23:25)
 ☐ lyrics sync model
 	☐ syllabification model
+☐ allow multiple lyrics editors open at once
 ☐ video graphics
 ☐ video transitions
 ☐ video... videos
@@ -35,5 +36,5 @@
 	☐ LRC
 	☐ MIDI
 ☐ timestretching / slow speed playback
-☐ refactor ksng to use egui_dock
+✔ refactor ksng to use egui_dock @done(26-09-23 19:25)
 ☐ replace logger with log facade

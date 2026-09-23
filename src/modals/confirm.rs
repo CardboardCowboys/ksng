@@ -25,7 +25,7 @@ impl KModal for ConfirmModal {
     !self.open
   }
 
-  fn process(&mut self, app: &crate::KsngApp, context: &egui::Context) {
+  fn process(&mut self, app: &crate::KsngContext, context: &egui::Context) {
     if !self.open {
       return;
     }

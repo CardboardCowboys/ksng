@@ -3,6 +3,7 @@
 mod audio;
 mod commands;
 mod components;
+mod context;
 mod fs;
 mod ml;
 mod modals;
@@ -17,3 +18,4 @@ mod windows;
 
 mod app;
 pub use app::KsngApp;
+pub use context::KsngContext;

@@ -7,7 +7,7 @@ use klib::objects::{
 use uuid::Uuid;
 
 use crate::{
-  KsngApp,
+  KsngContext,
   commands::{Command, UpdateFlags},
   util::error::UiError,
 };
@@ -39,7 +39,7 @@ impl Command for AddTrackCommand {
     UpdateFlags::MAKE_DIRTY | UpdateFlags::INVALIDATE_VIDEO
   }
 
-  fn execute(&self, app: &KsngApp) -> Result<(), UiError> {
+  fn execute(&self, app: &KsngContext) -> Result<(), UiError> {
     let mut project = app.project.borrow_mut();
     let file = project
       .as_mut()
@@ -56,7 +56,7 @@ impl Command for AddTrackCommand {
     Ok(())
   }
 
-  fn undo(&self, app: &KsngApp) -> Result<(), UiError> {
+  fn undo(&self, app: &KsngContext) -> Result<(), UiError> {
     let mut project = app.project.borrow_mut();
     let file = project
       .as_mut()
@@ -113,7 +113,7 @@ impl Command for MuteTrackCommand {
     .to_string()
   }
 
-  fn execute(&self, app: &KsngApp) -> Result<(), UiError> {
+  fn execute(&self, app: &KsngContext) -> Result<(), UiError> {
     let mut project = app.project.borrow_mut();
     let file = project
       .as_mut()
@@ -137,7 +137,7 @@ impl Command for MuteTrackCommand {
     Ok(())
   }
 
-  fn undo(&self, app: &KsngApp) -> Result<(), UiError> {
+  fn undo(&self, app: &KsngContext) -> Result<(), UiError> {
     let mut project = app.project.borrow_mut();
     let file = project
       .as_mut()
@@ -201,7 +201,7 @@ impl Command for EditTrackConfigCommand {
     }
   }
 
-  fn execute(&self, app: &KsngApp) -> Result<(), UiError> {
+  fn execute(&self, app: &KsngContext) -> Result<(), UiError> {
     let mut project = app.project.borrow_mut();
     let file = project
       .as_mut()
@@ -224,7 +224,7 @@ impl Command for EditTrackConfigCommand {
     Ok(())
   }
 
-  fn undo(&self, app: &KsngApp) -> Result<(), UiError> {
+  fn undo(&self, app: &KsngContext) -> Result<(), UiError> {
     let mut project = app.project.borrow_mut();
     let file = project
       .as_mut()
@@ -276,7 +276,7 @@ impl Command for ApplyLyricsTrackChangesCommand {
     "Apply Changes to Lyrics".to_string()
   }
 
-  fn execute(&self, app: &KsngApp) -> Result<(), UiError> {
+  fn execute(&self, app: &KsngContext) -> Result<(), UiError> {
     let mut project = app.project.borrow_mut();
     let file = project
       .as_mut()
@@ -302,7 +302,7 @@ impl Command for ApplyLyricsTrackChangesCommand {
     Ok(())
   }
 
-  fn undo(&self, app: &KsngApp) -> Result<(), UiError> {
+  fn undo(&self, app: &KsngContext) -> Result<(), UiError> {
     let mut project = app.project.borrow_mut();
     let file = project
       .as_mut()

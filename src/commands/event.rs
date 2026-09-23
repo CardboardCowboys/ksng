@@ -12,7 +12,7 @@ use klib::{
 use uuid::Uuid;
 
 use crate::{
-  KsngApp,
+  KsngContext,
   commands::{Command, UpdateFlags},
   util::error::UiError,
 };
@@ -48,7 +48,7 @@ impl Command for AddAudioEventCommand {
     UpdateFlags::MAKE_DIRTY | UpdateFlags::AUDIO_CHANGED
   }
 
-  fn execute(&self, app: &KsngApp) -> Result<(), UiError> {
+  fn execute(&self, app: &KsngContext) -> Result<(), UiError> {
     let mut project = app.project.borrow_mut();
     let file = project
       .as_mut()
@@ -80,7 +80,7 @@ impl Command for AddAudioEventCommand {
     Ok(())
   }
 
-  fn undo(&self, app: &KsngApp) -> Result<(), UiError> {
+  fn undo(&self, app: &KsngContext) -> Result<(), UiError> {
     let mut project = app.project.borrow_mut();
     let file = project
       .as_mut()
@@ -156,7 +156,7 @@ impl Command for SetEventTimingsCommand {
       | UpdateFlags::AUDIO_CHANGED
   }
 
-  fn execute(&self, app: &KsngApp) -> Result<(), UiError> {
+  fn execute(&self, app: &KsngContext) -> Result<(), UiError> {
     let mut project = app.project.borrow_mut();
     let file = project
       .as_mut()
@@ -191,7 +191,7 @@ impl Command for SetEventTimingsCommand {
     Ok(())
   }
 
-  fn undo(&self, app: &KsngApp) -> Result<(), UiError> {
+  fn undo(&self, app: &KsngContext) -> Result<(), UiError> {
     let mut project = app.project.borrow_mut();
     let file = project
       .as_mut()
