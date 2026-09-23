@@ -212,11 +212,8 @@ impl eframe::App for KsngApp {
     eframe::set_value(storage, eframe::APP_KEY, &data);
   }
 
-  /// Called each time the UI needs repainting, which may be many times per
-  /// second.
-  fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+  fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
     let mut queue = self.event_queue.borrow_mut();
-    let ctx = ui.ctx();
     while let Some(event) = queue.pop_front() {
       self.on_event(ctx, event);
     }
@@ -234,13 +231,16 @@ impl eframe::App for KsngApp {
         .borrow_mut()
         .process_frame(ctx, self.playback.borrow().position()),
     );
+  }
+
+  /// Called each time the UI needs repainting, which may be many times per
+  /// second.
+  fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+    let ctx = ui.ctx();
 
     if self.playback.borrow().state() == PlaybackState::Playing {
       ctx.request_repaint();
     }
-
-    // Put your widgets into a `SidePanel`, `TopBottomPanel`, `CentralPanel`,
-    // `Window` or `Area`. For inspiration and more examples, go to https://emilk.github.io/egui
 
     egui::Panel::top("top_panel").show(ui, |ui| {
       components::menu_bar::menu_bar(self, ui);

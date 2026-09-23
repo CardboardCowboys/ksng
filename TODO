@@ -16,6 +16,8 @@
 ☐ make channel remapper more robust (any input -> any output)
 ☐ fix file selector on export window (just use native selector?)
 ☐ timeline doesn't work with too many tracks
+☐ waveform hitting texture limits with too-long track
+☐ importing audio seems to import it a lot of times
 
 ✔ replace audio engine @done(26-01-04 10:23)
 ✔ lyrics editor @done(26-01-12 04:41)

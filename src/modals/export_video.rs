@@ -1,9 +1,16 @@
 use std::{path::PathBuf, str::FromStr, sync::Arc};
 
-use crate::{components::config_editor, fs::KsngAttachmentResolver, modals::KModal};
+use crate::{
+  components::config_editor,
+  fs::KsngAttachmentResolver,
+  modals::KModal,
+  util::r#async::{AsyncResult, AsyncValue},
+};
 use egui::{Atom, Button, Color32, Id, Modal, ProgressBar, Spinner, Vec2};
-use egui_file_dialog::{DialogState, FileDialog};
-use klib::video::export::{self, FfmpegEncoderOptions, VideoExportProgressMonitor, VideoExporter};
+use klib::video::export::{
+  self, FfmpegCodecSet, FfmpegEncoderOptions, VideoExportProgressMonitor, VideoExporter,
+};
+use rfd::{AsyncFileDialog, FileHandle};
 
 enum VideoExportSetting {
   Ffmpeg(FfmpegEncoderOptions),
@@ -21,34 +28,39 @@ pub struct ExportVideoModal {
   open: bool,
   setting: VideoExportSetting,
   output_path: Option<PathBuf>,
-  dialog: FileDialog,
+  dialog: Option<AsyncValue<Option<FileHandle>>>,
   exporter: Option<Box<dyn VideoExporter>>,
   state: ModalState,
 }
 
 impl ExportVideoModal {
   pub fn new(project_name: String) -> Self {
-    let mut dialog = FileDialog::new().as_modal(false);
-
-    if let Some(home_dir) = directories::UserDirs::new().map(|u| u.home_dir().to_path_buf()) {
-      dialog = dialog.initial_directory(home_dir);
-    }
-
     let mut output_path = None;
     if let Some(desktop_dir) =
       directories::UserDirs::new().and_then(|u| u.desktop_dir().map(|p| p.to_path_buf()))
     {
       output_path = Some(desktop_dir.join(project_name));
     }
-
     ExportVideoModal {
       open: true,
-      dialog,
+      dialog: None,
       output_path,
       setting: VideoExportSetting::Ffmpeg(Default::default()),
       exporter: None,
       state: ModalState::Opened,
     }
+  }
+
+  async fn pick_save_file(project_name: String, codec_set: FfmpegCodecSet) -> Option<FileHandle> {
+    let mut dialog = AsyncFileDialog::new();
+
+    if let Some(home_dir) = directories::UserDirs::new().map(|u| u.home_dir().to_path_buf()) {
+      dialog = dialog.set_directory(home_dir);
+    }
+
+    dialog = dialog.set_file_name(format!("{project_name}.{}", codec_set.extension()));
+
+    dialog.save_file().await
   }
 }
 
@@ -88,18 +100,36 @@ impl KModal for ExportVideoModal {
         .map(|p| p.to_owned())
         .unwrap_or_default();
 
+      let name = project.name.as_deref().unwrap_or_default();
+
       ui.add_enabled_ui(is_settings_enabled, |ui| {
         ui.horizontal(|ui| {
           ui.label("Output File");
           ui.text_edit_singleline(&mut output_path);
-          if ui.button("..").clicked() {
-            self.dialog.save_file();
+          if ui.button("..").clicked() && self.dialog.is_none() {
+            self.dialog = Some(AsyncValue::new(Self::pick_save_file(
+              name.to_owned(),
+              match &self.setting {
+                VideoExportSetting::Ffmpeg(options) => options.codec_set,
+              },
+            )));
           }
         });
 
-        if let Some(picked) = self.dialog.take_picked() {
-          self.output_path = Some(picked.to_path_buf());
-        } else if !output_path.is_empty()
+        if let Some(dialog) = &mut self.dialog {
+          match dialog.poll() {
+            AsyncResult::Pending => {}
+            AsyncResult::Complete(Some(file)) => {
+              self.output_path = Some(file.path().to_path_buf());
+              self.dialog = None;
+            }
+            _ => {
+              self.dialog = None;
+            }
+          }
+        }
+
+        if !output_path.is_empty()
           && let Ok(output_path) = PathBuf::from_str(&output_path)
         {
           self.output_path = Some(output_path);
@@ -231,9 +261,5 @@ impl KModal for ExportVideoModal {
         }
       });
     });
-
-    if *self.dialog.state() == DialogState::Open {
-      self.dialog.update(context);
-    }
   }
 }

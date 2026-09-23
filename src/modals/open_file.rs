@@ -1,12 +1,16 @@
-use crate::{KsngApp, modals::KModal};
-use egui_file_dialog::{DialogState, FileDialog};
+use crate::{
+  KsngApp,
+  modals::KModal,
+  util::r#async::{AsyncResult, AsyncValue},
+};
+use rfd::{AsyncFileDialog, FileHandle};
 use std::path::PathBuf;
 
 type OpenFileCallback = dyn Fn(&KsngApp, PathBuf);
 
 pub struct OpenFileModal {
   open: bool,
-  dialog: FileDialog,
+  dialog: AsyncValue<Option<FileHandle>>,
   after: Box<OpenFileCallback>,
 }
 
@@ -15,21 +19,23 @@ impl OpenFileModal {
   where
     F: Fn(&KsngApp, PathBuf) + 'static,
   {
-    let mut dialog = FileDialog::new()
-      .add_file_filter_extensions(&filter_name, extensions)
-      .as_modal(true);
-
-    if let Some(home_dir) = directories::UserDirs::new().map(|u| u.home_dir().to_path_buf()) {
-      dialog = dialog.initial_directory(home_dir);
-    }
-
-    dialog.pick_file();
+    let dialog = AsyncValue::new(Self::pick_file(filter_name, extensions));
 
     OpenFileModal {
       open: true,
       dialog,
       after: Box::new(after),
     }
+  }
+
+  async fn pick_file(filter_name: String, extensions: Vec<&'static str>) -> Option<FileHandle> {
+    let mut dialog = AsyncFileDialog::new().add_filter(&filter_name, &extensions);
+
+    if let Some(home_dir) = directories::UserDirs::new().map(|u| u.home_dir().to_path_buf()) {
+      dialog = dialog.set_directory(home_dir);
+    }
+
+    dialog.pick_file().await
   }
 }
 
@@ -38,18 +44,19 @@ impl KModal for OpenFileModal {
     !self.open
   }
 
-  fn process(&mut self, app: &KsngApp, context: &egui::Context) {
+  fn process(&mut self, app: &KsngApp, _context: &egui::Context) {
     if !self.open {
       return;
     }
 
-    let res = self.dialog.update(context);
-    if let Some(path) = res.picked() {
-      (self.after)(app, path.to_path_buf());
-    }
-
-    if *res.state() != DialogState::Open {
-      self.open = false;
+    match self.dialog.poll() {
+      AsyncResult::Pending => {}
+      AsyncResult::Complete(Some(file)) => {
+        (self.after)(app, file.path().to_path_buf());
+      }
+      AsyncResult::Complete(None) => {
+        self.open = false;
+      }
     }
   }
 }

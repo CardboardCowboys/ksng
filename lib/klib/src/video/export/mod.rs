@@ -11,7 +11,7 @@ use crate::{
 
 mod ffmpeg;
 
-pub use crate::video::export::ffmpeg::FfmpegEncoderOptions;
+pub use crate::video::export::ffmpeg::{FfmpegCodecSet, FfmpegEncoderOptions};
 
 #[derive(Default)]
 pub enum VideoExportStatus {

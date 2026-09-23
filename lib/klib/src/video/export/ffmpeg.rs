@@ -30,7 +30,7 @@ pub struct FfmpegEncoder {
 }
 
 #[derive(EditableConfig, Debug, Copy, Clone)]
-enum FfmpegCodecSet {
+pub enum FfmpegCodecSet {
   Mp4H264Aac,
   Mp4Av1Aac,
   WebmVp9Opus,
@@ -44,14 +44,21 @@ impl FfmpegCodecSet {
       Self::WebmVp9Opus | Self::WebmAv1Opus => format::Sample::F32(format::sample::Type::Packed),
     }
   }
+
+  pub fn extension(&self) -> &'static str {
+    match &self {
+      Self::Mp4Av1Aac | Self::Mp4H264Aac => "mp4",
+      Self::WebmAv1Opus | Self::WebmVp9Opus => "webm",
+    }
+  }
 }
 
 #[derive(EditableConfig, Clone)]
 pub struct FfmpegEncoderOptions {
-  codec_set: FfmpegCodecSet,
-  frame_rate: usize,
-  audio_opts: String,
-  video_opts: String,
+  pub codec_set: FfmpegCodecSet,
+  pub frame_rate: usize,
+  pub audio_opts: String,
+  pub video_opts: String,
 }
 
 impl Default for FfmpegEncoderOptions {
@@ -135,14 +142,9 @@ impl FfmpegEncoder {
     let sample_rate = shared.sample_rate;
 
     // Step 1: Initializing
-    let output_path = match options.codec_set {
-      FfmpegCodecSet::Mp4Av1Aac | FfmpegCodecSet::Mp4H264Aac => {
-        shared.output_path.with_extension("mp4")
-      }
-      FfmpegCodecSet::WebmAv1Opus | FfmpegCodecSet::WebmVp9Opus => {
-        shared.output_path.with_extension("webm")
-      }
-    };
+    let output_path = shared
+      .output_path
+      .with_extension(options.codec_set.extension());
 
     let mut out_stream = ffmpeg_next::format::output(&output_path)?;
 
