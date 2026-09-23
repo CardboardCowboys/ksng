@@ -1,6 +1,6 @@
 use std::{path::PathBuf, str::FromStr, sync::Arc};
 
-use crate::{components::config_editor, modals::KModal};
+use crate::{components::config_editor, fs::KsngAttachmentResolver, modals::KModal};
 use egui::{Atom, Button, Color32, Id, Modal, ProgressBar, Spinner, Vec2};
 use egui_file_dialog::{DialogState, FileDialog};
 use klib::video::export::{self, FfmpegEncoderOptions, VideoExportProgressMonitor, VideoExporter};
@@ -200,6 +200,7 @@ impl KModal for ExportVideoModal {
               VideoExportSetting::Ffmpeg(ffmpeg_encoder_options) => export::create_exporter_ffmpeg(
                 ffmpeg_encoder_options,
                 &project.file,
+                &KsngAttachmentResolver {},
                 self.output_path.as_ref().unwrap(),
               ),
             };

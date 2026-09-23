@@ -2,7 +2,11 @@ use binary_rw::{BinaryReader, BinaryWriter};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{error::Error, objects::audio::AudioFile, timecode::Timecode};
+use crate::{
+  error::Error,
+  objects::{audio::AudioFile, file::File},
+  timecode::Timecode,
+};
 
 use super::audio::AudioFileSource;
 
@@ -153,7 +157,7 @@ impl Event {
 
   /// Obtains a string describing this event, if any.
   /// For example, a Lyric event will return the text of the lyric.
-  pub fn description(&self) -> Option<String> {
+  pub fn description(&self, project_file: &File) -> Option<String> {
     self.value.as_ref().and_then(|v| match v {
       EventValue::Lyric { text } => Some(if self.linked_id.is_some() {
         "-".to_string() + text
@@ -165,7 +169,10 @@ impl Event {
           .file_stem()
           .and_then(|s| s.to_str())
           .map(|s| s.to_owned()),
-        AudioFileSource::Managed => None,
+        AudioFileSource::Attachment(id) => {
+          let attachment = project_file.attachments.iter().find(|a| a.id == *id)?;
+          Some(attachment.name.clone())
+        }
       },
     })
   }

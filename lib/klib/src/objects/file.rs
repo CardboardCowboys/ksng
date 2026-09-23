@@ -1,15 +1,21 @@
 use binary_rw::{BinaryReader, BinaryWriter, Endian, FileStream, ReadStream, WriteStream};
 
-use crate::{config::Config, error::Error, objects::track::Track, timecode::Timecode};
+use crate::{
+  config::Config,
+  error::Error,
+  objects::{attachment::Attachment, track::Track},
+  timecode::Timecode,
+};
 
 const MAGIC_NUMBER: u32 = 0x474E534B;
-const FILE_VERSION: u16 = 0;
+const FILE_VERSION: u16 = 1;
 
 #[derive(Default)]
 pub struct File {
   pub config: Config,
   pub metadata: serde_json::Value,
   pub tracks: Vec<Track>,
+  pub attachments: Vec<Attachment>,
 }
 
 impl File {
@@ -24,6 +30,11 @@ impl File {
     writer.write_usize(self.tracks.len())?;
     for track in &self.tracks {
       track.write(&mut writer)?;
+    }
+
+    writer.write_usize(self.attachments.len())?;
+    for attachment in &self.attachments {
+      attachment.write(&mut writer)?;
     }
 
     Ok(())
@@ -58,6 +69,14 @@ impl File {
     for _i in 0..len {
       let track = Track::read(&mut reader)?;
       file.tracks.push(track);
+    }
+
+    if read_version >= 1 {
+      let len = reader.read_usize()?;
+      file.attachments.reserve(len);
+      for _i in 0..len {
+        file.attachments.push(Attachment::read(&mut reader)?);
+      }
     }
 
     Ok(file)

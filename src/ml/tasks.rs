@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use ksng_ml_ipc::packet::{
   HostCancelTask, HostPacket, HostStartTask, WorkerTaskInfo, WorkerTaskResult, host_start_task,
@@ -6,7 +6,7 @@ use ksng_ml_ipc::packet::{
 };
 use uuid::Uuid;
 
-use crate::util::error::UiError;
+use crate::{KsngApp, commands::models::HtdemucsResultCommand, util::error::UiError};
 
 pub enum TaskResult {
   Htdemucs {
@@ -17,6 +17,10 @@ pub enum TaskResult {
   },
 }
 
+pub enum TaskExtraData {
+  Htdemucs { source_event_id: Uuid },
+}
+
 pub enum TaskStatus {
   Running { progress: f32 },
   Complete(TaskResult),
@@ -25,9 +29,12 @@ pub enum TaskStatus {
 }
 
 pub struct Task {
-  id: Uuid,
-  name: String,
-  status: TaskStatus,
+  pub id: Uuid,
+  pub name: String,
+  pub status: TaskStatus,
+  pub is_finalized: bool,
+  pending_completion: bool,
+  extra_data: TaskExtraData,
 }
 
 pub struct TaskManager {
@@ -43,7 +50,13 @@ impl TaskManager {
     }
   }
 
-  pub fn start_task(&mut self, name: String, model_id: Uuid, task: host_start_task::Task) {
+  pub fn start_task(
+    &mut self,
+    name: String,
+    model_id: Uuid,
+    extra_data: TaskExtraData,
+    task: host_start_task::Task,
+  ) -> Uuid {
     let task_id = Uuid::new_v4();
     let packet = HostPacket {
       contents: Some(ksng_ml_ipc::packet::host_packet::Contents::StartTask(
@@ -59,9 +72,13 @@ impl TaskManager {
       id: task_id,
       name,
       status: TaskStatus::Running { progress: 0.0 },
+      is_finalized: false,
+      pending_completion: false,
+      extra_data,
     });
 
     self.send_queue.push(packet);
+    task_id
   }
 
   pub fn cancel_task(&mut self, task_id: Uuid) {
@@ -73,6 +90,10 @@ impl TaskManager {
       )),
     };
     self.send_queue.push(packet);
+  }
+
+  pub fn get_task(&self, task_id: Uuid) -> Option<&Task> {
+    self.tasks.iter().find(|t| t.id == task_id)
   }
 
   pub fn recv_task_info(&mut self, packet: WorkerTaskInfo) -> Result<(), UiError> {
@@ -119,9 +140,63 @@ impl TaskManager {
           output_path_bass: result.output_path_bass,
           output_path_other: result.output_path_other,
         });
+        task.pending_completion = true;
       }
     }
 
     Ok(())
+  }
+
+  pub fn finalize_task(&mut self, task_id: Uuid) {
+    for task in &mut self.tasks {
+      if task.id == task_id {
+        task.is_finalized = true;
+      }
+    }
+  }
+
+  pub fn poll_tasks(&mut self, app: &KsngApp) {
+    for task in &mut self.tasks {
+      if task.pending_completion {
+        match &task.status {
+          TaskStatus::Complete(TaskResult::Htdemucs {
+            output_path_vocals,
+            output_path_drums,
+            output_path_bass,
+            output_path_other,
+          }) => {
+            // When there's other TaskExtraData, this can go.
+            #[allow(irrefutable_let_patterns)]
+            let TaskExtraData::Htdemucs { source_event_id } = &task.extra_data else {
+              log::error!("unexpected extradata in task {}, can't complete", task.id);
+              continue;
+            };
+
+            let mut result_paths = HashMap::new();
+            if !output_path_vocals.is_empty() {
+              result_paths.insert("vocals".to_owned(), PathBuf::from(output_path_vocals));
+            }
+            if !output_path_drums.is_empty() {
+              result_paths.insert("drums".to_owned(), PathBuf::from(output_path_drums));
+            }
+            if !output_path_bass.is_empty() {
+              result_paths.insert("bass".to_owned(), PathBuf::from(output_path_bass));
+            }
+            if !output_path_other.is_empty() {
+              result_paths.insert("other".to_owned(), PathBuf::from(output_path_other));
+            }
+
+            app
+              .commands
+              .dispatch(HtdemucsResultCommand::new(*source_event_id, result_paths));
+          }
+          _ => continue,
+        };
+
+        task.pending_completion = false;
+      }
+    }
+
+    self.tasks.retain(|t| !t.is_finalized);
   }
 }

@@ -2,6 +2,7 @@ use egui::Window;
 use egui_dock::{DockArea, DockState, Style, TabViewer};
 
 use crate::{
+  KsngApp,
   ml::{
     ui::{htdemucs::HtdemucsTab, models::ModelsTab},
     worker::WorkerManager,
@@ -19,6 +20,7 @@ struct ModelsWindowTabViewer<'worker> {
   worker: &'worker WorkerManager,
   models: &'worker mut ModelsTab,
   htdemucs: &'worker mut HtdemucsTab,
+  app: &'worker KsngApp,
 }
 
 impl<'worker> TabViewer for ModelsWindowTabViewer<'worker> {
@@ -38,7 +40,7 @@ impl<'worker> TabViewer for ModelsWindowTabViewer<'worker> {
 
   fn ui(&mut self, ui: &mut egui_dock::egui::Ui, tab: &mut Self::Tab) {
     match tab {
-      ModelsWindowTab::StemSeparation => self.htdemucs.htdemucs_tab(ui, self.worker),
+      ModelsWindowTab::StemSeparation => self.htdemucs.htdemucs_tab(self.app, ui, self.worker),
       ModelsWindowTab::Models => self.models.models_tab(ui, self.worker),
     }
   }
@@ -108,6 +110,7 @@ impl KWindow for ModelsWindow {
             worker: &app.worker,
             models: &mut self.models_tab,
             htdemucs: &mut self.htdemucs_tab,
+            app,
           },
         );
     });

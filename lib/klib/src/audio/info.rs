@@ -4,6 +4,7 @@ use crate::{objects::audio::AudioFileType, timecode::Timecode};
 
 pub struct AudioFileInfo {
   pub audio_type: AudioFileType,
+  pub mime_type: String,
   pub length: Timecode,
 }
 
@@ -14,6 +15,7 @@ impl AudioFileInfo {
       Some(AudioFileInfo {
         length: info.duration.into(),
         audio_type: Self::file_type_from_mime(&info.mime_type)?,
+        mime_type: info.mime_type,
       })
     }))
   }

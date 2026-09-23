@@ -8,8 +8,10 @@ use std::{
 
 use egui::Context;
 use klib::objects::{
+  attachment::{AttachmentReader, AttachmentResolver, AttachmentSource},
   audio::AudioFileSource,
   event::{Event, EventValue},
+  file::File,
 };
 use log::error;
 use symphonia::core::{
@@ -19,7 +21,11 @@ use symphonia::core::{
 use tiny_skia::{Color, Paint, Pixmap, Rect, Transform};
 use uuid::Uuid;
 
-use crate::{components::timeline, fs::Cache, util::error::UiError, util::logger::Logger};
+use crate::{
+  components::timeline,
+  fs::{Cache, KsngAttachmentResolver},
+  util::{error::UiError, logger::Logger},
+};
 
 const BLOCK_SIZE: usize = 2048;
 
@@ -164,7 +170,7 @@ impl AudioWaveformProvider {
     self.waveforms.write().unwrap().clear();
   }
 
-  pub fn get_image(&self, event: &Event) -> Option<Arc<String>> {
+  pub fn get_image(&self, project_file: &File, event: &Event) -> Option<Arc<String>> {
     if let Some(state) = self.waveforms.read().ok()?.get(&event.id) {
       return match state {
         WaveformState::Loading | WaveformState::Failed => None,
@@ -183,10 +189,21 @@ impl AudioWaveformProvider {
       return Some(image);
     }
 
+    let resolver = KsngAttachmentResolver {};
+
     let audio_path = event.value.as_ref().and_then(|v| match v {
       EventValue::AudioClip { file, .. } => match &file.source {
         AudioFileSource::Path(path_buf) => Some(path_buf.clone()),
-        AudioFileSource::Managed => None,
+        AudioFileSource::Attachment(id) => {
+          let attachment = project_file.attachments.iter().find(|a| a.id == *id)?;
+          match &attachment.source {
+            AttachmentSource::File(path_buf) => Some(path_buf.clone()),
+            AttachmentSource::Managed => match resolver.read(attachment) {
+              AttachmentReader::Path(path_buf) => Some(path_buf),
+              AttachmentReader::Stream(_read) => todo!(),
+            },
+          }
+        }
       },
       _ => None,
     });

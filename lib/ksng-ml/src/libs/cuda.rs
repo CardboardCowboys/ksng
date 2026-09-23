@@ -117,15 +117,28 @@ fn find_cudnn(paths: &[PathBuf]) -> Result<Option<PathBuf>, anyhow::Error> {
   Ok(None)
 }
 
-pub fn find_cuda_cudnn(paths: &[PathBuf]) -> Result<Option<(PathBuf, PathBuf)>, anyhow::Error> {
-  let cuda = find_cuda(paths)?;
-  let cudnn = find_cudnn(paths)?;
-
-  if let Some(cuda) = cuda
-    && let Some(cudnn) = cudnn
+pub fn find_cuda_cudnn(
+  paths: &[PathBuf],
+) -> Result<(Option<PathBuf>, Option<PathBuf>), anyhow::Error> {
+  let mut paths: Vec<PathBuf> = paths.to_vec();
+  #[cfg(target_os = "windows")]
   {
-    return Ok(Some((cuda, cudnn)));
-  }
+    let cudnn = PathBuf::from(r"C:\Program Files\NVIDIA\CUDNN");
+    if std::fs::exists(&cudnn)? {
+      for entry in std::fs::read_dir(&cudnn)? {
+        let Some(entry) = entry.ok() else {
+          continue;
+        };
 
-  Ok(None)
+        paths.push(entry.path());
+      }
+    }
+  }
+  let cuda = find_cuda(&paths)?;
+  let cudnn = find_cudnn(&paths)?;
+
+  log::info!("cuda: {cuda:?}");
+  log::info!("cudnn: {cudnn:?}");
+
+  Ok((cuda, cudnn))
 }

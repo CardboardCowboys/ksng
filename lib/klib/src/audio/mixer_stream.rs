@@ -3,8 +3,10 @@ use std::collections::HashSet;
 use crate::{
   error::Error,
   objects::{
+    attachment::{AttachmentReader, AttachmentResolver},
     audio::AudioFileSource,
     event::EventValue,
+    file::File,
     track::{Track, TrackValue},
   },
   timecode::Timecode,
@@ -108,7 +110,12 @@ impl AudioMixerStream {
     self.event_streams.clear();
   }
 
-  pub fn update_from_tracks(&mut self, tracks: &[Track]) -> Result<(), crate::error::Error> {
+  pub fn update_from_tracks(
+    &mut self,
+    project_file: &File,
+    tracks: &[Track],
+    attachment_resolver: &dyn AttachmentResolver,
+  ) -> Result<(), crate::error::Error> {
     let current_event_ids: HashSet<Uuid> =
       self.event_streams.iter().map(|es| es.event_id).collect();
     let mut new_event_ids: HashSet<Uuid> = Default::default();
@@ -149,7 +156,18 @@ impl AudioMixerStream {
           let source = match &file.source {
             AudioFileSource::Path(path_buf) => spectrasonic::sources::source_for_file(path_buf)?,
             // TODO: handle managed files
-            AudioFileSource::Managed => todo!(),
+            AudioFileSource::Attachment(id) => {
+              let Some(attachment) = project_file.attachments.iter().find(|a| a.id == *id) else {
+                return Err(Error::Audio(format!("Can't find audio attachment {id:?}")));
+              };
+
+              match attachment_resolver.read(attachment) {
+                AttachmentReader::Path(path_buf) => {
+                  spectrasonic::sources::source_for_file(path_buf)?
+                }
+                AttachmentReader::Stream(_read) => todo!(),
+              }
+            }
           };
 
           log::info!("loaded file {:?}", file.source);

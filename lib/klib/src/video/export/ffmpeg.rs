@@ -15,7 +15,7 @@ use zerocopy::IntoBytes;
 use crate::{
   audio::mixer_stream::AudioMixerStream,
   error::Error,
-  objects::file::File,
+  objects::{attachment::AttachmentResolver, file::File},
   timecode::Timecode,
   video::{
     export::{VideoExportProgressMonitor, VideoExportStatus, VideoExporter},
@@ -82,6 +82,7 @@ impl FfmpegEncoder {
   pub fn new(
     options: &FfmpegEncoderOptions,
     file: &File,
+    attachment_resolver: &dyn AttachmentResolver,
     output_path: &Path,
   ) -> Result<FfmpegEncoder, Error> {
     FFMPEG_INIT.call_once(|| {
@@ -94,7 +95,7 @@ impl FfmpegEncoder {
     };
 
     let mut mixer = AudioMixerStream::new(2, sample_rate, block_size)?;
-    mixer.update_from_tracks(&file.tracks)?;
+    mixer.update_from_tracks(file, &file.tracks, attachment_resolver)?;
 
     let sequence = VideoSequence::from_file(file, &file.config.video);
 

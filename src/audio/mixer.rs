@@ -11,6 +11,7 @@ use klib::timecode::Timecode;
 
 use crate::{
   audio::config::AudioConfig,
+  fs::KsngAttachmentResolver,
   project::Project,
   util::{
     error::UiError,
@@ -82,7 +83,11 @@ impl AudioMixer {
 
   pub fn update_streams(&mut self, project: &Project) -> Result<(), UiError> {
     let mut mixer = self.shared_context.mixer_stream.lock().unwrap();
-    mixer.update_from_tracks(&project.file.tracks)?;
+    mixer.update_from_tracks(
+      &project.file,
+      &project.file.tracks,
+      &KsngAttachmentResolver {},
+    )?;
     self.duration = mixer.duration_timecode();
     Ok(())
   }

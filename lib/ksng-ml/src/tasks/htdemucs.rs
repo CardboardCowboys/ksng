@@ -43,10 +43,15 @@ pub struct HtdemucsSeparator {
 }
 
 impl HtdemucsSeparator {
-  fn output_path_for(outputs: &[OutputType], paths: &[PathBuf], output_type: OutputType) -> String {
+  fn output_path_for(
+    codec: &AudioCodec,
+    outputs: &[OutputType],
+    paths: &[PathBuf],
+    output_type: OutputType,
+  ) -> String {
     for (i, output) in outputs.iter().enumerate() {
       if *output == output_type {
-        return paths[i].to_str().unwrap().to_string();
+        return codec.set_extension(&paths[i]).to_str().unwrap().to_string();
       }
     }
 
@@ -75,6 +80,7 @@ impl TaskImpl for HtdemucsSeparator {
         OutputType::Vocals => self.output_path_vocals.clone(),
       });
     }
+    log::info!("output paths: {output_paths:?}");
     let mut audio_out = AudioChunkWriter::new(
       &output_paths,
       self.codec.clone(),
@@ -138,21 +144,25 @@ impl TaskImpl for HtdemucsSeparator {
 
     Ok(Some(worker_task_result::Result::Htdemucs(HtdemucsResult {
       output_path_drums: Self::output_path_for(
+        &self.codec,
         &self.parameters.outputs,
         &output_paths,
         OutputType::Drums,
       ),
       output_path_bass: Self::output_path_for(
+        &self.codec,
         &self.parameters.outputs,
         &output_paths,
         OutputType::Bass,
       ),
       output_path_other: Self::output_path_for(
+        &self.codec,
         &self.parameters.outputs,
         &output_paths,
         OutputType::Other,
       ),
       output_path_vocals: Self::output_path_for(
+        &self.codec,
         &self.parameters.outputs,
         &output_paths,
         OutputType::Vocals,

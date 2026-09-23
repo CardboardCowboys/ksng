@@ -7,6 +7,7 @@ use std::{
 use crate::{KsngApp, util::error::UiError};
 
 pub mod event;
+pub mod models;
 pub mod track;
 
 #[derive(Copy, Clone)]

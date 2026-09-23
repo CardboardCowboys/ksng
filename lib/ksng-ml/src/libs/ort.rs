@@ -63,11 +63,25 @@ pub fn init_ort() -> Result<(), anyhow::Error> {
   }
 
   let mut providers = Vec::new();
-  if let Some((cuda, cudnn)) = find_cuda_cudnn(&paths_arr)? {
+  let (cuda, cudnn) = find_cuda_cudnn(&paths_arr)?;
+  if let Some(cuda) = &cuda {
+    log::info!("using TensorRT & TensorRT RTX for onnxruntime, found CUDA at {cuda:?}");
+    paths_arr.push(cuda.clone());
+    providers.push(ort::ep::TensorRT::default().build());
+    providers.push(ort::ep::NVRTX::default().build());
+  }
+
+  if let Some(cuda) = &cuda
+    && let Some(cudnn) = &cudnn
+  {
     log::info!("using CUDA for onnxruntime, found CUDA at {cuda:?} and cuDNN at {cudnn:?}");
-    paths_arr.push(cuda);
-    paths_arr.push(cudnn);
+    paths_arr.push(cuda.clone());
+    paths_arr.push(cudnn.clone());
     providers.push(ort::ep::CUDA::default().build());
+  }
+
+  if providers.is_empty() {
+    log::info!("running ort with CPU inference - this is slow!");
   }
 
   let ort = find_ort(&paths_arr)?;

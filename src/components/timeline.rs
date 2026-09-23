@@ -8,6 +8,7 @@ use egui::{
 use klib::{
   objects::{
     event::{Event, EventType},
+    file::File,
     track::{EventList, TrackType, TrackValue},
   },
   timecode::Timecode,
@@ -439,7 +440,7 @@ impl Timeline {
                   ui.painter().rect_filled(rect, 0, color);
 
                   if ev.event_type == EventType::AudioClip
-                    && let Some(image) = app.waveforms.borrow().get_image(ev)
+                    && let Some(image) = app.waveforms.borrow().get_image(&project.file, ev)
                   {
                     let image = egui::Image::new(ImageSource::Uri(image.as_ref().into()))
                       .texture_options(TextureOptions::NEAREST)
@@ -455,7 +456,7 @@ impl Timeline {
                   );
 
                   if width > 5.0 {
-                    self.draw_event_text(ui, ev, &rect);
+                    self.draw_event_text(ui, &project.file, ev, &rect);
                   }
                 }
               }
@@ -595,13 +596,13 @@ impl Timeline {
     });
   }
 
-  fn draw_event_text(&mut self, ui: &mut Ui, event: &Event, rect: &Rect) {
+  fn draw_event_text(&mut self, ui: &mut Ui, file: &File, event: &Event, rect: &Rect) {
     match self.event_text.entry(event.id) {
       Entry::Occupied(entry) => Self::draw_event_text_impl(ui, rect, entry.get().as_ref()),
       Entry::Vacant(entry) => Self::draw_event_text_impl(
         ui,
         rect,
-        entry.insert(Self::create_event_text(event)).as_ref(),
+        entry.insert(Self::create_event_text(file, event)).as_ref(),
       ),
     }
   }
@@ -618,7 +619,7 @@ impl Timeline {
     );
   }
 
-  fn create_event_text(event: &Event) -> String {
+  fn create_event_text(file: &File, event: &Event) -> String {
     let name = match event.event_type {
       EventType::Lyric => "Lyric",
       EventType::LineBreak => "LineBreak",
@@ -627,7 +628,7 @@ impl Timeline {
       EventType::Image => "Image",
     }
     .to_owned();
-    if let Some(s) = event.description() {
+    if let Some(s) = event.description(file) {
       if event.event_type == EventType::Lyric {
         format!("{name}\n'{s}'")
       } else {
