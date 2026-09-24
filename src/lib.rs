@@ -1,3 +1,4 @@
+#![feature(read_le)]
 #![warn(clippy::all, rust_2018_idioms)]
 
 mod audio;

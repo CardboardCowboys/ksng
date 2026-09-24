@@ -15,8 +15,8 @@
 ☐ pause / mute audio while seeking (or issue only one seek?)
 ☐ make channel remapper more robust (any input -> any output)
 ✔ fix file selector on export window (just use native selector?) @done(26-09-23 19:25)
-☐ timeline doesn't work with too many tracks
-☐ waveform hitting texture limits with too-long track
+✔ timeline doesn't work with too many tracks @done(26-09-23 20:28)
+✔ waveform hitting texture limits with too-long track @done(26-09-23 21:20)
 ☐ importing audio seems to import it a lot of times
 
 ✔ replace audio engine @done(26-01-04 10:23)

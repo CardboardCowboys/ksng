@@ -1,13 +1,15 @@
-use std::collections::{HashMap, HashSet, hash_map::Entry};
+use std::{
+  collections::{HashMap, HashSet, hash_map::Entry},
+  sync::{Arc, RwLock},
+};
 
 use egui::{
-  Align2, Button, CentralPanel, Color32, CursorIcon, FontId, Frame, Id, ImageSource, Margin, Panel,
-  PointerButton, Pos2, Rect, ScrollArea, Sense, Sides, Stroke, StrokeKind, TextureOptions, Ui,
-  UiBuilder, Vec2, scroll_area::ScrollSource,
+  Align2, Button, Color32, CursorIcon, FontId, Frame, ImageSource, Margin, PointerButton, Pos2,
+  Rect, Sense, Sides, Stroke, StrokeKind, TextureOptions, Ui, UiBuilder, Vec2,
 };
 use klib::{
   objects::{
-    event::{Event, EventType},
+    event::{Event, EventType, EventValue},
     file::File,
     track::{EventList, TrackType, TrackValue},
   },
@@ -17,6 +19,7 @@ use uuid::Uuid;
 
 use crate::{
   KsngContext,
+  audio::waveform::{self, WaveformCache},
   commands::{event::SetEventTimingsCommand, track::MuteTrackCommand},
   project::Project,
   style::{
@@ -464,8 +467,9 @@ impl Timeline {
             end = drag_state.timings[idx].1;
           }
 
-          let start_x = max_rect.left() + start.to_seconds() * pixels_per_second - scroll_x;
-          let end_x = max_rect.left() + end.to_seconds() * pixels_per_second - scroll_x;
+          let ofs = max_rect.left() - scroll_x;
+          let start_x = ofs + start.to_seconds() * pixels_per_second;
+          let end_x = ofs + end.to_seconds() * pixels_per_second;
 
           let width = (end_x - start_x).max(1.0);
           let ev_rect = Rect {
@@ -545,12 +549,9 @@ impl Timeline {
           ui.painter().rect_filled(ev_rect, 0, color);
 
           if ev.event_type == EventType::AudioClip
-            && let Some(image) = app.waveforms.borrow().get_image(&project.file, ev)
+            && let Some(cache) = app.waveforms.borrow().get_waveform(&project.file, ev)
           {
-            let image = egui::Image::new(ImageSource::Uri(image.as_ref().into()))
-              .texture_options(TextureOptions::NEAREST)
-              .tint(Color32::from_black_alpha(127));
-            image.paint_at(ui, ev_rect);
+            Self::draw_audio_event(ui, app, ev, ev_rect, pixels_per_second, ofs, cache);
           }
 
           ui.painter().rect_stroke(
@@ -679,6 +680,7 @@ impl Timeline {
           let new_pos_s = content_pos_x / pixels_per_second;
           let diff_pixels = (new_pos_s - prev_pos_s) * pixels_per_second;
           self.scroll.x -= diff_pixels;
+          self.scroll.x = self.scroll.x.max(0.0);
         } else if self.state == TimelineUiState::Scrubbing && !track_clicked {
           app
             .playback
@@ -707,6 +709,75 @@ impl Timeline {
         entry.insert(Self::create_event_text(file, event)).as_ref(),
       ),
     }
+  }
+
+  fn draw_audio_event(
+    ui: &mut Ui,
+    app: &KsngContext,
+    ev: &Event,
+    ev_rect: Rect,
+    pixels_per_second: f32,
+    ofs: f32,
+    cache: Arc<RwLock<WaveformCache>>,
+  ) {
+    let mut cache_ref = cache.write().unwrap();
+    let Some(info) = app.logger.wrap(cache_ref.info()) else {
+      return;
+    };
+    let audio_offset = match &ev.value {
+      Some(EventValue::AudioClip { offset, .. }) => offset.to_seconds(),
+      _ => 0.0,
+    };
+    let mut mip_level = info.levels - 1;
+    let visible_ev_rect = ev_rect.intersect(ui.max_rect());
+    for (level, pxs) in info.pixel_to_s.iter().enumerate() {
+      let seconds_per_pixel = 1.0 / pixels_per_second;
+      if seconds_per_pixel >= *pxs {
+        mip_level = level;
+        break;
+      }
+    }
+    // pixel_to_s means one pixel in this mip level is equal to this many
+    // seconds of audio
+    let pixel_to_s = info.pixel_to_s[mip_level];
+    let imgs_per_level = info.imgs_per_level[mip_level];
+    let duration = info.duration;
+    drop(cache_ref);
+    let image_duration = pixel_to_s * waveform::MAX_TEXTURE_SIZE as f32;
+    // we know that all of the images span from ev_rect.left() to
+    // ev_rect.right() and that each individual image takes
+    // up pixel_to_s * MAX_TEXTURE_SIZE of time so image 0
+    // takes up (pxs * max) to 2 * (pxs * max) and so on
+    let prev_clip_rect = ui.clip_rect();
+    ui.set_clip_rect(prev_clip_rect.intersect(visible_ev_rect));
+    for i in 0..imgs_per_level {
+      let start_s = image_duration * i as f32;
+      let end_s = (image_duration * (i as f32 + 1.0)).min(duration);
+      let start_x = (start_s - audio_offset) * pixels_per_second;
+      let end_x = (end_s - audio_offset) * pixels_per_second;
+      let img_rect = Rect {
+        min: Pos2::new(start_x + ofs, ev_rect.top()),
+        max: Pos2::new(end_x + ofs, ev_rect.bottom()),
+      };
+      if !img_rect.intersects(ui.max_rect()) {
+        continue;
+      }
+
+      if let Some((uri, bytes)) = app
+        .logger
+        .wrap(cache.write().unwrap().load_entry(mip_level, i))
+      {
+        let image = egui::Image::new(ImageSource::Bytes {
+          uri: uri.into(),
+          bytes,
+        })
+        .texture_options(TextureOptions::NEAREST)
+        .show_loading_spinner(false)
+        .tint(Color32::from_black_alpha(127));
+        image.paint_at(ui, img_rect);
+      }
+    }
+    ui.set_clip_rect(prev_clip_rect);
   }
 
   fn draw_event_text_impl(ui: &mut Ui, rect: &Rect, text: &str) {
