@@ -6,6 +6,12 @@
 	],
 	"settings": {
 		"editor.tabSize": 2,
-		"rust-analyzer.debug.engine": "ms-vscode.cpptools"
+		"rust-analyzer.debug.engine": "ms-vscode.cpptools",
+		"rust-analyzer.testExplorer": true
+	},
+	"launch": {
+		"version": "0.2.0",
+		"configurations": [
+		]
 	}
 }

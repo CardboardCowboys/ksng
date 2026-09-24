@@ -11,7 +11,7 @@ use klib::{
 use uuid::Uuid;
 
 use crate::{
-  KsngApp,
+  KsngContext,
   commands::track::ApplyLyricsTrackChangesCommand,
   components::lyrics_editor::{psuedo_event::PsuedoEvent, text_element::LyricsEditorTextElement},
   project::Project,
@@ -66,14 +66,14 @@ pub struct LyricsEditor {
 }
 
 impl LyricsEditor {
-  pub fn on_project_change(&mut self, app: &KsngApp) {
+  pub fn on_project_change(&mut self, app: &KsngContext) {
     self.on_lyrics_change(app);
     if let Some(data) = &mut self.current_data {
       data.selected_lyrics_track = 0;
     }
   }
 
-  pub fn on_lyrics_change(&mut self, app: &KsngApp) {
+  pub fn on_lyrics_change(&mut self, app: &KsngContext) {
     match app.project.borrow().as_ref() {
       Some(project) => self.rebuild_lyrics(project),
       None => self.current_data = None,
@@ -163,7 +163,7 @@ impl LyricsEditor {
     }
   }
 
-  pub fn show(&mut self, app: &KsngApp, ui: &mut Ui) {
+  pub fn show(&mut self, app: &KsngContext, ui: &mut Ui) {
     let mut apply_changes = false;
     egui::Panel::top("lyrics_editor#top").show(ui, |ui| {
       MenuBar::new().ui(ui, |ui| {

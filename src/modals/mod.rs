@@ -2,11 +2,11 @@ use std::cell::RefCell;
 
 use egui::Context;
 
-use crate::KsngApp;
+use crate::KsngContext;
 
 pub trait KModal {
   fn should_cleanup(&self) -> bool;
-  fn process(&mut self, app: &KsngApp, context: &Context);
+  fn process(&mut self, app: &KsngContext, context: &Context);
 }
 
 #[derive(Default)]
@@ -23,7 +23,7 @@ impl ModalManager {
       .push(RefCell::new(Box::new(modal)))
   }
 
-  pub fn process(&self, app: &KsngApp, context: &Context) {
+  pub fn process(&self, app: &KsngContext, context: &Context) {
     self
       .modals
       .borrow_mut()

@@ -3,11 +3,15 @@ use std::{
   sync::{Arc, RwLock},
 };
 
-use crate::{error::Error, objects::file::File, video::export::ffmpeg::FfmpegEncoder};
+use crate::{
+  error::Error,
+  objects::{attachment::AttachmentResolver, file::File},
+  video::export::ffmpeg::FfmpegEncoder,
+};
 
 mod ffmpeg;
 
-pub use crate::video::export::ffmpeg::FfmpegEncoderOptions;
+pub use crate::video::export::ffmpeg::{FfmpegCodecSet, FfmpegEncoderOptions};
 
 #[derive(Default)]
 pub enum VideoExportStatus {
@@ -60,7 +64,13 @@ pub trait VideoExporter {
 pub fn create_exporter_ffmpeg(
   options: &FfmpegEncoderOptions,
   file: &File,
+  attachment_resolver: &dyn AttachmentResolver,
   output_path: &Path,
 ) -> Result<Box<dyn VideoExporter>, Error> {
-  Ok(Box::new(FfmpegEncoder::new(options, file, output_path)?))
+  Ok(Box::new(FfmpegEncoder::new(
+    options,
+    file,
+    attachment_resolver,
+    output_path,
+  )?))
 }

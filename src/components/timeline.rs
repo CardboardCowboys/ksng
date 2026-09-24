@@ -1,13 +1,16 @@
-use std::collections::{HashMap, HashSet, hash_map::Entry};
+use std::{
+  collections::{HashMap, HashSet, hash_map::Entry},
+  sync::{Arc, RwLock},
+};
 
 use egui::{
-  Align2, Button, CentralPanel, Color32, CursorIcon, FontId, Frame, Id, ImageSource, Margin, Panel,
-  PointerButton, Pos2, Rect, ScrollArea, Sense, Sides, Stroke, StrokeKind, TextureOptions, Ui,
-  UiBuilder, Vec2, scroll_area::ScrollSource,
+  Align2, Button, Color32, CursorIcon, FontId, Frame, ImageSource, Margin, PointerButton, Pos2,
+  Rect, Sense, Sides, Stroke, StrokeKind, TextureOptions, Ui, UiBuilder, Vec2,
 };
 use klib::{
   objects::{
-    event::{Event, EventType},
+    event::{Event, EventType, EventValue},
+    file::File,
     track::{EventList, TrackType, TrackValue},
   },
   timecode::Timecode,
@@ -15,7 +18,8 @@ use klib::{
 use uuid::Uuid;
 
 use crate::{
-  KsngApp,
+  KsngContext,
+  audio::waveform::{self, WaveformCache},
   commands::{event::SetEventTimingsCommand, track::MuteTrackCommand},
   project::Project,
   style::{
@@ -28,6 +32,7 @@ use crate::{
 
 pub const TRACK_HEIGHT: f32 = 50.0;
 const TRACK_INNER_PADDING: i8 = 2;
+const TRACK_OUTER_PADDING: f32 = 5.0;
 const TRACK_HEADER_WIDTH: f32 = 200.0;
 const PIXELS_PER_SECOND: f32 = 40.0;
 const MIN_X_ZOOM: f32 = 0.01;
@@ -38,6 +43,7 @@ const MAX_Y_ZOOM: f32 = 20.0;
 const EVENT_HANDLE_WIDTH: f32 = 5.0;
 const SCRUB_AREA: f32 = 8.0;
 const SNAP_WIDTH: f32 = 10.0;
+const SCROLL_BAR_SIZE: f32 = 10.0;
 
 const MIN_EVENT_SIZE: Timecode = Timecode(100);
 
@@ -106,7 +112,7 @@ impl DragState {
 
 pub struct Timeline {
   zoom: Vec2,
-  horiz_scroll_offset: f32,
+  scroll: Vec2,
   event_text: HashMap<Uuid, String>,
   state: TimelineUiState,
   drag_state: Option<DragState>,
@@ -118,8 +124,8 @@ pub struct Timeline {
 impl Default for Timeline {
   fn default() -> Self {
     Self {
+      scroll: Vec2::new(0.0, 0.0),
       zoom: Vec2::new(1.0, 1.0),
-      horiz_scroll_offset: 0.0,
       event_text: Default::default(),
       state: TimelineUiState::Idle,
       drag_state: None,
@@ -130,8 +136,86 @@ impl Default for Timeline {
   }
 }
 
+fn update_scroll(ui: &mut Ui, max_rect: Rect, scroll_pos: f32, total: f32, vertical: bool) -> f32 {
+  let available_size = if vertical {
+    max_rect.height()
+  } else {
+    max_rect.width()
+  };
+  let bar = ui.allocate_rect(
+    if vertical {
+      Rect {
+        min: Pos2::new(max_rect.right() - SCROLL_BAR_SIZE, max_rect.top()),
+        max: Pos2::new(max_rect.right(), max_rect.bottom()),
+      }
+    } else {
+      Rect {
+        min: Pos2::new(max_rect.left(), max_rect.bottom() - SCROLL_BAR_SIZE),
+        max: Pos2::new(max_rect.right(), max_rect.bottom()),
+      }
+    },
+    Sense::click(),
+  );
+
+  let style = ui.style().visuals.widgets.active;
+  let bg_color = style.bg_fill;
+  let handle_color = style.fg_stroke.color;
+  ui.painter()
+    .rect_filled(bar.rect, style.corner_radius, bg_color);
+
+  let bar_size = if vertical {
+    bar.rect.height()
+  } else {
+    bar.rect.width()
+  };
+  let handle_size_n = available_size / total;
+  let handle_size = handle_size_n * bar_size;
+  let handle_offset = (scroll_pos / total) * bar_size;
+  let handle_rect = if vertical {
+    Rect {
+      min: Pos2::new(bar.rect.left(), bar.rect.top() + handle_offset),
+      max: Pos2::new(
+        bar.rect.right(),
+        bar.rect.top() + handle_offset + handle_size,
+      ),
+    }
+  } else {
+    Rect {
+      min: Pos2::new(bar.rect.left() + handle_offset, bar.rect.top()),
+      max: Pos2::new(
+        bar.rect.left() + handle_offset + handle_size,
+        bar.rect.bottom(),
+      ),
+    }
+  };
+  let resp = ui.allocate_rect(handle_rect, Sense::drag());
+  ui.painter()
+    .rect_filled(handle_rect, style.corner_radius, handle_color);
+
+  let max_scroll = total - available_size;
+  if resp.dragged() {
+    let delta = if vertical {
+      resp.drag_delta().y
+    } else {
+      resp.drag_delta().x
+    };
+    (scroll_pos + delta / bar_size * total).clamp(0.0, max_scroll)
+  } else if bar.clicked()
+    && let Some(pos) = bar.interact_pointer_pos()
+  {
+    let diff = if vertical {
+      pos.y - handle_rect.center().y
+    } else {
+      pos.x - handle_rect.center().x
+    };
+    (scroll_pos + diff / bar_size * total).clamp(0.0, max_scroll)
+  } else {
+    scroll_pos
+  }
+}
+
 impl Timeline {
-  pub fn update(&mut self, app: &KsngApp, ui: &mut Ui) {
+  pub fn update(&mut self, app: &KsngContext, ui: &mut Ui) {
     let zoom_delta = ui.input_mut(|input| {
       if input.modifiers.alt {
         Vec2::new(0.0, input.zoom_delta() - 1.0)
@@ -167,443 +251,533 @@ impl Timeline {
 
     let mut track_clicked = false;
 
-    ScrollArea::vertical().auto_shrink(false).show(ui, |ui| {
-      let project = app.project.borrow();
-      if project.is_none() {
-        return;
+    let project = app.project.borrow();
+    if project.is_none() {
+      return;
+    }
+    let project = project.as_ref().unwrap();
+
+    ui.spacing_mut().item_spacing = Vec2::ZERO;
+    ui.spacing_mut().indent = 0.0;
+
+    let max_rect = ui.max_rect();
+    let available_width = max_rect.width();
+    let required_width = pixels_per_second * project.file.calculate_length().to_seconds();
+    let has_h_scroll = required_width > available_width;
+    let available_height = max_rect.height() - if has_h_scroll { SCROLL_BAR_SIZE } else { 0.0 };
+    let required_height = (track_height + TRACK_OUTER_PADDING) * project.file.tracks.len() as f32;
+    let has_v_scroll = required_height > available_height;
+
+    let scroll_y = if has_v_scroll {
+      update_scroll(ui, max_rect, self.scroll.y, required_height, true)
+    } else {
+      0.0
+    };
+
+    let mut track_y = -scroll_y;
+    for track in &project.file.tracks {
+      let mut frame = Frame::new()
+        .corner_radius(0)
+        .outer_margin(Margin::symmetric(0, TRACK_INNER_PADDING))
+        .fill(color_for_track_type(track.track_type));
+
+      if app.selection.is_track_selected(track.id) {
+        frame = frame.stroke(Stroke::new(1.0_f32, Color32::WHITE));
+      } else {
+        frame = frame.stroke(Stroke::new(
+          1.0_f32,
+          Color32::from_rgba_premultiplied(0, 0, 0, 0),
+        ));
       }
-      let project = project.as_ref().unwrap();
 
-      ui.spacing_mut().item_spacing = Vec2::ZERO;
-      ui.spacing_mut().indent = 0.0;
+      let track_rect = Rect {
+        min: Pos2::new(max_rect.left(), max_rect.top() + track_y),
+        max: Pos2::new(
+          max_rect.left() + TRACK_HEADER_WIDTH,
+          max_rect.top() + track_y + track_height,
+        ),
+      };
 
-      Panel::left(Id::new("timeline#headers"))
-        .frame(Frame::side_top_panel(ui.style()))
-        .show(ui, |ui| {
-          for track in &project.file.tracks {
-            let mut frame = Frame::new()
-              .corner_radius(0)
-              .outer_margin(Margin::symmetric(0, TRACK_INNER_PADDING))
-              .fill(color_for_track_type(track.track_type));
+      track_y += track_height + TRACK_OUTER_PADDING;
 
-            if app.selection.is_track_selected(track.id) {
-              frame = frame.stroke(Stroke::new(1.0_f32, Color32::WHITE));
+      let scope = UiBuilder::new().max_rect(track_rect);
+      let mut buttons_clicked = false;
+      let res = ui.scope_builder(scope, |ui| {
+        frame.show(ui, |ui| {
+          ui.set_height(track_height);
+          ui.set_width(TRACK_HEADER_WIDTH);
+          ui.style_mut().visuals.override_text_color = Some(Color32::WHITE);
+          let rect = ui.max_rect();
+          let contents_rect = Rect {
+            min: Pos2::new(rect.min.x + 2.0, rect.min.y + 2.0),
+            max: Pos2::new(rect.max.x - 2.0, rect.max.y - 2.0),
+          };
+          let mut child_ui = ui.new_child(UiBuilder::new().max_rect(contents_rect));
+          Sides::new().show(
+            &mut child_ui,
+            |ui| {
+              ui.inert_heading(format!("{:?}", track.track_type));
+            },
+            |ui| {
+              let settings_button = Button::image(icons::GEAR);
+              if ui
+                .add_sized(Vec2::new(20.0, 20.0), settings_button)
+                .clicked()
+              {
+                app.windows.add(TrackConfigWindow::new(track));
+                buttons_clicked = true;
+              }
+
+              ui.add_space(2.0);
+
+              if let Some(TrackValue::Audio(audio)) = &track.track_value {
+                let mut mute_button = Button::image(if audio.muted {
+                  icons::VOLUME_OFF
+                } else {
+                  icons::VOLUME
+                });
+
+                if audio.muted {
+                  mute_button = mute_button.image_tint_follows_text_color(true);
+                  ui.visuals_mut().override_text_color = Some(Color32::RED);
+                }
+
+                if ui.add_sized(Vec2::new(20.0, 20.0), mute_button).clicked() {
+                  app.commands.dispatch(MuteTrackCommand::new(track));
+                  buttons_clicked = true;
+                }
+              }
+
+              if track.track_type == TrackType::Lyrics
+                && ui
+                  .add_sized(Vec2::new(20.0, 20.0), Button::image(icons::SYNC))
+                  .clicked()
+              {
+                app.windows.add(SyncWindow::new(track.id));
+                buttons_clicked = true;
+              }
+            },
+          );
+        })
+      });
+
+      let header_clicked = !buttons_clicked
+        && ui.input(|input| {
+          input.pointer.button_clicked(PointerButton::Primary)
+            && res
+              .response
+              .rect
+              .contains(input.pointer.interact_pos().unwrap())
+        });
+
+      if header_clicked {
+        let single = !ui.input(|i| i.modifiers.shift);
+        app.selection.select_track(track.id, single);
+        track_clicked = true;
+      }
+    }
+
+    let mut rest_rect = Rect {
+      min: Pos2::new(
+        max_rect.left() + TRACK_HEADER_WIDTH + TRACK_OUTER_PADDING,
+        max_rect.top(),
+      ),
+      max: Pos2::new(
+        max_rect.right() - if has_v_scroll { SCROLL_BAR_SIZE } else { 0.0 },
+        max_rect.bottom(),
+      ),
+    };
+
+    let scroll_x = if has_h_scroll {
+      update_scroll(ui, rest_rect, self.scroll.x, required_width, false)
+    } else {
+      0.0
+    };
+
+    rest_rect.max.y -= if has_h_scroll { SCROLL_BAR_SIZE } else { 0.0 };
+
+    self.scroll = Vec2::new(scroll_x, scroll_y);
+
+    let scope = UiBuilder::new().max_rect(rest_rect);
+    ui.scope_builder(scope, |ui| {
+      let max_rect = ui.max_rect();
+      ui.set_clip_rect(max_rect);
+
+      // Set playhead rect and check for interactions before checking
+      // event interactions.
+      let playhead_pos = app.playback.borrow().position().to_seconds() * pixels_per_second;
+      let playhead_pos2 = Pos2::new(max_rect.min.x + playhead_pos, max_rect.top());
+
+      // Update playhead state.
+      let scrub_rect = Rect {
+        min: Pos2::new(playhead_pos2.x - SCRUB_AREA / 2.0, playhead_pos2.y),
+        max: Pos2::new(playhead_pos2.x + SCRUB_AREA / 2.0, max_rect.bottom()),
+      };
+
+      if let Some(mouse_pos) = mouse_pos {
+        if self.state == TimelineUiState::Idle && scrub_rect.contains(mouse_pos) {
+          ui.input(|input| {
+            if input.pointer.primary_pressed() {
+              self.state = TimelineUiState::Scrubbing;
+            }
+          });
+        } else if self.state == TimelineUiState::Scrubbing {
+          ui.input(|input| {
+            if !input.pointer.primary_down() {
+              self.state = TimelineUiState::Idle;
+            }
+          });
+        } else if self.state == TimelineUiState::Idle {
+          ui.input(|input| {
+            if input.pointer.primary_pressed() && ui.max_rect().contains(mouse_pos) {
+              self.state = TimelineUiState::Pending;
+              self.mouse_down_last_pos = mouse_pos;
+            }
+          });
+        }
+      } else if self.state != TimelineUiState::Idle {
+        self.state = TimelineUiState::Idle;
+      }
+
+      if !self.is_dragging {
+        self.drag_state = None;
+      }
+
+      let multiselect_box = if self.state == TimelineUiState::Multiselect
+        && let Some(mouse_pos) = mouse_pos
+      {
+        Rect::from_points(&[mouse_pos, self.mouse_down_last_pos])
+      } else {
+        Rect::ZERO
+      };
+      let mut multiselect_events = Vec::new();
+      let mut pointer_over = None;
+
+      let visible_start = Timecode::from_seconds(scroll_x / pixels_per_second);
+      let visible_end = Timecode::from_seconds((available_width + scroll_x) / pixels_per_second);
+
+      let mut track_y = -scroll_y + TRACK_INNER_PADDING as f32;
+      for track in &project.file.tracks {
+        for ev in track.events.events_in_range((visible_start, visible_end)) {
+          let (mut start, mut end) = (ev.start_timecode, ev.end_timecode);
+          if let Some(drag_state) = self.drag_state.as_ref()
+            && let Some(idx) = drag_state.events.iter().position(|e| *e == ev.id)
+          {
+            start = drag_state.timings[idx].0;
+            end = drag_state.timings[idx].1;
+          }
+
+          let ofs = max_rect.left() - scroll_x;
+          let start_x = ofs + start.to_seconds() * pixels_per_second;
+          let end_x = ofs + end.to_seconds() * pixels_per_second;
+
+          let width = (end_x - start_x).max(1.0);
+          let ev_rect = Rect {
+            min: Pos2::new(start_x, max_rect.top() + track_y),
+            max: Pos2::new(
+              start_x + width,
+              max_rect.top() + track_y + track_height + TRACK_INNER_PADDING as f32,
+            ),
+          };
+
+          if ev_rect.intersects(multiselect_box) {
+            multiselect_events.push(ev.id);
+          }
+
+          let response = ui.allocate_rect(ev_rect, Sense::click_and_drag());
+
+          if response.contains_pointer() {
+            pointer_over = Some(ev.id);
+          }
+
+          if self.drag_state.is_none() {
+            let is_touching_start = if let Some(mouse_pos) = mouse_pos
+              && mouse_pos.y >= ev_rect.min.y
+              && mouse_pos.y < ev_rect.max.y
+              && (start_x - mouse_pos.x).abs() < EVENT_HANDLE_WIDTH
+            {
+              true
             } else {
-              frame = frame.stroke(Stroke::new(
-                1.0_f32,
-                Color32::from_rgba_premultiplied(0, 0, 0, 0),
+              false
+            };
+            let is_touching_end = if let Some(mouse_pos) = mouse_pos
+              && mouse_pos.y >= ev_rect.min.y
+              && mouse_pos.y < ev_rect.max.y
+              && (end_x - mouse_pos.x).abs() < EVENT_HANDLE_WIDTH
+            {
+              true
+            } else {
+              false
+            };
+
+            let drag_type = if is_touching_start {
+              ui.ctx().set_cursor_icon(CursorIcon::ResizeEast);
+              Some(DragType::Start)
+            } else if is_touching_end {
+              ui.ctx().set_cursor_icon(CursorIcon::ResizeWest);
+              Some(DragType::End)
+            } else if response.contains_pointer() {
+              ui.ctx().set_cursor_icon(CursorIcon::Grab);
+              Some(DragType::MoveEvent)
+            } else {
+              None
+            };
+
+            if let Some(drag_type) = drag_type {
+              let mut events = vec![ev.id];
+              if drag_type == DragType::MoveEvent && app.selection.selected_events().len() > 1 {
+                for ev in app.selection.selected_events() {
+                  events.push(ev);
+                }
+              }
+
+              self.drag_state = Some(DragState::new(project, drag_type, events));
+            }
+          }
+
+          /*if response.clicked() && self.state == TimelineUiState::Idle {
+            app.selection.select_event(ev.id, !is_shift);
+          }*/
+
+          let color = colors::color_for_event_type(ev.event_type);
+          let stroke_color = if app.selection.is_event_selected(ev.id) {
+            colors::SELECTED_COLOR
+          } else {
+            colors::darkened_color_for_event_type(ev.event_type)
+          };
+
+          ui.painter().rect_filled(ev_rect, 0, color);
+
+          if ev.event_type == EventType::AudioClip
+            && let Some(cache) = app.waveforms.borrow().get_waveform(&project.file, ev)
+          {
+            Self::draw_audio_event(ui, app, ev, ev_rect, pixels_per_second, ofs, cache);
+          }
+
+          ui.painter().rect_stroke(
+            ev_rect,
+            0,
+            Stroke::new(1.0_f32, stroke_color),
+            StrokeKind::Inside,
+          );
+
+          if width > 5.0 {
+            self.draw_event_text(ui, &project.file, ev, &ev_rect);
+          }
+        }
+
+        track_y += track_height + TRACK_OUTER_PADDING;
+      }
+
+      // handle mouse up
+      if let Some(mouse_pos) = mouse_pos {
+        ui.input(|input| {
+          if !input.pointer.primary_released() {
+            return;
+          }
+
+          if self.state == TimelineUiState::Pending {
+            let dist = mouse_pos.distance(self.mouse_down_last_pos);
+            if dist < 1.5 {
+              if let Some(over_id) = pointer_over {
+                // select event
+                app.selection.select_event(over_id, !is_shift);
+                self.state = TimelineUiState::Idle;
+              } else {
+                app.selection.clear_events();
+                if ui.max_rect().contains(mouse_pos) {
+                  // scrub to pos
+                  self.state = TimelineUiState::Scrubbing;
+                }
+              }
+            } else {
+              self.state = TimelineUiState::Idle;
+            }
+          } else if self.state == TimelineUiState::Multiselect {
+            app.selection.clear_events();
+            for ev in multiselect_events {
+              app.selection.select_event(ev, false);
+            }
+            self.state = TimelineUiState::Idle;
+          } else if self.state == TimelineUiState::Dragging {
+            if let Some(drag_state) = &self.drag_state {
+              app.commands.dispatch(SetEventTimingsCommand::new(
+                &drag_state.events,
+                &drag_state.timings,
               ));
             }
-
-            let mut buttons_clicked = false;
-            let res = frame.show(ui, |ui| {
-              ui.set_height(track_height);
-              ui.set_width(TRACK_HEADER_WIDTH);
-              ui.style_mut().visuals.override_text_color = Some(Color32::WHITE);
-              let rect = ui.max_rect();
-              let contents_rect = Rect {
-                min: Pos2::new(rect.min.x + 2.0, rect.min.y + 2.0),
-                max: Pos2::new(rect.max.x - 2.0, rect.max.y - 2.0),
-              };
-              let mut child_ui = ui.new_child(UiBuilder::new().max_rect(contents_rect));
-              Sides::new().show(
-                &mut child_ui,
-                |ui| {
-                  ui.inert_heading(format!("{:?}", track.track_type));
-                },
-                |ui| {
-                  let settings_button = Button::image(icons::GEAR);
-                  if ui
-                    .add_sized(Vec2::new(20.0, 20.0), settings_button)
-                    .clicked()
-                  {
-                    app.windows.add(TrackConfigWindow::new(track));
-                    buttons_clicked = true;
-                  }
-
-                  ui.add_space(2.0);
-
-                  if let Some(TrackValue::Audio(audio)) = &track.track_value {
-                    let mut mute_button = Button::image(if audio.muted {
-                      icons::VOLUME_OFF
-                    } else {
-                      icons::VOLUME
-                    });
-
-                    if audio.muted {
-                      mute_button = mute_button.image_tint_follows_text_color(true);
-                      ui.visuals_mut().override_text_color = Some(Color32::RED);
-                    }
-
-                    if ui.add_sized(Vec2::new(20.0, 20.0), mute_button).clicked() {
-                      app.commands.dispatch(MuteTrackCommand::new(track));
-                      buttons_clicked = true;
-                    }
-                  }
-
-                  if track.track_type == TrackType::Lyrics
-                    && ui
-                      .add_sized(Vec2::new(20.0, 20.0), Button::image(icons::SYNC))
-                      .clicked()
-                  {
-                    app.windows.add(SyncWindow::new(track.id));
-                    buttons_clicked = true;
-                  }
-                },
-              );
-            });
-
-            let header_clicked = !buttons_clicked
-              && ui.input(|input| {
-                input.pointer.button_clicked(PointerButton::Primary)
-                  && res
-                    .response
-                    .rect
-                    .contains(input.pointer.interact_pos().unwrap())
-              });
-
-            if header_clicked {
-              let single = !ui.input(|i| i.modifiers.shift);
-              app.selection.select_track(track.id, single);
-              track_clicked = true;
-            }
+            self.is_dragging = false;
+            self.drag_state = None;
+            self.state = TimelineUiState::Idle;
           }
-        });
+        })
+      }
 
-      CentralPanel::default()
-        .frame(Frame::side_top_panel(ui.style()))
-        .show(ui, |ui| {
-          let mut scroll_source = ScrollSource::ALL;
-          scroll_source.drag = egui::scroll_area::DragScroll::Never;
+      // Draw playhead
+      ui.painter().rect_filled(
+        Rect {
+          min: Pos2::new(playhead_pos2.x - 0.5, playhead_pos2.y),
+          max: Pos2::new(playhead_pos2.x + 0.5, max_rect.bottom()),
+        },
+        0,
+        colors::PLAYHEAD_COLOR,
+      );
 
-          let res: egui::scroll_area::ScrollAreaOutput<()> = ScrollArea::horizontal()
-            .auto_shrink(false)
-            .animated(false)
-            .scroll_source(scroll_source)
-            .horizontal_scroll_offset(self.horiz_scroll_offset)
-            .show_viewport(ui, |ui, viewport_rect| {
-              // Set playhead rect and check for interactions before checking
-              // event interactions.
-              let playhead_rect = ui.max_rect();
-              let playhead_pos = app.playback.borrow().position().to_seconds() * pixels_per_second;
-              let playhead_pos2 =
-                Pos2::new(playhead_rect.min.x + playhead_pos, playhead_rect.min.y);
+      let mut mesh = egui::Mesh::default();
+      mesh.colored_vertex(
+        Pos2::new(playhead_pos2.x - 5.0, playhead_pos2.y),
+        colors::PLAYHEAD_TOP_COLOR,
+      );
+      mesh.colored_vertex(
+        Pos2::new(playhead_pos2.x + 5.0, playhead_pos2.y),
+        colors::PLAYHEAD_TOP_COLOR,
+      );
+      mesh.colored_vertex(
+        Pos2::new(playhead_pos2.x, playhead_pos2.y + 10.0),
+        colors::PLAYHEAD_TOP_COLOR,
+      );
+      mesh.add_triangle(0, 1, 2);
+      ui.painter().add(egui::Shape::mesh(mesh));
 
-              // Update playhead state.
-              let scrub_rect = Rect {
-                min: Pos2::new(playhead_pos2.x - SCRUB_AREA / 2.0, playhead_pos2.y),
-                max: Pos2::new(playhead_pos2.x + SCRUB_AREA / 2.0, playhead_rect.max.y),
-              };
+      // draw box select
+      if self.state == TimelineUiState::Multiselect
+        && let Some(mouse_pos) = mouse_pos
+      {
+        ui.painter().rect_stroke(
+          Rect::from_points(&[self.mouse_down_last_pos, mouse_pos]),
+          0,
+          Stroke::new(2.0_f32, colors::SELECTED_COLOR),
+          StrokeKind::Middle,
+        );
+      }
 
-              if let Some(mouse_pos) = mouse_pos {
-                if self.state == TimelineUiState::Idle && scrub_rect.contains(mouse_pos) {
-                  ui.input(|input| {
-                    if input.pointer.primary_down() {
-                      self.state = TimelineUiState::Scrubbing;
-                    }
-                  });
-                } else if self.state == TimelineUiState::Scrubbing {
-                  ui.input(|input| {
-                    if !input.pointer.primary_down() {
-                      self.state = TimelineUiState::Idle;
-                    }
-                  });
-                } else if self.state == TimelineUiState::Idle {
-                  ui.input(|input| {
-                    if input.pointer.primary_down() && ui.max_rect().contains(mouse_pos) {
-                      self.state = TimelineUiState::Pending;
-                      self.mouse_down_last_pos = mouse_pos;
-                    }
-                  });
-                }
-              } else if self.state != TimelineUiState::Idle {
-                self.state = TimelineUiState::Idle;
-              }
+      if self.state == TimelineUiState::Pending
+        && let Some(mouse_pos) = mouse_pos
+        && ui.max_rect().contains(mouse_pos)
+      {
+        let dist = mouse_pos.distance(self.mouse_down_last_pos);
+        if dist > 1.5 {
+          self.state = if self.drag_state.is_some() {
+            self.is_dragging = true;
+            self.drag_start_s = Timecode::from_seconds(
+              (mouse_pos.x - max_rect.left() + scroll_x) / pixels_per_second,
+            );
+            TimelineUiState::Dragging
+          } else {
+            TimelineUiState::Multiselect
+          };
+        }
+      }
 
-              if !self.is_dragging {
-                self.drag_state = None;
-              }
+      // Try repositioning the scroll area to put the cursor where it was
+      // before the zoom.
+      if let Some(cursor_pos) = ui.input(|input| input.pointer.latest_pos()) {
+        let content_pos_x = cursor_pos.x - max_rect.left() + scroll_x;
+        let cursor_pos_s = content_pos_x / pixels_per_second;
+        if (self.zoom.x - prev_zoom.x).abs() > 0.0 && max_rect.contains(cursor_pos) {
+          let prev_pps = PIXELS_PER_SECOND * prev_zoom.x;
+          let prev_pos_s = content_pos_x / prev_pps;
+          let new_pos_s = content_pos_x / pixels_per_second;
+          let diff_pixels = (new_pos_s - prev_pos_s) * pixels_per_second;
+          self.scroll.x -= diff_pixels;
+          self.scroll.x = self.scroll.x.max(0.0);
+        } else if self.state == TimelineUiState::Scrubbing && !track_clicked {
+          app
+            .playback
+            .borrow_mut()
+            .seek(Timecode::from_seconds(cursor_pos_s));
+        }
 
-              let multiselect_box = if self.state == TimelineUiState::Multiselect
-                && let Some(mouse_pos) = mouse_pos
-              {
-                Rect::from_points(&[mouse_pos, self.mouse_down_last_pos])
-              } else {
-                Rect::ZERO
-              };
-              let mut multiselect_events = Vec::new();
-              let mut pointer_over = None;
-              for track in &project.file.tracks {
-                let len = track
-                  .events
-                  .iter()
-                  .max_by_key(|e| e.end_timecode)
-                  .map(|ev| ev.end_timecode)
-                  .unwrap_or_default();
-                let width = len.to_seconds() * pixels_per_second;
-                let (_id, rect) = ui.allocate_space(Vec2::new(
-                  width,
-                  track_height + TRACK_INNER_PADDING as f32 * 3.0,
-                ));
-                let visible_len = Timecode::from_seconds(viewport_rect.width() / pixels_per_second);
-                let visible_start = Timecode::from_seconds(viewport_rect.min.x / pixels_per_second);
-
-                for ev in track
-                  .events
-                  .events_in_range((visible_start, visible_start + visible_len))
-                {
-                  let (mut start, mut end) = (ev.start_timecode, ev.end_timecode);
-                  if let Some(drag_state) = self.drag_state.as_ref()
-                    && let Some(idx) = drag_state.events.iter().position(|e| *e == ev.id)
-                  {
-                    start = drag_state.timings[idx].0;
-                    end = drag_state.timings[idx].1;
-                  }
-
-                  let start_x = start.to_seconds() * pixels_per_second + rect.min.x;
-                  let end_x = end.to_seconds() * pixels_per_second + rect.min.x;
-                  let width = (end_x - start_x).max(1.0);
-                  let rect = Rect {
-                    min: Pos2::new(start_x, rect.min.y + TRACK_INNER_PADDING as f32),
-                    max: Pos2::new(start_x + width, rect.max.y - TRACK_INNER_PADDING as f32),
-                  };
-
-                  if rect.intersects(multiselect_box) {
-                    multiselect_events.push(ev.id);
-                  }
-
-                  let response = ui.allocate_rect(rect, Sense::click_and_drag());
-
-                  if response.contains_pointer() {
-                    pointer_over = Some(ev.id);
-                  }
-
-                  if self.drag_state.is_none() {
-                    let is_touching_start = if let Some(mouse_pos) = mouse_pos
-                      && mouse_pos.y >= rect.min.y
-                      && mouse_pos.y < rect.max.y
-                      && (start_x - mouse_pos.x).abs() < EVENT_HANDLE_WIDTH
-                    {
-                      true
-                    } else {
-                      false
-                    };
-                    let is_touching_end = if let Some(mouse_pos) = mouse_pos
-                      && mouse_pos.y >= rect.min.y
-                      && mouse_pos.y < rect.max.y
-                      && (end_x - mouse_pos.x).abs() < EVENT_HANDLE_WIDTH
-                    {
-                      true
-                    } else {
-                      false
-                    };
-
-                    let drag_type = if is_touching_start {
-                      ui.ctx().set_cursor_icon(CursorIcon::ResizeEast);
-                      Some(DragType::Start)
-                    } else if is_touching_end {
-                      ui.ctx().set_cursor_icon(CursorIcon::ResizeWest);
-                      Some(DragType::End)
-                    } else if response.contains_pointer() {
-                      ui.ctx().set_cursor_icon(CursorIcon::Grab);
-                      Some(DragType::MoveEvent)
-                    } else {
-                      None
-                    };
-
-                    if let Some(drag_type) = drag_type {
-                      let mut events = vec![ev.id];
-                      if drag_type == DragType::MoveEvent
-                        && app.selection.selected_events().len() > 1
-                      {
-                        for ev in app.selection.selected_events() {
-                          events.push(ev);
-                        }
-                      }
-
-                      self.drag_state = Some(DragState::new(project, drag_type, events));
-                    }
-                  }
-
-                  /*if response.clicked() && self.state == TimelineUiState::Idle {
-                    app.selection.select_event(ev.id, !is_shift);
-                  }*/
-
-                  let color = colors::color_for_event_type(ev.event_type);
-                  let stroke_color = if app.selection.is_event_selected(ev.id) {
-                    colors::SELECTED_COLOR
-                  } else {
-                    colors::darkened_color_for_event_type(ev.event_type)
-                  };
-
-                  ui.painter().rect_filled(rect, 0, color);
-
-                  if ev.event_type == EventType::AudioClip
-                    && let Some(image) = app.waveforms.borrow().get_image(ev)
-                  {
-                    let image = egui::Image::new(ImageSource::Uri(image.as_ref().into()))
-                      .texture_options(TextureOptions::NEAREST)
-                      .tint(Color32::from_black_alpha(127));
-                    image.paint_at(ui, rect);
-                  }
-
-                  ui.painter().rect_stroke(
-                    rect,
-                    0,
-                    Stroke::new(1.0_f32, stroke_color),
-                    StrokeKind::Inside,
-                  );
-
-                  if width > 5.0 {
-                    self.draw_event_text(ui, ev, &rect);
-                  }
-                }
-              }
-
-              // handle mouse up
-              if let Some(mouse_pos) = mouse_pos {
-                ui.input(|input| {
-                  if !input.pointer.primary_released() {
-                    return;
-                  }
-
-                  if self.state == TimelineUiState::Pending {
-                    let dist = mouse_pos.distance(self.mouse_down_last_pos);
-                    if dist < 1.5 {
-                      if let Some(over_id) = pointer_over {
-                        // select event
-                        app.selection.select_event(over_id, !is_shift);
-                        self.state = TimelineUiState::Idle;
-                      } else {
-                        app.selection.clear_events();
-                        if ui.max_rect().contains(mouse_pos) {
-                          // scrub to pos
-                          self.state = TimelineUiState::Scrubbing;
-                        }
-                      }
-                    } else {
-                      self.state = TimelineUiState::Idle;
-                    }
-                  } else if self.state == TimelineUiState::Multiselect {
-                    app.selection.clear_events();
-                    for ev in multiselect_events {
-                      app.selection.select_event(ev, false);
-                    }
-                    self.state = TimelineUiState::Idle;
-                  } else if self.state == TimelineUiState::Dragging {
-                    if let Some(drag_state) = &self.drag_state {
-                      app.commands.dispatch(SetEventTimingsCommand::new(
-                        &drag_state.events,
-                        &drag_state.timings,
-                      ));
-                    }
-                    self.is_dragging = false;
-                    self.drag_state = None;
-                    self.state = TimelineUiState::Idle;
-                  }
-                })
-              }
-
-              // Draw playhead
-              ui.painter().rect_filled(
-                Rect {
-                  min: Pos2::new(playhead_pos2.x - 0.5, playhead_pos2.y),
-                  max: Pos2::new(playhead_pos2.x + 0.5, playhead_rect.max.y),
-                },
-                0,
-                colors::PLAYHEAD_COLOR,
-              );
-
-              let mut mesh = egui::Mesh::default();
-              mesh.colored_vertex(
-                Pos2::new(playhead_pos2.x - 5.0, playhead_pos2.y),
-                colors::PLAYHEAD_TOP_COLOR,
-              );
-              mesh.colored_vertex(
-                Pos2::new(playhead_pos2.x + 5.0, playhead_pos2.y),
-                colors::PLAYHEAD_TOP_COLOR,
-              );
-              mesh.colored_vertex(
-                Pos2::new(playhead_pos2.x, playhead_pos2.y + 10.0),
-                colors::PLAYHEAD_TOP_COLOR,
-              );
-              mesh.add_triangle(0, 1, 2);
-              ui.painter().add(egui::Shape::mesh(mesh));
-
-              // draw box select
-              if self.state == TimelineUiState::Multiselect
-                && let Some(mouse_pos) = mouse_pos
-              {
-                ui.painter().rect_stroke(
-                  Rect::from_points(&[self.mouse_down_last_pos, mouse_pos]),
-                  0,
-                  Stroke::new(2.0_f32, colors::SELECTED_COLOR),
-                  StrokeKind::Middle,
-                );
-              }
-            });
-
-          self.horiz_scroll_offset = res.state.offset.x;
-
-          if self.state == TimelineUiState::Pending
-            && let Some(mouse_pos) = mouse_pos
-            && ui.max_rect().contains(mouse_pos)
-          {
-            let dist = mouse_pos.distance(self.mouse_down_last_pos);
-            if dist > 1.5 {
-              self.state = if self.drag_state.is_some() {
-                self.is_dragging = true;
-                self.drag_start_s = Timecode::from_seconds(
-                  (mouse_pos.x - res.inner_rect.min.x + self.horiz_scroll_offset)
-                    / pixels_per_second,
-                );
-                TimelineUiState::Dragging
-              } else {
-                TimelineUiState::Multiselect
-              };
-            }
-          }
-
-          // Try repositioning the scroll area to put the cursor where it was
-          // before the zoom.
-          if let Some(cursor_pos) = ui.input(|input| input.pointer.latest_pos()) {
-            let content_pos_x = cursor_pos.x - res.inner_rect.min.x + self.horiz_scroll_offset;
-            let cursor_pos_s = content_pos_x / pixels_per_second;
-            if (self.zoom.x - prev_zoom.x).abs() > 0.0 && res.inner_rect.contains(cursor_pos) {
-              let prev_pps = PIXELS_PER_SECOND * prev_zoom.x;
-              let prev_pos_s = content_pos_x / prev_pps;
-              let new_pos_s = content_pos_x / pixels_per_second;
-              let diff_pixels = (new_pos_s - prev_pos_s) * pixels_per_second;
-              self.horiz_scroll_offset -= diff_pixels;
-            } else if self.state == TimelineUiState::Scrubbing && !track_clicked {
-              app
-                .playback
-                .borrow_mut()
-                .seek(Timecode::from_seconds(cursor_pos_s));
-            }
-
-            if self.is_dragging {
-              self.update_drag(
-                project,
-                pixels_per_second,
-                Timecode::from_seconds(cursor_pos_s),
-                app.playback.borrow().position(),
-              );
-            }
-          }
-        });
+        if self.is_dragging {
+          self.update_drag(
+            project,
+            pixels_per_second,
+            Timecode::from_seconds(cursor_pos_s),
+            app.playback.borrow().position(),
+          );
+        }
+      }
     });
   }
 
-  fn draw_event_text(&mut self, ui: &mut Ui, event: &Event, rect: &Rect) {
+  fn draw_event_text(&mut self, ui: &mut Ui, file: &File, event: &Event, rect: &Rect) {
     match self.event_text.entry(event.id) {
       Entry::Occupied(entry) => Self::draw_event_text_impl(ui, rect, entry.get().as_ref()),
       Entry::Vacant(entry) => Self::draw_event_text_impl(
         ui,
         rect,
-        entry.insert(Self::create_event_text(event)).as_ref(),
+        entry.insert(Self::create_event_text(file, event)).as_ref(),
       ),
     }
+  }
+
+  fn draw_audio_event(
+    ui: &mut Ui,
+    app: &KsngContext,
+    ev: &Event,
+    ev_rect: Rect,
+    pixels_per_second: f32,
+    ofs: f32,
+    cache: Arc<RwLock<WaveformCache>>,
+  ) {
+    let mut cache_ref = cache.write().unwrap();
+    let Some(info) = app.logger.wrap(cache_ref.info()) else {
+      return;
+    };
+    let audio_offset = match &ev.value {
+      Some(EventValue::AudioClip { offset, .. }) => offset.to_seconds(),
+      _ => 0.0,
+    };
+    let mut mip_level = info.levels - 1;
+    let visible_ev_rect = ev_rect.intersect(ui.max_rect());
+    for (level, pxs) in info.pixel_to_s.iter().enumerate() {
+      let seconds_per_pixel = 1.0 / pixels_per_second;
+      if seconds_per_pixel >= *pxs {
+        mip_level = level;
+        break;
+      }
+    }
+    // pixel_to_s means one pixel in this mip level is equal to this many
+    // seconds of audio
+    let pixel_to_s = info.pixel_to_s[mip_level];
+    let imgs_per_level = info.imgs_per_level[mip_level];
+    let duration = info.duration;
+    drop(cache_ref);
+    let image_duration = pixel_to_s * waveform::MAX_TEXTURE_SIZE as f32;
+    // we know that all of the images span from ev_rect.left() to
+    // ev_rect.right() and that each individual image takes
+    // up pixel_to_s * MAX_TEXTURE_SIZE of time so image 0
+    // takes up (pxs * max) to 2 * (pxs * max) and so on
+    let prev_clip_rect = ui.clip_rect();
+    ui.set_clip_rect(prev_clip_rect.intersect(visible_ev_rect));
+    for i in 0..imgs_per_level {
+      let start_s = image_duration * i as f32;
+      let end_s = (image_duration * (i as f32 + 1.0)).min(duration);
+      let start_x = (start_s - audio_offset) * pixels_per_second;
+      let end_x = (end_s - audio_offset) * pixels_per_second;
+      let img_rect = Rect {
+        min: Pos2::new(start_x + ofs, ev_rect.top()),
+        max: Pos2::new(end_x + ofs, ev_rect.bottom()),
+      };
+      if !img_rect.intersects(ui.max_rect()) {
+        continue;
+      }
+
+      if let Some((uri, bytes)) = app
+        .logger
+        .wrap(cache.write().unwrap().load_entry(mip_level, i))
+      {
+        let image = egui::Image::new(ImageSource::Bytes {
+          uri: uri.into(),
+          bytes,
+        })
+        .texture_options(TextureOptions::NEAREST)
+        .show_loading_spinner(false)
+        .tint(Color32::from_black_alpha(127));
+        image.paint_at(ui, img_rect);
+      }
+    }
+    ui.set_clip_rect(prev_clip_rect);
   }
 
   fn draw_event_text_impl(ui: &mut Ui, rect: &Rect, text: &str) {
@@ -618,7 +792,7 @@ impl Timeline {
     );
   }
 
-  fn create_event_text(event: &Event) -> String {
+  fn create_event_text(file: &File, event: &Event) -> String {
     let name = match event.event_type {
       EventType::Lyric => "Lyric",
       EventType::LineBreak => "LineBreak",
@@ -627,7 +801,7 @@ impl Timeline {
       EventType::Image => "Image",
     }
     .to_owned();
-    if let Some(s) = event.description() {
+    if let Some(s) = event.description(file) {
       if event.event_type == EventType::Lyric {
         format!("{name}\n'{s}'")
       } else {

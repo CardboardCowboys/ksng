@@ -3,7 +3,7 @@ use std::time::Instant;
 use klib::timecode::Timecode;
 
 use crate::{
-  KsngApp,
+  KsngContext,
   audio::{config::AudioConfig, mixer::AudioMixer},
   util::logger::Logger,
 };
@@ -34,7 +34,7 @@ impl Playback {
     }
   }
 
-  pub fn on_audio_change(&mut self, app: &KsngApp) {
+  pub fn on_audio_change(&mut self, app: &KsngContext) {
     if let Some(project) = app.project.borrow().as_ref() {
       self.logger.wrap(self.mixer.update_streams(project));
     } else {
@@ -43,7 +43,7 @@ impl Playback {
     }
   }
 
-  pub fn on_audio_device_change(&mut self, app: &KsngApp) {
+  pub fn on_audio_device_change(&mut self, app: &KsngContext) {
     let pos = self.mixer.position();
     self.logger.wrap(
       self
@@ -77,6 +77,10 @@ impl Playback {
   }
 
   pub fn update_state(&mut self, new_state: PlaybackState) {
+    // Restart from the beginning if we're trying to play at the end.
+    if self.state == PlaybackState::Stopped && self.is_ended() {
+      self.mixer.seek(Timecode(0));
+    }
     match new_state {
       PlaybackState::Stopped => self.mixer.pause(),
       PlaybackState::Playing => self.mixer.play(),
@@ -94,5 +98,15 @@ impl Playback {
     self.mixer.seek(time);
     self.last_position = time;
     self.last_started = Instant::now();
+  }
+
+  pub fn update(&mut self) {
+    if self.is_ended() {
+      self.update_state(PlaybackState::Stopped);
+    }
+  }
+
+  pub fn is_ended(&self) -> bool {
+    self.mixer.position() >= self.mixer.duration()
   }
 }

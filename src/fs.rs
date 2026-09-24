@@ -1,6 +1,9 @@
 use std::path::{Path, PathBuf};
 
-use klib::objects::file::File;
+use klib::objects::{
+  attachment::{AttachmentReader, AttachmentResolver, AttachmentSource},
+  file::File,
+};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -185,5 +188,30 @@ impl Cache {
     }
 
     Ok(cache_dir)
+  }
+}
+
+pub struct KsngAttachmentResolver;
+
+impl KsngAttachmentResolver {
+  pub fn get_path_for(attachment_id: Uuid) -> PathBuf {
+    let path = Data::root_dir().unwrap().join("attachments");
+    if !std::fs::exists(&path).unwrap() {
+      std::fs::create_dir_all(&path).unwrap();
+    }
+
+    path.join(attachment_id.to_string())
+  }
+}
+
+impl AttachmentResolver for KsngAttachmentResolver {
+  fn read(
+    &self,
+    attachment: &klib::objects::attachment::Attachment,
+  ) -> klib::objects::attachment::AttachmentReader {
+    match &attachment.source {
+      AttachmentSource::File(path_buf) => AttachmentReader::Path(path_buf.clone()),
+      AttachmentSource::Managed => AttachmentReader::Path(Self::get_path_for(attachment.id)),
+    }
   }
 }

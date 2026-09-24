@@ -6,6 +6,8 @@ pub enum UiError {
   InvalidCommand(String),
   Audio(String),
   Image(String),
+  Worker(String),
+  Message(String),
 }
 
 impl From<std::io::Error> for UiError {
@@ -26,8 +28,14 @@ impl From<klib::error::Error> for UiError {
   }
 }
 
-impl From<symphonia::core::errors::Error> for UiError {
-  fn from(value: symphonia::core::errors::Error) -> Self {
-    UiError::Audio(format!("UiError::Audio ({value:?})"))
+impl From<anyhow::Error> for UiError {
+  fn from(value: anyhow::Error) -> Self {
+    UiError::Message(value.to_string())
+  }
+}
+
+impl From<spectrasonic::Error> for UiError {
+  fn from(value: spectrasonic::Error) -> Self {
+    UiError::Audio(value.to_string())
   }
 }

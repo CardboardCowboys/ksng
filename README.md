@@ -15,4 +15,4 @@ ksng uses ffmpeg to export videos. You have two options here:
 
 The ksng application itself is [licensed under the GPL](./src/LICENSE). The libraries in `lib` are [licensed under the MIT license](./lib/LICENSE).
 
-Take note that `klib` can optionally link with GPL'd libraries when using the `build-ffmpeg` feature, or when supplying an ffmpeg installation with GPL'd components via `FFMPEG_DIR`.
+Take note that `klib` and `spectrasonic` can optionally link with GPL'd libraries when using the `build-ffmpeg` feature, or when supplying an ffmpeg installation with GPL'd components via `FFMPEG_DIR`.

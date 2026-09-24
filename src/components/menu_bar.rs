@@ -1,9 +1,12 @@
 use egui::{Button, Key, MenuBar, Modifiers, Sides, Ui};
+use egui_dock::DockState;
 use klib::{audio::info::AudioFileInfo, objects::track::TrackType};
 
 use crate::{
-  KsngApp,
+  KsngContext,
+  app::AppTab,
   commands::{event::AddAudioEventCommand, track::AddTrackCommand},
+  ml::ui::models_window::ModelsWindow,
   modals::{alert::AlertModal, open_file::OpenFileModal},
   util::ui_event::KsngEvent,
   windows::{preferences::PreferencesWindow, sync::SyncWindow},
@@ -51,7 +54,23 @@ fn button_enabled_with_shortcut(
   ui.input_mut(|input| input.consume_key(modifiers, key))
 }
 
-pub fn menu_bar(app: &KsngApp, ui: &mut Ui) {
+fn show_or_focus_tab(dock_state: &mut DockState<AppTab>, tab: AppTab) {
+  let mut found_node = None;
+  for (node, leaf) in dock_state.iter_leaves() {
+    if leaf.tabs().contains(&tab) {
+      found_node = Some(node);
+      break;
+    }
+  }
+
+  if let Some(node) = found_node {
+    dock_state.set_focused_node_and_surface(node);
+  } else {
+    dock_state.push_to_focused_leaf(tab);
+  }
+}
+
+pub fn menu_bar(dock_state: &mut DockState<AppTab>, app: &KsngContext, ui: &mut Ui) {
   MenuBar::new().ui(ui, |ui| {
     let project = app.project.borrow();
     Sides::new().show(
@@ -146,6 +165,18 @@ pub fn menu_bar(app: &KsngApp, ui: &mut Ui) {
           }
         });
 
+        ui.menu_button("View", |ui| {
+          if button_enabled_with_shortcut(ui, true, "Player", Key::Num1, Modifiers::CTRL) {
+            show_or_focus_tab(dock_state, AppTab::Player);
+          }
+          if button_enabled_with_shortcut(ui, true, "Lyrics Editor", Key::Num2, Modifiers::CTRL) {
+            show_or_focus_tab(dock_state, AppTab::LyricsEditor);
+          }
+          if button_enabled_with_shortcut(ui, true, "Timeline", Key::Num3, Modifiers::CTRL) {
+            show_or_focus_tab(dock_state, AppTab::Timeline);
+          }
+        });
+
         ui.add_enabled_ui(project.is_some(), |ui| {
           ui.menu_button("Track", |ui| {
             ui.set_min_width(150.0);
@@ -219,6 +250,10 @@ pub fn menu_bar(app: &KsngApp, ui: &mut Ui) {
               });
             });
           });
+
+          if ui.button("Models").clicked() {
+            app.windows.add(ModelsWindow::new());
+          }
         });
       },
       |ui| {

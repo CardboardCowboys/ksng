@@ -6,14 +6,12 @@ use cpal::{
   traits::{DeviceTrait, HostTrait, StreamTrait},
 };
 use itertools::Itertools;
-use klib::audio::{
-  SampleProducer,
-  mixer_stream::{self, AudioMixerStream},
-};
+use klib::audio::mixer_stream::AudioMixerStream;
 use klib::timecode::Timecode;
 
 use crate::{
   audio::config::AudioConfig,
+  fs::KsngAttachmentResolver,
   project::Project,
   util::{
     error::UiError,
@@ -32,6 +30,7 @@ struct SharedOutputContext {
 pub struct AudioMixer {
   output_stream: Box<dyn StreamTrait>,
   shared_context: Arc<SharedOutputContext>,
+  duration: Timecode,
 }
 
 impl AudioMixer {
@@ -39,6 +38,7 @@ impl AudioMixer {
     let (stream, context) = Self::create_output_stream(config, logger)?;
     Ok(AudioMixer {
       output_stream: stream,
+      duration: Timecode(0),
       shared_context: context,
     })
   }
@@ -50,6 +50,10 @@ impl AudioMixer {
   pub fn pause(&self) {
     // TODO: handle play state in stream or cpal
     let _ = self.output_stream.pause();
+  }
+
+  pub fn duration(&self) -> Timecode {
+    self.duration
   }
 
   pub fn position(&self) -> Timecode {
@@ -66,7 +70,10 @@ impl AudioMixer {
   }
 
   pub fn seek(&self, time: Timecode) {
-    self.shared_context.mixer_stream.lock().unwrap().seek(time);
+    self
+      .shared_context
+      .logger
+      .wrap(self.shared_context.mixer_stream.lock().unwrap().seek(time));
     self.shared_context.buffer.write().unwrap().clear();
   }
 
@@ -75,14 +82,14 @@ impl AudioMixer {
   }
 
   pub fn update_streams(&mut self, project: &Project) -> Result<(), UiError> {
-    Ok(
-      self
-        .shared_context
-        .mixer_stream
-        .lock()
-        .unwrap()
-        .update_from_tracks(&project.file.tracks)?,
-    )
+    let mut mixer = self.shared_context.mixer_stream.lock().unwrap();
+    mixer.update_from_tracks(
+      &project.file,
+      &project.file.tracks,
+      &KsngAttachmentResolver {},
+    )?;
+    self.duration = mixer.duration_timecode();
+    Ok(())
   }
 
   pub fn update_audio_device(&mut self, config: &AudioConfig) -> Result<(), UiError> {
@@ -109,21 +116,11 @@ impl AudioMixer {
         "Failed to get supported output configs for audio device.".into(),
       ))?;
 
-    for c in device.supported_output_configs().unwrap() {
-      log::info!(
-        "Supported config: buffer size {:?}, channels {}, min sample rate {:?}, max sample rate {:?}, format {:?}",
-        c.buffer_size(),
-        c.channels(),
-        c.min_sample_rate(),
-        c.max_sample_rate(),
-        c.sample_format()
-      );
-    }
-
     let context = Arc::new(SharedOutputContext {
       mixer_stream: Mutex::new(AudioMixerStream::new(
         output_config.channels() as usize,
         output_config.sample_rate() as usize,
+        1024,
       )?),
       logger,
       buffer: RwLock::new(CircularBuffer::new()),
@@ -137,7 +134,9 @@ impl AudioMixer {
       output_config.buffer_size()
     );
 
-    let read_buffer_len = mixer_stream::BLOCK_SIZE * output_config.channels() as usize;
+    let num_channels = output_config.channels() as usize;
+
+    let read_buffer_len = 1024 * num_channels;
     let mut read_buffer = Vec::with_capacity(read_buffer_len);
     read_buffer.resize(read_buffer_len, 0.0f32);
 
@@ -151,7 +150,9 @@ impl AudioMixer {
           let mut mixer_stream = context.mixer_stream.lock().unwrap();
           let mut buffer = context.buffer.write().unwrap();
           while buffer.len() < need_samples {
-            let Some(frames_written) = context.logger.wrap(mixer_stream.process(&mut read_buffer))
+            let Some(frames_written) = context
+              .logger
+              .wrap(mixer_stream.process_interleaved(&mut read_buffer))
             else {
               return;
             };
@@ -160,7 +161,7 @@ impl AudioMixer {
               return;
             }
 
-            buffer.extend_from_slice(&read_buffer[0..frames_written]);
+            buffer.extend_from_slice(&read_buffer[0..(frames_written * num_channels)]);
           }
 
           for i in 0..buf.len() {

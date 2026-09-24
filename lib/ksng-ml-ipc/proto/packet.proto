@@ -1,0 +1,142 @@
+syntax = "proto3";
+
+package proto.packet;
+
+message Uuid {
+	// The high 64 bits of the UUID.
+	uint64 hi = 1;
+	// The low 64 bits of the UUID.
+	uint64 lo = 2;
+}
+
+message Host_DownloadListedModel {
+	Uuid model_id = 1;
+	Uuid job_id = 2;
+}
+
+message JobStatusDownloading {}
+message JobStatusComplete {}
+message JobStatusError {
+	string error = 1;
+}
+
+message Worker_JobStatusResponse {
+	Uuid job_id = 1;
+	uint64 total_size = 2;
+	uint64 downloaded_size = 3;
+	Uuid model_id = 7;
+	oneof status {
+		JobStatusDownloading downloading = 4;
+		JobStatusComplete complete = 5;
+		JobStatusError error = 6;
+	}
+}
+
+message Host_GetDownloadableModelsList {}
+
+message Model {
+	string name = 1;
+	uint64 size = 2;
+	string type = 3;
+	Uuid id = 4;
+	string description = 5;
+}
+
+message Worker_GetDownloadableModelsListResponse {
+	repeated Model models = 1;
+}
+
+message Host_GetAvailableModelsList {}
+
+message Worker_GetAvailableModelsListResponse {
+	repeated Model models = 1;
+}
+
+message Host_KillWorker {}
+
+enum AudioCodec {
+	Mp3 = 0;
+	Aac = 1;
+	Wav = 2;
+	Flac = 3;
+}
+
+message AudioOptions {
+	uint32 bit_rate = 1;
+	string options_str = 2;
+}
+
+message HtdemucsTask {
+	string input_path = 1;
+	string output_path_vocals = 2;
+	string output_path_drums = 3;
+	string output_path_bass = 4;
+	string output_path_other = 5;
+	AudioCodec codec = 6;
+	AudioOptions audio_options = 7;
+}
+
+message HtdemucsResult {
+	string output_path_vocals = 1;
+	string output_path_drums = 2;
+	string output_path_bass = 3;
+	string output_path_other = 4;
+}
+
+message Host_StartTask {
+	Uuid id = 1;
+	Uuid model_id = 2;
+	oneof task {
+		HtdemucsTask htdemucs = 3;
+	}
+}
+
+message Worker_TaskComplete {}
+message Worker_TaskRunning {}
+message Worker_TaskCancelled {}
+message Worker_TaskFailed {
+	string error = 1;
+}
+
+message Worker_TaskInfo {
+	Uuid id = 1;
+	float progress = 2;
+	oneof status {
+		Worker_TaskRunning running = 3;
+		Worker_TaskComplete complete = 4;
+		Worker_TaskFailed failed = 5;
+		Worker_TaskCancelled cancelled = 6;
+	}
+}
+
+message Worker_TaskResult {
+	Uuid id = 1;
+	oneof result {
+		HtdemucsResult htdemucs = 2;
+	}
+}
+
+message Host_CancelTask {
+	Uuid id = 1;
+}
+
+message HostPacket {
+	oneof contents {
+		Host_GetDownloadableModelsList dl_models_list = 1;
+		Host_DownloadListedModel dl_listed_model = 2;
+		Host_KillWorker kill = 3;
+		Host_GetAvailableModelsList models_list = 4;
+		Host_StartTask start_task = 5;
+		Host_CancelTask cancel_task = 6;
+	}
+}
+
+message WorkerPacket {
+	oneof contents {
+		Worker_GetDownloadableModelsListResponse dl_models_list_response = 1; 
+		Worker_JobStatusResponse job_status_response = 2;
+		Worker_GetAvailableModelsListResponse models_list_response = 3;
+		Worker_TaskResult task_result = 4;
+		Worker_TaskInfo task_info = 5;
+	}
+}

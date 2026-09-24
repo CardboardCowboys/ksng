@@ -1,6 +1,6 @@
 use egui::{Button, Id, Modal, Sides};
 
-use crate::{KsngApp, fs::Data, modals::KModal, util::ui_event::KsngEvent};
+use crate::{KsngContext, fs::Data, modals::KModal, util::ui_event::KsngEvent};
 
 pub struct SaveProjectModal {
   open: bool,
@@ -9,7 +9,7 @@ pub struct SaveProjectModal {
 }
 
 impl SaveProjectModal {
-  pub fn save(app: &KsngApp, after: Option<KsngEvent>) {
+  pub fn save(app: &KsngContext, after: Option<KsngEvent>) {
     if let Some(project) = &*app.project.borrow() {
       if project.name.is_none() {
         app.modals.add(SaveProjectModal {
@@ -32,7 +32,7 @@ impl SaveProjectModal {
 }
 
 impl KModal for SaveProjectModal {
-  fn process(&mut self, app: &KsngApp, context: &egui::Context) {
+  fn process(&mut self, app: &KsngContext, context: &egui::Context) {
     if !self.open {
       return;
     }

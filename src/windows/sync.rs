@@ -12,7 +12,7 @@ use klib::{
 use uuid::Uuid;
 
 use crate::{
-  KsngApp, commands::event::SetEventTimingsCommand, modals::confirm::ConfirmModal,
+  KsngContext, commands::event::SetEventTimingsCommand, modals::confirm::ConfirmModal,
   util::ui_event::KsngEvent, windows::KWindow,
 };
 
@@ -159,7 +159,7 @@ impl SyncWindow {
     }
   }
 
-  fn handle_sync(&mut self, app: &KsngApp, track: Option<&Track>) {
+  fn handle_sync(&mut self, app: &KsngContext, track: Option<&Track>) {
     let Some(track) = track else {
       return;
     };
@@ -273,7 +273,7 @@ impl SyncWindow {
     self.is_dirty = true;
   }
 
-  fn handle_break(&mut self, app: &KsngApp) {
+  fn handle_break(&mut self, app: &KsngContext) {
     let Some(last_idx) = self.last_idx else {
       return;
     };
@@ -291,7 +291,7 @@ impl SyncWindow {
     self.min_time = time + Timecode::from_seconds(0.05);
   }
 
-  fn handle_back(&mut self, app: &KsngApp) {
+  fn handle_back(&mut self, app: &KsngContext) {
     let Some((idx, last_idx, pos, min_time)) = self.undo_context.pop() else {
       return;
     };
@@ -306,7 +306,7 @@ impl SyncWindow {
     self.pending_scroll = true;
   }
 
-  fn handle_save(&mut self, app: &KsngApp, track: Option<&Track>) {
+  fn handle_save(&mut self, app: &KsngContext, track: Option<&Track>) {
     if let Some(last_idx) = self.last_idx
       && let Some(track) = track
       && last_idx < track.events.len() - 1
@@ -355,7 +355,7 @@ impl KWindow for SyncWindow {
     !self.open
   }
 
-  fn process(&mut self, app: &crate::KsngApp, context: &egui::Context) {
+  fn process(&mut self, app: &crate::KsngContext, context: &egui::Context) {
     if !self.open {
       return;
     }

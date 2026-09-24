@@ -1,7 +1,7 @@
 use egui::{Align, Button, Id, ImageSource, Layout, Panel, Slider, Ui, Vec2};
 use klib::timecode::Timecode;
 
-use crate::{KsngApp, playback::PlaybackState, style::icons};
+use crate::{KsngContext, playback::PlaybackState, style::icons};
 
 fn calculate_video_size(available_size: Vec2, video_size: Vec2) -> Vec2 {
   let x_scale = available_size.x / video_size.x;
@@ -10,17 +10,17 @@ fn calculate_video_size(available_size: Vec2, video_size: Vec2) -> Vec2 {
   Vec2::new(scale * video_size.x, scale * video_size.y)
 }
 
-pub fn player(app: &KsngApp, ui: &mut Ui) {
+pub fn player(app: &KsngContext, ui: &mut Ui) {
   Panel::bottom(Id::new("player#controls")).show(ui, |ui| {
     ui.add_enabled_ui(app.project.borrow().is_some(), |ui| {
       ui.vertical_centered(|ui| {
-        let position = app.playback.borrow().position();
         let duration = app
           .project
           .borrow()
           .as_ref()
           .map(|p| p.length)
           .unwrap_or_default();
+        let position = app.playback.borrow().position().min(duration);
 
         let mut slider_position = position.0;
         ui.style_mut().spacing.slider_width = ui.max_rect().width();

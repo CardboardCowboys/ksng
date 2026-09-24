@@ -2,12 +2,12 @@ use std::cell::RefCell;
 
 use egui::Context;
 
-use crate::KsngApp;
+use crate::KsngContext;
 
 /// A KWindow is like a KModal but they do not claim exclusive focus.
 pub trait KWindow {
   fn should_cleanup(&self) -> bool;
-  fn process(&mut self, app: &KsngApp, context: &Context);
+  fn process(&mut self, app: &KsngContext, context: &Context);
   /// A window can optionally provide a hash of its unique properties.
   /// If an existing window is present with the same hash, a new one will not be
   /// created.
@@ -45,7 +45,7 @@ impl WindowManager {
       .push(RefCell::new(Box::new(window)))
   }
 
-  pub fn process(&self, app: &KsngApp, context: &Context) {
+  pub fn process(&self, app: &KsngContext, context: &Context) {
     self
       .windows
       .borrow_mut()

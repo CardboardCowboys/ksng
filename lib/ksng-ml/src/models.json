@@ -1,0 +1,32 @@
+{
+	"models": [
+		{
+			"id": "c407be82-14ea-4fc3-9694-b549cba46778",
+			"name": "HT-Demucs",
+			"model_type": "htdemucs",
+			"url": "https://huggingface.co/StemSplitio/htdemucs-onnx/resolve/main/htdemucs.onnx",
+			"size": 316446953,
+			"description": "Hybrid Transformer Demucs (HT Demucs) is a music separation model from Alexandre Défossez. It can split music into four tracks: bass, drums, vocals, and 'other' (guitar, keyboard, etc).",
+			"parameters": {
+				"outputs": ["drums", "bass", "other", "vocals"],
+				"chunk_size": 343980,
+				"sample_rate": 44100,
+				"channels": 2
+			}
+		},
+		{
+			"id": "9f0dd780-e1ea-4290-899c-01c9d330b767",
+			"name": "HT-Demucs fp16",
+			"model_type": "htdemucs",
+			"url": "https://huggingface.co/StemSplitio/htdemucs-onnx/resolve/main/htdemucs_fp16weights.onnx",
+			"size": 165612636,
+			"description": "Hybrid Transformer Demucs (HT Demucs) is a music separation model from Alexandre Défossez. It can split music into four tracks: bass, drums, vocals, and 'other' (guitar, keyboard, etc).\n\nThis fp16 version offers significantly better performance when running on the GPU at the cost of only slightly degraded quality.",
+			"parameters": {
+				"outputs": ["drums", "bass", "other", "vocals"],
+				"chunk_size": 343980,
+				"sample_rate": 44100,
+				"channels": 2
+			}
+		}
+	]
+}

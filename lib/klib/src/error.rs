@@ -49,7 +49,7 @@ impl From<std::io::Error> for Error {
   }
 }
 
-#[cfg(feature = "audio")]
+#[cfg(feature = "symphonia")]
 impl From<symphonia::core::errors::Error> for Error {
   fn from(value: symphonia::core::errors::Error) -> Self {
     Error::Audio(format!("Symphonia error: {value:?}"))
@@ -60,5 +60,11 @@ impl From<symphonia::core::errors::Error> for Error {
 impl From<ffmpeg_next::Error> for Error {
   fn from(value: ffmpeg_next::Error) -> Self {
     Error::VideoExport(format!("FFmpeg error: {value:?}"))
+  }
+}
+
+impl From<spectrasonic::Error> for Error {
+  fn from(value: spectrasonic::Error) -> Self {
+    Error::Audio(format!("Spectrasonic error: {value:?}"))
   }
 }
