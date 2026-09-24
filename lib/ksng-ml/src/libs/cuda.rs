@@ -120,6 +120,7 @@ fn find_cudnn(paths: &[PathBuf]) -> Result<Option<PathBuf>, anyhow::Error> {
 pub fn find_cuda_cudnn(
   paths: &[PathBuf],
 ) -> Result<(Option<PathBuf>, Option<PathBuf>), anyhow::Error> {
+  #[allow(unused_mut)]
   let mut paths: Vec<PathBuf> = paths.to_vec();
   #[cfg(target_os = "windows")]
   {

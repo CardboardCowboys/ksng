@@ -65,6 +65,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v3
       - name: Install Dependencies (Ubuntu)
         uses: awalsh128/cache-apt-pkgs-action@v1
         with:
@@ -200,12 +202,11 @@ jobs:
       if: contains(matrix.TARGET, 'windows')
       shell: pwsh
       run: |
-        mkdir /tmp
-        mkdir /tmp/ffmpeg
+        mkdir /tmp/ffmpeg -Force
         cp target/${{ matrix.TARGET }}/release/ksng${{ matrix.EXTENSION }} "/tmp/ffmpeg/ksng-${{ matrix.TARGET }}${{ matrix.EXTENSION }}"
         cp "$env:FFMPEG_DIR/bin/*.dll" /tmp/ffmpeg
         cp target/${{ matrix.TARGET }}/release/ksng-ml${{ matrix.EXTENSION }} "/tmp/onnxruntime/ksng-ml${{ matrix.EXTENSION }}"
-        mkdir /tmp/onnxbundle
+        mkdir /tmp/onnxbundle -Force
         cp /tmp/onnxruntime/* /tmp/onnxbundle
         cp /tmp/ffmpeg/* /tmp/onnxbundle
 

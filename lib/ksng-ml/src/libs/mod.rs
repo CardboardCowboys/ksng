@@ -22,6 +22,7 @@ impl Version {
     Version(major, minor, rest.to_owned())
   }
 
+  #[allow(dead_code)]
   pub fn from_str(s: &str) -> Option<Version> {
     let parts: Vec<&str> = s.split('.').collect();
     if parts.len() < 2 {
@@ -66,8 +67,8 @@ pub fn get_dll_metadata(path: &Path) -> Option<Version> {
 }
 
 #[cfg(target_os = "windows")]
-fn get_dll_metadata_windows(path: &Path) -> Result<Option<Version>, anyhow::Error> {
-  let image = editpe::Image::parse_file(path)?;
+fn get_dll_metadata_windows(_path: &Path) -> Result<Option<Version>, anyhow::Error> {
+  let image = editpe::Image::parse_file(_path)?;
   let Some(resources) = image.resource_directory() else {
     return Ok(None);
   };
