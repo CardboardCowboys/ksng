@@ -49,13 +49,13 @@ impl PartialOrd for Version {
   }
 }
 
-pub fn get_dll_metadata(path: &Path) -> Option<Version> {
+pub fn get_dll_metadata(_path: &Path) -> Option<Version> {
   #[cfg(target_os = "windows")]
   {
-    match get_dll_metadata_windows(path) {
+    match get_dll_metadata_windows(_path) {
       Ok(res) => res,
       Err(e) => {
-        log::error!("error getting dll metadata for {path:?}: {e:?}");
+        log::error!("error getting dll metadata for {_path:?}: {e:?}");
         None
       }
     }
@@ -67,8 +67,8 @@ pub fn get_dll_metadata(path: &Path) -> Option<Version> {
 }
 
 #[cfg(target_os = "windows")]
-fn get_dll_metadata_windows(_path: &Path) -> Result<Option<Version>, anyhow::Error> {
-  let image = editpe::Image::parse_file(_path)?;
+fn get_dll_metadata_windows(path: &Path) -> Result<Option<Version>, anyhow::Error> {
+  let image = editpe::Image::parse_file(path)?;
   let Some(resources) = image.resource_directory() else {
     return Ok(None);
   };

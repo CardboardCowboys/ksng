@@ -165,8 +165,8 @@ jobs:
       run: |
         Invoke-WebRequest ${{ matrix.ONNX_URL }} -OutFile "$env:Temp\onnx.zip"
         Expand-Archive -Path "$env:Temp\onnx.zip" -DestinationPath "$env:Temp\onnx"
-        mkdir C:\tmp\onnxruntime
-        cp "$env:Temp\onnx\*\lib\*.dll" C:\tmp\onnxruntime
+        mkdir D:\tmp\onnxruntime
+        cp "$env:Temp\onnx\*\lib\*.dll" D:\tmp\onnxruntime
 
     - name: Download onnxruntime
       if: ${{ !contains(matrix.TARGET, 'windows') && steps.cache-onnxruntime.outputs.cache-hit != 'true' }}
