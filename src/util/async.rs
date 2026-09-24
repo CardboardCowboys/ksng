@@ -1,9 +1,5 @@
-use std::{
-  pin::Pin,
-  task::{Context, Poll, Waker},
-};
-
-use futures_util::{FutureExt, future::BoxFuture};
+use futures_util::future::BoxFuture;
+use std::task::{Context, Poll, Waker};
 
 pub enum AsyncResult<T> {
   Pending,

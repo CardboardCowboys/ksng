@@ -172,8 +172,8 @@ jobs:
         wget ${{ matrix.ONNX_URL }}
         tar -xvf onnxruntime-*.tgz
         mkdir /tmp/onnxruntime
-        cp onnxruntime*/lib/*.so /tmp/onnxruntime
-        cp onnxruntime*/lib/*.dylib /tmp/onnxruntime
+        cp onnxruntime*/lib/*.so /tmp/onnxruntime 2> /dev/null || :
+        cp onnxruntime*/lib/*.dylib /tmp/onnxruntime 2> /dev/null || :
 
     - name: Build (Windows)
       if: contains(matrix.TARGET, 'windows')
