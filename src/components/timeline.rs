@@ -406,7 +406,7 @@ impl Timeline {
       // Set playhead rect and check for interactions before checking
       // event interactions.
       let playhead_pos = app.playback.borrow().position().to_seconds() * pixels_per_second;
-      let playhead_pos2 = Pos2::new(max_rect.min.x + playhead_pos, max_rect.top());
+      let playhead_pos2 = Pos2::new(max_rect.min.x + playhead_pos - scroll_x, max_rect.top());
 
       // Update playhead state.
       let scrub_rect = Rect {

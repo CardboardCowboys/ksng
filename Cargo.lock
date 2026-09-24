@@ -2824,6 +2824,7 @@ dependencies = [
  "ksng-ml-ipc",
  "log",
  "once_cell",
+ "opaline",
  "regex",
  "rfd",
  "serde",
@@ -3710,6 +3711,19 @@ name = "once_cell_polyfill"
 version = "1.70.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "384b8ab6d37215f3c5301a95a4accb5d64aa607f1fcb26a11b5303878451b4fe"
+
+[[package]]
+name = "opaline"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e98277da6412c68269539a8edf58106c72cb2af78e6aa0e210d39fa1084d3512"
+dependencies = [
+ "parking_lot",
+ "serde",
+ "thiserror 2.0.20",
+ "toml",
+ "unicode-segmentation",
+]
 
 [[package]]
 name = "openssl"

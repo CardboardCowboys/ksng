@@ -99,12 +99,12 @@ jobs:
           TARGET: aarch64-pc-windows-msvc
           EXTENSION: .exe
           FFMPEG_URL: https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-09-02-13-13/ffmpeg-n9.0.1-11-ge47273f4d9-winarm64-gpl-shared-9.0.zip
-          ONNX_URL: https://github.com/microsoft/onnxruntime/releases/download/v1.28.2/onnxruntime-win-x64-gpu_cuda13-1.28.2.zip
+          ONNX_URL: https://github.com/microsoft/onnxruntime/releases/download/v1.28.2/onnxruntime-win-arm64-1.28.2.zip
 
         - os: windows-latest
           TARGET: x86_64-pc-windows-msvc
           FFMPEG_URL: https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-09-02-13-13/ffmpeg-n9.0.1-11-ge47273f4d9-win64-gpl-shared-9.0.zip
-          ONNX_URL: https://github.com/microsoft/onnxruntime/releases/download/v1.28.2/onnxruntime-win-arm64-1.28.2.zip
+          ONNX_URL: https://github.com/microsoft/onnxruntime/releases/download/v1.28.2/onnxruntime-win-x64-gpu_cuda13-1.28.2.zip
           EXTENSION: .exe
     name: Build ${{ matrix.TARGET }}
     steps:
