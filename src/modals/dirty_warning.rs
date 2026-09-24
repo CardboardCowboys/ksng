@@ -40,12 +40,12 @@ impl KModal for DirtyWarningModal {
           }
 
           if ui.button("Close Without Saving").clicked() {
-            app.dispatch(self.after);
+            app.dispatch(self.after.clone());
             self.open = false;
           }
 
           if ui.button("Save").clicked() {
-            SaveProjectModal::save(app, Some(self.after));
+            SaveProjectModal::save(app, Some(self.after.clone()));
             self.open = false;
           }
         },

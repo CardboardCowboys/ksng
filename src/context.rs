@@ -2,10 +2,12 @@ use std::{cell::RefCell, collections::VecDeque};
 
 use eframe::Storage;
 use egui::{Context, Ui};
+use egui_dock::DockState;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
+  app::{AppTab, AppTabInitializer},
   audio::waveform::AudioWaveformProvider,
   commands::CommandDispatcher,
   components::{lyrics_editor::LyricsEditor, timeline::Timeline},
@@ -21,7 +23,7 @@ use crate::{
   selection::SelectionManager,
   util::{logger::Logger, ui_event::KsngEvent},
   video::VideoState,
-  windows::WindowManager,
+  windows::{WindowManager, preferences::PreferencesWindow, track_config::TrackConfigWindow},
 };
 
 pub struct KsngContext {
@@ -81,7 +83,7 @@ impl KsngContext {
         .logger
         .wrap(Data::list_projects().and_then(|manifest| Data::load_project(project_id, &manifest)));
       self.project.replace(project);
-      self.on_project_change(ctx);
+      self.on_project_change(ctx, None);
     }
     let preferences = self
       .logger
@@ -109,7 +111,7 @@ impl KsngContext {
     eframe::set_value(storage, eframe::APP_KEY, &data);
   }
 
-  fn on_project_change(&self, ctx: &Context) {
+  fn on_project_change(&self, ctx: &Context, dock_state: Option<&mut DockState<AppTab>>) {
     self.selection.clear();
     self.windows.clear();
     *self.timeline.borrow_mut() = Timeline::default();
@@ -121,17 +123,40 @@ impl KsngContext {
       self.video.borrow_mut().clear();
     }
     self.lyrics_editor.borrow_mut().on_project_change(self);
+    if let Some(dock_state) = dock_state {
+      dock_state.retain_tabs(|t| !matches!(t, AppTab::TrackConfig(..)));
+    }
   }
 
-  fn on_event(&self, ctx: &Context, event: KsngEvent) {
+  fn show_or_focus_tab(dock_state: &mut DockState<AppTab>, tab: AppTab, as_window: bool) {
+    let mut found_tab = None;
+    for (path, t) in dock_state.iter_all_tabs() {
+      if *t == tab {
+        found_tab = Some(path);
+        break;
+      }
+    }
+
+    if let Some(path) = found_tab {
+      dock_state.set_active_tab(path).unwrap();
+    } else {
+      if as_window {
+        dock_state.add_window(vec![tab]);
+      } else {
+        dock_state.push_to_focused_leaf(tab);
+      }
+    }
+  }
+
+  fn on_event(&self, ctx: &Context, event: KsngEvent, dock_state: &mut DockState<AppTab>) {
     match event {
       KsngEvent::ProjectClose => {
         self.project.replace(None);
-        self.on_project_change(ctx);
+        self.on_project_change(ctx, Some(dock_state));
       }
       KsngEvent::ProjectNew => {
         self.project.replace(Some(Project::default()));
-        self.on_project_change(ctx);
+        self.on_project_change(ctx, Some(dock_state));
       }
       KsngEvent::ProjectSave => {
         SaveProjectModal::save(self, None);
@@ -146,7 +171,7 @@ impl KsngContext {
 
         if let Some(project) = project {
           self.project.replace(Some(project));
-          self.on_project_change(ctx);
+          self.on_project_change(ctx, Some(dock_state));
         }
       }
       KsngEvent::ProjectExportVideo => {
@@ -175,6 +200,50 @@ impl KsngContext {
       KsngEvent::CloseWindow(unique) => {
         self.windows.close_window(unique);
       }
+      KsngEvent::OpenTabWindow(tab) => match tab {
+        AppTabInitializer::TrackConfig { track_id } => {
+          let project_ref = self.project.borrow();
+          let Some(track) = project_ref
+            .as_ref()
+            .and_then(|p| p.file.tracks.iter().find(|t| t.id == track_id))
+          else {
+            return;
+          };
+
+          let mut active_path = None;
+          let mut other_path = None;
+          for (path, tab) in dock_state.iter_all_tabs() {
+            if let AppTab::TrackConfig(t) = tab
+              && t.track_id() == track_id
+            {
+              active_path = Some(path);
+              break;
+            } else if matches!(tab, AppTab::TrackConfig(..)) {
+              other_path = Some(path);
+            }
+          }
+
+          if let Some(active_path) = active_path {
+            dock_state.set_active_tab(active_path).unwrap();
+          } else if let Some(other_path) = other_path
+            && let Some(leaf) = dock_state.leaf_mut(other_path.node_path()).ok()
+          {
+            leaf.append_tab(AppTab::TrackConfig(TrackConfigWindow::new(track)));
+          } else {
+            dock_state.add_window(vec![AppTab::TrackConfig(TrackConfigWindow::new(track))]);
+          }
+        }
+        AppTabInitializer::Player => Self::show_or_focus_tab(dock_state, AppTab::Player, false),
+        AppTabInitializer::LyricsEditor => {
+          Self::show_or_focus_tab(dock_state, AppTab::LyricsEditor, false)
+        }
+        AppTabInitializer::Timeline => Self::show_or_focus_tab(dock_state, AppTab::Timeline, false),
+        AppTabInitializer::Preferences => Self::show_or_focus_tab(
+          dock_state,
+          AppTab::Preferences(PreferencesWindow::new(self.preferences.borrow().clone())),
+          true,
+        ),
+      },
     }
   }
 
@@ -199,10 +268,10 @@ impl KsngContext {
     }
   }
 
-  pub fn update(&mut self, ctx: &egui::Context) {
+  pub fn update(&mut self, ctx: &egui::Context, dock_state: &mut DockState<AppTab>) {
     let mut queue = self.event_queue.borrow_mut();
     while let Some(event) = queue.pop_front() {
-      self.on_event(ctx, event);
+      self.on_event(ctx, event, dock_state);
     }
     drop(queue);
 

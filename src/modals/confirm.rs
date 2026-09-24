@@ -46,7 +46,7 @@ impl KModal for ConfirmModal {
 
           if ui.button("Yes").clicked() {
             self.open = false;
-            app.dispatch(self.after);
+            app.dispatch(self.after.clone());
           }
         },
       )

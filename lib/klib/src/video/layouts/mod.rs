@@ -5,7 +5,7 @@ use crate::video::layouts::paragraph::ParagraphMergerMode;
 
 pub mod paragraph;
 
-#[derive(Serialize, Deserialize, Clone, EditableConfig)]
+#[derive(Serialize, Deserialize, Clone, EditableConfig, Debug)]
 pub enum LyricsTrackLayoutMode {
   Paragraph { merger_mode: ParagraphMergerMode },
 }

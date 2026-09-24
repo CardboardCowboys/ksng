@@ -1,6 +1,8 @@
 use uuid::Uuid;
 
-#[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
+use crate::app::AppTabInitializer;
+
+#[derive(Clone, PartialEq, Debug)]
 pub enum KsngEvent {
   ProjectNew,
   ProjectClose,
@@ -14,4 +16,5 @@ pub enum KsngEvent {
   Redo,
   AudioDeviceChanged,
   CloseWindow(u64),
+  OpenTabWindow(AppTabInitializer),
 }

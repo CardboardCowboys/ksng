@@ -19,6 +19,7 @@ use uuid::Uuid;
 
 use crate::{
   KsngContext,
+  app::AppTabInitializer,
   audio::waveform::{self, WaveformCache},
   commands::{event::SetEventTimingsCommand, track::MuteTrackCommand},
   project::Project,
@@ -26,8 +27,8 @@ use crate::{
     colors::{self, color_for_track_type},
     icons,
   },
-  util::ui::KsngUiExt,
-  windows::{sync::SyncWindow, track_config::TrackConfigWindow},
+  util::{ui::KsngUiExt, ui_event::KsngEvent},
+  windows::sync::SyncWindow,
 };
 
 pub const TRACK_HEIGHT: f32 = 50.0;
@@ -324,7 +325,9 @@ impl Timeline {
                 .add_sized(Vec2::new(20.0, 20.0), settings_button)
                 .clicked()
               {
-                app.windows.add(TrackConfigWindow::new(track));
+                app.dispatch(KsngEvent::OpenTabWindow(AppTabInitializer::TrackConfig {
+                  track_id: track.id,
+                }));
                 buttons_clicked = true;
               }
 

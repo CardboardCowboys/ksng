@@ -19,7 +19,7 @@ use crate::{
 };
 
 /// How video elements are combined together to form paragraphs.
-#[derive(Serialize, Deserialize, Clone, Copy, EditableConfig, Default)]
+#[derive(Serialize, Deserialize, Clone, Copy, EditableConfig, Default, Debug)]
 pub enum ParagraphMergerMode {
   /// Each lyric is its own element and is handled independently.
   None,

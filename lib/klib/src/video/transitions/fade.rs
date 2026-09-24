@@ -11,7 +11,7 @@ use crate::{
   },
 };
 
-#[derive(Clone, Serialize, Deserialize, EditableConfig)]
+#[derive(Clone, Serialize, Deserialize, EditableConfig, Debug)]
 pub struct FadeTransitionConfig {
   /// The maximum amount of time an event will be displayed for before it
   /// happens.

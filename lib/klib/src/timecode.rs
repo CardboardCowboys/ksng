@@ -6,7 +6,7 @@ use std::{
 use serde::{Deserialize, Serialize};
 
 /// A timecode represented in milliseconds.
-#[derive(Serialize, Deserialize, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Serialize, Deserialize, Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Timecode(pub u32);
 
 impl Timecode {

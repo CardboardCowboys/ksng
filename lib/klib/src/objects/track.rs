@@ -17,7 +17,7 @@ use crate::{
 };
 
 /// Settings for an audio track.
-#[derive(Serialize, Deserialize, Clone, EditableConfig)]
+#[derive(Serialize, Deserialize, Clone, EditableConfig, Debug)]
 pub struct AudioTrackValue {
   /// Whether this track should be muted.
   #[hidden]
@@ -36,7 +36,7 @@ impl Default for AudioTrackValue {
   }
 }
 
-#[derive(Serialize, Deserialize, EditableConfig, Clone)]
+#[derive(Serialize, Deserialize, EditableConfig, Clone, Debug)]
 pub struct LyricsTrackValue {
   /// The bounds of this lyrics track within the frame, normalized from 0.0-1.0.
   pub bounds: Rect,
@@ -67,7 +67,7 @@ impl Default for LyricsTrackValue {
 }
 
 /// Type-specific data for a track.
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum TrackValue {
   /// Settings for an audio track.
   Audio(AudioTrackValue),

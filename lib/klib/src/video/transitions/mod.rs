@@ -14,7 +14,7 @@ pub mod fade;
 pub mod none;
 pub mod slide;
 
-#[derive(Clone, Deserialize, Serialize, EditableConfig)]
+#[derive(Clone, Deserialize, Serialize, EditableConfig, Debug)]
 pub enum Transition {
   /// Lyrics will appear and disappear without transition.
   None(NoneTransitionConfig),

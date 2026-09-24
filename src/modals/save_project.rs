@@ -59,8 +59,8 @@ impl KModal for SaveProjectModal {
             app.logger.wrap(Data::save_project(project));
             project.dirty = false;
             self.open = false;
-            if let Some(after) = self.after {
-              app.dispatch(after);
+            if let Some(after) = &self.after {
+              app.dispatch(after.clone());
             }
           }
 

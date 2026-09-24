@@ -4,7 +4,7 @@ use klib_macros::EditableConfig;
 use serde::{Deserialize, Serialize};
 
 /// A 32-bit RGBA color.
-#[derive(Serialize, Deserialize, Copy, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Copy, Clone, PartialEq, Debug)]
 pub struct Color32(u32);
 
 impl Color32 {
@@ -176,7 +176,7 @@ impl FontManager {
   }
 }
 
-#[derive(Serialize, Deserialize, Clone, EditableConfig)]
+#[derive(Serialize, Deserialize, Clone, EditableConfig, Debug)]
 pub struct Colors {
   pub normal: Color32,
   pub highlight: Color32,
@@ -193,7 +193,7 @@ impl Default for Colors {
   }
 }
 
-#[derive(Serialize, Deserialize, Clone, EditableConfig)]
+#[derive(Serialize, Deserialize, Clone, EditableConfig, Debug)]
 pub struct Stroke {
   pub color: Color32,
   #[float(0.0)]
@@ -209,7 +209,7 @@ impl Default for Stroke {
   }
 }
 
-#[derive(Serialize, Deserialize, Clone, EditableConfig)]
+#[derive(Serialize, Deserialize, Clone, EditableConfig, Debug)]
 pub struct LyricsTrackStyle {
   pub font: Font,
   pub colors: Colors,
