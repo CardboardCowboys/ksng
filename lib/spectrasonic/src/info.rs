@@ -21,8 +21,8 @@ fn get_info(path: &Path, mime_type: String) -> Result<Option<AudioFileInfo>, Err
   let decoder = context.decoder().audio()?;
   let channels = decoder.channels() as usize;
   let sample_rate = decoder.rate() as usize;
-  let time_base = decoder.time_base();
   let duration = in_stream.duration();
+  let time_base = in_stream.time_base();
 
   Ok(Some(AudioFileInfo {
     mime_type,

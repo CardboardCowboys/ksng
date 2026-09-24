@@ -53,6 +53,7 @@ impl KModal for OpenFileModal {
       AsyncResult::Pending => {}
       AsyncResult::Complete(Some(file)) => {
         (self.after)(app, file.path().to_path_buf());
+        self.open = false;
       }
       AsyncResult::Complete(None) => {
         self.open = false;

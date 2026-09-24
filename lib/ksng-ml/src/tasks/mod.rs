@@ -52,6 +52,16 @@ pub struct TaskMonitor {
   status: RwLock<TaskStatus>,
 }
 
+impl Default for TaskMonitor {
+  fn default() -> Self {
+    Self {
+      cancelled: Default::default(),
+      progress: Default::default(),
+      status: RwLock::new(TaskStatus::Running),
+    }
+  }
+}
+
 pub struct Task {
   id: Uuid,
   _title: String,

@@ -20,6 +20,15 @@
 ☐ importing audio seems to import it a lot of times
 ☐ integrate models menu and other windows into DockArea
 ☐ refocusing existing window breaks on refcell
+☐ make hotkeys work properly
+☐ make zooming the timeline easier and less floaty (why does it float?)
+☐ move audioclip text with timeline (css fixed to left)
+☐ fix slide transition
+☐ htdemucs issue - last chunk repeats at end
+☐ make EditableConfigUi good
+	☐ combo boxes shouldn't be so scuffed
+	☐ proper rect editor
+☐ video export broke
 
 ✔ replace audio engine @done(26-01-04 10:23)
 ✔ lyrics editor @done(26-01-12 04:41)
@@ -27,6 +36,7 @@
 ✔ lyrics sync wizard @done(26-06-14 23:25)
 ☐ lyrics sync model
 	☐ syllabification model
+☐ add mdxnet support (https://github.com/seanghay/uvr-mdx-infer/blob/main/separate.py)
 ☐ allow multiple lyrics editors open at once
 ☐ video graphics
 ☐ video transitions

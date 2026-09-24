@@ -218,6 +218,9 @@ impl ParagraphLayout {
       match event.event_type {
         EventType::Lyric if event.text().is_some() => {
           let text = event.text().unwrap();
+          if text.is_empty() {
+            continue;
+          }
           let mut text_buffer = UnicodeBuffer::new().add_str(text);
           let mut shape = harfbuzz_rs::shape(hbfont, text_buffer, &[]);
           let layout_rect = Self::compute_rect_from_glyphs(font, hbfont, &shape);

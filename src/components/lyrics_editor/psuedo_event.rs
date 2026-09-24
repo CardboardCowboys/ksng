@@ -104,12 +104,14 @@ impl PsuedoEvent {
     for c in s.chars() {
       if c == '\n' {
         if matches!(current_type, Some(EventType::Lyric)) {
-          events.push(Self::synthetic_event(
-            events.len(),
-            EventType::Lyric,
-            Some(current_value),
-            linked,
-          ));
+          if !current_value.is_empty() {
+            events.push(Self::synthetic_event(
+              events.len(),
+              EventType::Lyric,
+              Some(current_value),
+              linked,
+            ));
+          }
           linked = false;
           current_value = String::new();
           current_type = None;
@@ -148,12 +150,14 @@ impl PsuedoEvent {
       if c.is_whitespace() {
         if block_level <= 0 {
           if matches!(current_type, Some(EventType::Lyric)) {
-            events.push(Self::synthetic_event(
-              events.len(),
-              EventType::Lyric,
-              Some(current_value),
-              linked,
-            ));
+            if !current_value.is_empty() {
+              events.push(Self::synthetic_event(
+                events.len(),
+                EventType::Lyric,
+                Some(current_value),
+                linked,
+              ));
+            }
             linked = false;
             current_value = String::new();
           }
@@ -184,12 +188,14 @@ impl PsuedoEvent {
 
       if c == SYLLABLE_SEPARATOR {
         if matches!(current_type, Some(EventType::Lyric)) {
-          events.push(Self::synthetic_event(
-            events.len(),
-            EventType::Lyric,
-            Some(current_value),
-            linked,
-          ));
+          if !current_value.is_empty() {
+            events.push(Self::synthetic_event(
+              events.len(),
+              EventType::Lyric,
+              Some(current_value),
+              linked,
+            ));
+          }
           current_value = String::new();
           linked = true;
         }
@@ -208,7 +214,9 @@ impl PsuedoEvent {
       current_value.push(c);
     }
 
-    if let Some(EventType::Lyric) = current_type {
+    if let Some(EventType::Lyric) = current_type
+      && !current_value.is_empty()
+    {
       events.push(Self::synthetic_event(
         events.len(),
         EventType::Lyric,
