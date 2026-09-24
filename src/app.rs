@@ -78,6 +78,13 @@ impl<'a> TabViewer for AppTabViewer<'a> {
       AppTab::Timeline => self.app.timeline.borrow_mut().update(self.app, ui),
     }
   }
+
+  fn scroll_bars(&self, tab: &Self::Tab) -> [bool; 2] {
+    match tab {
+      AppTab::Timeline => [false, false],
+      _ => [true, true],
+    }
+  }
 }
 
 impl eframe::App for KsngApp {
