@@ -1,4 +1,4 @@
-use egui::{Button, Key, MenuBar, Modifiers, Sides, Ui};
+use egui::{Button, Key, KeyboardShortcut, MenuBar, Modifiers, Sides, Ui, WidgetText};
 use klib::{audio::info::AudioFileInfo, objects::track::TrackType};
 
 use crate::{
@@ -10,232 +10,339 @@ use crate::{
   util::ui_event::KsngEvent,
   windows::sync::SyncWindow,
 };
-
-fn button_with_shortcut(
-  ui: &mut Ui,
-  text: impl Into<String>,
-  key: Key,
-  modifiers: Modifiers,
-) -> bool {
-  button_enabled_with_shortcut(ui, true, text, key, modifiers)
+enum MenuEntry {
+  MenuItem(MenuItemBuilder),
+  Divider,
 }
 
-fn button_enabled_with_shortcut(
-  ui: &mut Ui,
+type MenuItemAction = Box<dyn Fn(&KsngContext)>;
+
+struct MenuItemBuilder {
+  text: WidgetText,
+  shortcut: Option<KeyboardShortcut>,
+  action: Option<MenuItemAction>,
   enabled: bool,
-  text: impl Into<String>,
-  key: Key,
-  modifiers: Modifiers,
-) -> bool {
-  let mut s = String::new();
-  if modifiers.command {
-    if cfg!(target_os = "macos") {
-      s += "Cmd+";
-    } else {
-      s += "Ctrl+";
+  children: Vec<MenuEntry>,
+  min_size: Option<f32>,
+}
+
+impl MenuItemBuilder {
+  pub fn new(
+    text: impl Into<WidgetText>,
+    action: impl Fn(&KsngContext) + 'static,
+  ) -> MenuItemBuilder {
+    MenuItemBuilder {
+      text: text.into(),
+      shortcut: None,
+      action: Some(Box::new(action)),
+      enabled: true,
+      children: Vec::new(),
+      min_size: None,
     }
   }
-  if modifiers.alt {
-    s += "Alt+";
-  }
-  if modifiers.shift {
-    s += "Shift+";
-  }
-  s += key.name();
 
-  let clicked = ui
-    .add_enabled(enabled, Button::new(text.into()).shortcut_text(s))
-    .clicked();
-  if clicked {
-    return true;
+  pub fn submenu(text: impl Into<WidgetText>) -> MenuItemBuilder {
+    MenuItemBuilder {
+      text: text.into(),
+      shortcut: None,
+      action: None,
+      enabled: true,
+      children: Vec::new(),
+      min_size: None,
+    }
   }
 
-  ui.input_mut(|input| input.consume_key(modifiers, key))
+  pub fn enabled(mut self, enabled: bool) -> MenuItemBuilder {
+    self.enabled = enabled;
+    self
+  }
+
+  pub fn shortcut(mut self, key: Key, modifiers: Modifiers) -> MenuItemBuilder {
+    self.shortcut = Some(KeyboardShortcut::new(modifiers, key));
+    self
+  }
+
+  pub fn child(mut self, child: MenuItemBuilder) -> MenuItemBuilder {
+    self.children.push(MenuEntry::MenuItem(child));
+    self
+  }
+
+  pub fn divider(mut self) -> MenuItemBuilder {
+    self.children.push(MenuEntry::Divider);
+    self
+  }
+
+  pub fn min_size(mut self, size: f32) -> MenuItemBuilder {
+    self.min_size = Some(size);
+    self
+  }
+
+  pub fn show(&self, ui: &mut Ui, app: &KsngContext) {
+    if let Some(action) = &self.action {
+      let mut button = Button::new(self.text.clone());
+      if let Some(shortcut) = &self.shortcut {
+        button = button.shortcut_text(ui.ctx().format_shortcut(shortcut));
+      }
+
+      if ui.add_enabled(self.enabled, button).clicked() {
+        (action)(app);
+        ui.close();
+      }
+    } else {
+      ui.add_enabled_ui(self.enabled, |ui| {
+        ui.menu_button(self.text.clone(), |ui| {
+          if let Some(min_size) = self.min_size {
+            ui.set_min_width(min_size);
+          }
+          for child in &self.children {
+            match child {
+              MenuEntry::MenuItem(item) => {
+                item.show(ui, app);
+              }
+              MenuEntry::Divider => {
+                ui.separator();
+              }
+            }
+          }
+        });
+      });
+    }
+  }
+
+  pub fn process_hotkeys(&self, ui: &mut Ui, app: &KsngContext) {
+    if let Some(action) = &self.action
+      && let Some(shortcut) = &self.shortcut
+      && ui.input_mut(|i| i.consume_shortcut(shortcut))
+    {
+      (action)(app);
+    } else {
+      for child in &self.children {
+        if let MenuEntry::MenuItem(item) = &child {
+          item.process_hotkeys(ui, app);
+        }
+      }
+    }
+  }
+}
+
+#[derive(Default)]
+struct MenuBuilder {
+  children: Vec<MenuItemBuilder>,
+}
+
+impl MenuBuilder {
+  pub fn item(mut self, child: MenuItemBuilder) -> MenuBuilder {
+    self.children.push(child);
+    self
+  }
+
+  pub fn show(&self, ui: &mut Ui, app: &KsngContext) {
+    for child in &self.children {
+      child.show(ui, app);
+    }
+  }
+
+  pub fn process_hotkeys(&self, ui: &mut Ui, app: &KsngContext) {
+    for child in &self.children {
+      child.process_hotkeys(ui, app);
+    }
+  }
+}
+
+fn build_menu(app: &KsngContext) -> MenuBuilder {
+  let project = app.project.borrow();
+  let is_dirty = project.as_ref().map(|f| f.dirty).unwrap_or(false);
+
+  let file = MenuItemBuilder::submenu("File")
+    .min_size(150.0)
+    .child(
+      MenuItemBuilder::new("New", |app| {
+        app.dispatch_warn_dirty(KsngEvent::ProjectNew);
+      })
+      .shortcut(Key::N, Modifiers::COMMAND),
+    )
+    .child(
+      MenuItemBuilder::new("Open", |app| {
+        app.dispatch_warn_dirty(KsngEvent::ProjectOpen);
+      })
+      .shortcut(Key::O, Modifiers::COMMAND),
+    )
+    .child(
+      MenuItemBuilder::new("Save", |app| {
+        app.dispatch(KsngEvent::ProjectSave);
+      })
+      .shortcut(Key::S, Modifiers::COMMAND)
+      .enabled(is_dirty),
+    )
+    .child(
+      MenuItemBuilder::new("Close", |app| {
+        app.dispatch_warn_dirty(KsngEvent::ProjectClose);
+      })
+      .enabled(project.is_some()),
+    )
+    .divider()
+    .child(
+      MenuItemBuilder::submenu("Export")
+        .enabled(project.is_some())
+        .child(MenuItemBuilder::new("Video...", |app| {
+          app.dispatch(KsngEvent::ProjectExportVideo);
+        })),
+    )
+    .divider()
+    .child(MenuItemBuilder::new("Quit", |app| {
+      app.dispatch_warn_dirty(KsngEvent::Quit);
+    }));
+
+  let undo_desc = app.commands.undo_description();
+  let undo_label = undo_desc
+    .as_ref()
+    .map(|d| format!("Undo {d}"))
+    .unwrap_or("Undo".to_string());
+
+  let redo_desc = app.commands.redo_description();
+  let redo_label = redo_desc
+    .as_ref()
+    .map(|d| format!("Redo {d}"))
+    .unwrap_or("Redo".to_string());
+
+  let edit = MenuItemBuilder::submenu("Edit")
+    .min_size(200.0)
+    .child(
+      MenuItemBuilder::new(undo_label, |app| {
+        app.dispatch(KsngEvent::Undo);
+      })
+      .enabled(undo_desc.is_some())
+      .shortcut(Key::Z, Modifiers::COMMAND),
+    )
+    .child(
+      MenuItemBuilder::new(redo_label, |app| {
+        app.dispatch(KsngEvent::Redo);
+      })
+      .enabled(redo_desc.is_some())
+      .shortcut(Key::Y, Modifiers::COMMAND),
+    )
+    .divider()
+    .child(MenuItemBuilder::new("Preferences...", |app| {
+      app.dispatch(KsngEvent::OpenTabWindow(AppTabInitializer::Preferences));
+    }));
+
+  let view = MenuItemBuilder::submenu("View")
+    .child(
+      MenuItemBuilder::new("Player", |app| {
+        app.dispatch(KsngEvent::OpenTabWindow(AppTabInitializer::Player))
+      })
+      .shortcut(Key::Num1, Modifiers::COMMAND),
+    )
+    .child(
+      MenuItemBuilder::new("Lyrics Editor", |app| {
+        app.dispatch(KsngEvent::OpenTabWindow(AppTabInitializer::LyricsEditor))
+      })
+      .shortcut(Key::Num2, Modifiers::COMMAND),
+    )
+    .child(
+      MenuItemBuilder::new("Timeline", |app| {
+        app.dispatch(KsngEvent::OpenTabWindow(AppTabInitializer::Timeline))
+      })
+      .shortcut(Key::Num3, Modifiers::COMMAND),
+    );
+
+  let lyrics_track_id = project.as_ref().and_then(|p| {
+    p.file
+      .tracks
+      .iter()
+      .find(|t| t.track_type == TrackType::Lyrics && app.selection.is_track_selected(t.id))
+      .map(|t| t.id)
+  });
+
+  let track = MenuItemBuilder::submenu("Track")
+    .enabled(project.is_some())
+    .min_size(150.0)
+    .child(
+      MenuItemBuilder::submenu("Add")
+        .child(MenuItemBuilder::new("Lyrics", |app| {
+          app
+            .commands
+            .dispatch(AddTrackCommand::new(TrackType::Lyrics));
+        }))
+        .child(MenuItemBuilder::new("Audio", |app| {
+          app
+            .commands
+            .dispatch(AddTrackCommand::new(TrackType::Audio));
+        })),
+    )
+    .divider()
+    .child(
+      MenuItemBuilder::new("Sync Lyrics...", move |app| {
+        app
+          .windows
+          .add(SyncWindow::new(lyrics_track_id.unwrap_or_default()));
+      })
+      .enabled(lyrics_track_id.is_some())
+      .shortcut(Key::L, Modifiers::COMMAND),
+    );
+
+  let audio_track_id = project.as_ref().and_then(|p| {
+    p.file
+      .tracks
+      .iter()
+      .find(|t| t.track_type == TrackType::Audio && app.selection.is_track_selected(t.id))
+      .map(|t| t.id)
+  });
+
+  let event = MenuItemBuilder::submenu("Event")
+    .enabled(project.is_some())
+    .min_size(150.0)
+    .child(
+      MenuItemBuilder::submenu("Add").child(
+        MenuItemBuilder::new("Audio", move |app| {
+          let id = audio_track_id.unwrap();
+          app.modals.add(OpenFileModal::new(
+            "Audio Files".to_string(),
+            vec!["mp3", "wav", "flac", "aac", "ogg", "opus"],
+            move |app, path| {
+              if let Some(info) = app.logger.wrap(AudioFileInfo::from_file(&path)) {
+                match info {
+                  Some(info) => {
+                    app
+                      .commands
+                      .dispatch(AddAudioEventCommand::new(id, path, info));
+                  }
+                  None => {
+                    app.modals.add(AlertModal::new(format!(
+                      "Unable to read file {path:?} or unsupported format."
+                    )));
+                  }
+                }
+              }
+            },
+          ));
+        })
+        .enabled(audio_track_id.is_some()),
+      ),
+    );
+
+  let models = MenuItemBuilder::new("Models", |app| {
+    app.windows.add(ModelsWindow::new());
+  });
+
+  MenuBuilder::default()
+    .item(file)
+    .item(edit)
+    .item(view)
+    .item(track)
+    .item(event)
+    .item(models)
 }
 
 pub fn menu_bar(app: &KsngContext, ui: &mut Ui) {
+  let menu = build_menu(app);
+
   MenuBar::new().ui(ui, |ui| {
     let project = app.project.borrow();
     Sides::new().show(
       ui,
       |ui| {
-        let is_web = cfg!(target_arch = "wasm32");
-        ui.menu_button("File", |ui| {
-          ui.set_min_width(150.0);
-          if button_with_shortcut(ui, "New", Key::N, Modifiers::COMMAND) {
-            app.dispatch_warn_dirty(KsngEvent::ProjectNew);
-            ui.close();
-          }
-
-          if button_with_shortcut(ui, "Open", Key::O, Modifiers::COMMAND) {
-            app.dispatch_warn_dirty(KsngEvent::ProjectOpen);
-            ui.close();
-          }
-
-          let is_dirty = project.as_ref().map(|f| f.dirty).unwrap_or(false);
-          if button_enabled_with_shortcut(ui, is_dirty, "Save", Key::S, Modifiers::COMMAND) {
-            app.dispatch(KsngEvent::ProjectSave);
-            ui.close();
-          }
-
-          if ui
-            .add_enabled(project.is_some(), Button::new("Close"))
-            .clicked()
-          {
-            app.dispatch_warn_dirty(KsngEvent::ProjectClose);
-            ui.close();
-          }
-
-          ui.separator();
-
-          ui.add_enabled_ui(project.is_some(), |ui| {
-            ui.menu_button("Export", |ui| {
-              if ui.button("Video...").clicked() {
-                app.dispatch(KsngEvent::ProjectExportVideo);
-                ui.close();
-              }
-            });
-          });
-
-          ui.separator();
-
-          if !is_web && button_with_shortcut(ui, "Quit", Key::Q, Modifiers::COMMAND) {
-            ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
-            ui.close();
-          }
-        });
-
-        ui.menu_button("Edit", |ui| {
-          ui.set_min_width(200.0);
-          let undo_desc = app.commands.undo_description();
-          let undo_label = undo_desc
-            .as_ref()
-            .map(|d| format!("Undo {d}"))
-            .unwrap_or("Undo".to_string());
-          if button_enabled_with_shortcut(
-            ui,
-            undo_desc.is_some(),
-            undo_label,
-            Key::Z,
-            Modifiers::COMMAND,
-          ) {
-            app.dispatch(KsngEvent::Undo);
-            ui.close();
-          }
-
-          let redo_desc = app.commands.redo_description();
-          let redo_label = redo_desc
-            .as_ref()
-            .map(|d| format!("Redo {d}"))
-            .unwrap_or("Redo".to_string());
-          if button_enabled_with_shortcut(
-            ui,
-            redo_desc.is_some(),
-            redo_label,
-            Key::Y,
-            Modifiers::COMMAND,
-          ) {
-            app.dispatch(KsngEvent::Redo);
-            ui.close();
-          }
-
-          ui.separator();
-          if button_with_shortcut(ui, "Preferences...", Key::P, Modifiers::CTRL) {
-            app.dispatch(KsngEvent::OpenTabWindow(AppTabInitializer::Preferences));
-            ui.close();
-          }
-        });
-
-        ui.menu_button("View", |ui| {
-          if button_enabled_with_shortcut(ui, true, "Player", Key::Num1, Modifiers::CTRL) {
-            app.dispatch(KsngEvent::OpenTabWindow(AppTabInitializer::Player));
-          }
-          if button_enabled_with_shortcut(ui, true, "Lyrics Editor", Key::Num2, Modifiers::CTRL) {
-            app.dispatch(KsngEvent::OpenTabWindow(AppTabInitializer::LyricsEditor));
-          }
-          if button_enabled_with_shortcut(ui, true, "Timeline", Key::Num3, Modifiers::CTRL) {
-            app.dispatch(KsngEvent::OpenTabWindow(AppTabInitializer::Timeline));
-          }
-        });
-
-        ui.add_enabled_ui(project.is_some(), |ui| {
-          ui.menu_button("Track", |ui| {
-            ui.set_min_width(150.0);
-            ui.menu_button("Add", |ui| {
-              if ui.button("Lyrics").clicked() {
-                app
-                  .commands
-                  .dispatch(AddTrackCommand::new(TrackType::Lyrics));
-                ui.close();
-              }
-
-              if ui.button("Audio").clicked() {
-                app
-                  .commands
-                  .dispatch(AddTrackCommand::new(TrackType::Audio));
-                ui.close();
-              }
-            });
-            ui.separator();
-            let lyrics_track = project.as_ref().and_then(|p| {
-              p.file.tracks.iter().find(|t| {
-                t.track_type == TrackType::Lyrics && app.selection.is_track_selected(t.id)
-              })
-            });
-            ui.add_enabled_ui(lyrics_track.is_some(), |ui| {
-              if ui.button("Sync Lyrics...").clicked() {
-                app.windows.add(SyncWindow::new(
-                  lyrics_track.map(|t| t.id).unwrap_or_default(),
-                ));
-              }
-            });
-          });
-
-          ui.menu_button("Event", |ui| {
-            ui.set_min_width(150.0);
-            ui.add_enabled_ui(app.selection.selected_tracks().len() == 1, |ui| {
-              ui.menu_button("Add", |ui| {
-                let audio_track = project.as_ref().and_then(|p| {
-                  p.file.tracks.iter().find(|t| {
-                    t.track_type == TrackType::Audio && app.selection.is_track_selected(t.id)
-                  })
-                });
-
-                if ui
-                  .add_enabled(audio_track.is_some(), Button::new("Audio"))
-                  .clicked()
-                {
-                  let id = audio_track.unwrap().id;
-                  app.modals.add(OpenFileModal::new(
-                    "Audio Files".to_string(),
-                    vec!["mp3", "wav", "flac", "aac", "ogg", "opus"],
-                    move |app, path| {
-                      if let Some(info) = app.logger.wrap(AudioFileInfo::from_file(&path)) {
-                        match info {
-                          Some(info) => {
-                            app
-                              .commands
-                              .dispatch(AddAudioEventCommand::new(id, path, info));
-                          }
-                          None => {
-                            app.modals.add(AlertModal::new(format!(
-                              "Unable to read file {path:?} or unsupported format."
-                            )));
-                          }
-                        }
-                      }
-                    },
-                  ));
-                  ui.close();
-                }
-              });
-            });
-          });
-
-          if ui.button("Models").clicked() {
-            app.windows.add(ModelsWindow::new());
-          }
-        });
+        menu.show(ui, app);
       },
       |ui| {
         if let Some(project) = project.as_ref() {
@@ -254,4 +361,8 @@ pub fn menu_bar(app: &KsngContext, ui: &mut Ui) {
       },
     )
   });
+}
+
+pub fn process_menu_hotkeys(app: &KsngContext, ui: &mut Ui) {
+  build_menu(app).process_hotkeys(ui, app);
 }

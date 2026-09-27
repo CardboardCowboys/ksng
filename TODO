@@ -17,10 +17,10 @@
 ✔ fix file selector on export window (just use native selector?) @done(26-09-23 19:25)
 ✔ timeline doesn't work with too many tracks @done(26-09-23 20:28)
 ✔ waveform hitting texture limits with too-long track @done(26-09-23 21:20)
-☐ importing audio seems to import it a lot of times
+✔ importing audio seems to import it a lot of times @done(26-09-24 18:09)
 ☐ integrate models menu and other windows into DockArea
 ☐ refocusing existing window breaks on refcell
-☐ make hotkeys work properly
+✔ make hotkeys work properly @done(26-09-27 12:35)
 ☐ make zooming the timeline easier and less floaty (why does it float?)
 ☐ move audioclip text with timeline (css fixed to left)
 ☐ fix slide transition

@@ -133,6 +133,7 @@ impl eframe::App for KsngApp {
 
     DockArea::new(&mut self.dock_state).show_inside(ui, &mut AppTabViewer { app: &self.context });
 
+    components::menu_bar::process_menu_hotkeys(&self.context, ui);
     self.context.ui(ui);
   }
 }
