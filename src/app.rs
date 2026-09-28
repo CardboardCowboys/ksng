@@ -16,6 +16,7 @@ pub enum AppTabInitializer {
   Timeline,
   TrackConfig { track_id: Uuid },
   Preferences,
+  Log,
 }
 
 #[derive(PartialEq, Clone, Debug)]
@@ -25,6 +26,7 @@ pub enum AppTab {
   Timeline,
   TrackConfig(TrackConfigWindow),
   Preferences(PreferencesWindow),
+  Log,
 }
 
 pub struct KsngApp {
@@ -79,6 +81,7 @@ impl<'a> TabViewer for AppTabViewer<'a> {
       AppTab::Timeline => "timeline".to_owned(),
       AppTab::TrackConfig(t) => format!("track_config_{}", t.track_id()),
       AppTab::Preferences(_) => "preferences".to_owned(),
+      AppTab::Log => "log".to_owned(),
     })
   }
 
@@ -92,6 +95,7 @@ impl<'a> TabViewer for AppTabViewer<'a> {
         None => "Track Config".to_owned(),
       },
       AppTab::Preferences(_) => "Preferences".to_owned(),
+      AppTab::Log => "Log".to_owned(),
     }
     .into()
   }
@@ -103,6 +107,7 @@ impl<'a> TabViewer for AppTabViewer<'a> {
       AppTab::Timeline => self.app.timeline.borrow_mut().update(self.app, ui),
       AppTab::TrackConfig(t) => t.show(ui, self.app),
       AppTab::Preferences(p) => p.process(self.app, ui),
+      AppTab::Log => components::log::log(self.app, ui),
     }
   }
 

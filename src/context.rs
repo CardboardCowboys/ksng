@@ -138,6 +138,7 @@ impl KsngContext {
     }
 
     if let Some(path) = found_tab {
+      dock_state.set_focused_node_and_surface(path.node_path());
       dock_state.set_active_tab(path).unwrap();
     } else {
       if as_window {
@@ -243,6 +244,7 @@ impl KsngContext {
           AppTab::Preferences(PreferencesWindow::new(self.preferences.borrow().clone())),
           true,
         ),
+        AppTabInitializer::Log => Self::show_or_focus_tab(dock_state, AppTab::Log, false),
       },
     }
   }

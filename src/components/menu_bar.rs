@@ -325,6 +325,12 @@ fn build_menu(app: &KsngContext) -> MenuBuilder {
     app.windows.add(ModelsWindow::new());
   });
 
+  let help = MenuItemBuilder::submenu("Help")
+    .min_size(150.0)
+    .child(MenuItemBuilder::new("Log", |app| {
+      app.dispatch(KsngEvent::OpenTabWindow(AppTabInitializer::Log));
+    }));
+
   MenuBuilder::default()
     .item(file)
     .item(edit)
@@ -332,6 +338,7 @@ fn build_menu(app: &KsngContext) -> MenuBuilder {
     .item(track)
     .item(event)
     .item(models)
+    .item(help)
 }
 
 pub fn menu_bar(app: &KsngContext, ui: &mut Ui) {

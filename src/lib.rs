@@ -20,3 +20,4 @@ mod windows;
 mod app;
 pub use app::KsngApp;
 pub use context::KsngContext;
+pub use util::logger::Logger;
