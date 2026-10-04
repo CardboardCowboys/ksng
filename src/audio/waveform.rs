@@ -20,8 +20,8 @@ use tiny_skia::{Color, Paint, Pixmap, Rect, Transform};
 use uuid::Uuid;
 
 use crate::{
-  components::timeline,
   fs::{Cache, KsngAttachmentResolver},
+  tabs::timeline,
   util::{error::UiError, logger::Logger},
 };
 

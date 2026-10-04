@@ -6,8 +6,8 @@ use crate::{
   KsngContext,
   components::{self},
   ml::ui::{htdemucs::HtdemucsTab, models::ModelsTab},
+  tabs::{preferences::PreferencesWindow, sync::SyncWindow, track_config::TrackConfigWindow},
   util::calculate_track_name,
-  windows::{preferences::PreferencesWindow, sync::SyncWindow, track_config::TrackConfigWindow},
 };
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -121,12 +121,12 @@ impl<'a> TabViewer for AppTabViewer<'a> {
 
   fn ui(&mut self, ui: &mut egui::Ui, tab: &mut Self::Tab) {
     match tab {
-      AppTab::Player => components::player::player(self.app, ui),
+      AppTab::Player => crate::tabs::player::player(self.app, ui),
       AppTab::LyricsEditor => self.app.lyrics_editor.borrow_mut().show(self.app, ui),
       AppTab::Timeline => self.app.timeline.borrow_mut().update(self.app, ui),
       AppTab::TrackConfig(t) => t.show(ui, self.app),
       AppTab::Preferences(p) => p.process(self.app, ui),
-      AppTab::Log => components::log::log(self.app, ui),
+      AppTab::Log => crate::tabs::log::log(self.app, ui),
       AppTab::Sync(s) => s.process(self.app, ui),
       AppTab::Models(m) => m.models_tab(ui, self.app),
       AppTab::StemSeparation(s) => s.htdemucs_tab(self.app, ui, &self.app.worker),

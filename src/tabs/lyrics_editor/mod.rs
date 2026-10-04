@@ -13,9 +13,9 @@ use uuid::Uuid;
 use crate::{
   KsngContext,
   commands::track::ApplyLyricsTrackChangesCommand,
-  components::lyrics_editor::{psuedo_event::PsuedoEvent, text_element::LyricsEditorTextElement},
   project::Project,
   style::icons,
+  tabs::lyrics_editor::{psuedo_event::PsuedoEvent, text_element::LyricsEditorTextElement},
 };
 
 mod psuedo_event;

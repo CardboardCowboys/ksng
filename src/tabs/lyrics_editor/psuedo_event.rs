@@ -6,7 +6,7 @@ use klib::{
 };
 use uuid::Uuid;
 
-use crate::components::lyrics_editor::{BLOCK_CLOSE, BLOCK_OPEN, ESCAPE_CHAR, SYLLABLE_SEPARATOR};
+use crate::tabs::lyrics_editor::{BLOCK_CLOSE, BLOCK_OPEN, ESCAPE_CHAR, SYLLABLE_SEPARATOR};
 
 /// A representation of an event that could be from a project or could be
 /// synthetic to participate in the diffing process.

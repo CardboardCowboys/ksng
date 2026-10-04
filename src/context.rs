@@ -14,7 +14,6 @@ use crate::{
   app::{AppTab, AppTabInitializer},
   audio::waveform::AudioWaveformProvider,
   commands::CommandDispatcher,
-  components::{lyrics_editor::LyricsEditor, timeline::Timeline},
   fs::Data,
   locker::Locker,
   ml::{
@@ -29,18 +28,17 @@ use crate::{
   preferences::Preferences,
   project::Project,
   selection::SelectionManager,
+  tabs::{
+    lyrics_editor::LyricsEditor, preferences::PreferencesWindow, sync::SyncWindow,
+    timeline::Timeline, track_config::TrackConfigWindow,
+  },
   util::{logger::Logger, ui_event::KsngEvent},
   video::VideoState,
-  windows::{
-    WindowManager, preferences::PreferencesWindow, sync::SyncWindow,
-    track_config::TrackConfigWindow,
-  },
 };
 
 pub struct KsngContext {
   pub project: RefCell<Option<Project>>,
   pub modals: ModalManager,
-  pub windows: WindowManager,
   pub logger: Logger,
   pub commands: CommandDispatcher,
   pub selection: SelectionManager,
@@ -67,7 +65,6 @@ impl Default for KsngContext {
     Self {
       project: RefCell::new(None),
       modals: Default::default(),
-      windows: Default::default(),
       waveforms: RefCell::new(AudioWaveformProvider::new(logger.clone())),
       playback: Playback::new(&preferences.audio_config, logger.clone()).into(),
       video: RefCell::new(VideoState::new().unwrap()),
@@ -129,7 +126,6 @@ impl KsngContext {
 
   fn on_project_change(&self, ctx: &Context, dock_state: Option<&mut DockState<AppTab>>) {
     self.selection.clear();
-    self.windows.clear();
     self.locker.clear();
     *self.timeline.borrow_mut() = Timeline::default();
     self.waveforms.borrow_mut().clear(ctx);
@@ -229,9 +225,6 @@ impl KsngContext {
       }
       KsngEvent::AudioDeviceChanged => {
         self.playback.borrow_mut().on_audio_device_change(self);
-      }
-      KsngEvent::CloseWindow(unique) => {
-        self.windows.close_window(unique);
       }
       KsngEvent::OpenTabWindow(tab) => match tab {
         AppTabInitializer::TrackConfig { track_id } => {
@@ -386,7 +379,6 @@ impl KsngContext {
 
     self.logger.wrap(self.commands.process(self));
     self.modals.process(self, ctx);
-    self.windows.process(self, ctx);
     self.playback.borrow_mut().update();
     self.worker.tasks.write().unwrap().poll_tasks(self);
 

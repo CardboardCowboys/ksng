@@ -14,9 +14,9 @@ mod preferences;
 mod project;
 mod selection;
 mod style;
+mod tabs;
 mod util;
 mod video;
-mod windows;
 
 mod app;
 pub use app::KsngApp;
