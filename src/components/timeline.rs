@@ -321,10 +321,12 @@ impl Timeline {
             },
             |ui| {
               let settings_button = Button::image(icons::GEAR);
-              if ui
+              let res = ui
                 .add_sized(Vec2::new(20.0, 20.0), settings_button)
-                .clicked()
-              {
+                .on_hover_ui(|ui| {
+                  ui.label("Track Config");
+                });
+              if res.clicked() {
                 app.dispatch(KsngEvent::OpenTabWindow(AppTabInitializer::TrackConfig {
                   track_id: track.id,
                 }));
@@ -345,7 +347,13 @@ impl Timeline {
                   ui.visuals_mut().override_text_color = Some(Color32::RED);
                 }
 
-                if ui.add_sized(Vec2::new(20.0, 20.0), mute_button).clicked() {
+                let res = ui.add_sized(Vec2::new(20.0, 20.0), mute_button);
+                let tooltip = if audio.muted { "Unmute" } else { "Mute" };
+                let res = res.on_hover_ui(|ui| {
+                  ui.label(tooltip);
+                });
+
+                if res.clicked() {
                   app.commands.dispatch(MuteTrackCommand::new(track));
                   buttons_clicked = true;
                 }
@@ -354,6 +362,9 @@ impl Timeline {
               if track.track_type == TrackType::Lyrics
                 && ui
                   .add_sized(Vec2::new(20.0, 20.0), Button::image(icons::SYNC))
+                  .on_hover_ui(|ui| {
+                    ui.label("Sync Lyrics");
+                  })
                   .clicked()
               {
                 app.windows.add(SyncWindow::new(track.id));
