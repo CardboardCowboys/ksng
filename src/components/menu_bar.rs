@@ -5,7 +5,6 @@ use crate::{
   KsngContext,
   app::AppTabInitializer,
   commands::{event::AddAudioEventCommand, track::AddTrackCommand},
-  ml::ui::models_window::ModelsWindow,
   modals::{alert::AlertModal, open_file::OpenFileModal},
   util::ui_event::KsngEvent,
 };
@@ -320,9 +319,14 @@ fn build_menu(app: &KsngContext) -> MenuBuilder {
       ),
     );
 
-  let models = MenuItemBuilder::new("Models", |app| {
-    app.windows.add(ModelsWindow::new());
-  });
+  let models = MenuItemBuilder::submenu("Models")
+    .child(MenuItemBuilder::new("Model Manager", |app| {
+      app.dispatch(KsngEvent::OpenTabWindow(AppTabInitializer::Models));
+    }))
+    .divider()
+    .child(MenuItemBuilder::new("Stem Separation", |app| {
+      app.dispatch(KsngEvent::OpenTabWindow(AppTabInitializer::StemSeparation));
+    }));
 
   let help = MenuItemBuilder::submenu("Help")
     .min_size(150.0)

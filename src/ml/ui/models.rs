@@ -3,15 +3,30 @@ use egui_extras::{Column, TableBuilder};
 use size::Size;
 use uuid::Uuid;
 
-use crate::ml::{models::ModelDownloadStatus, worker::WorkerManager};
+use crate::{
+  KsngContext,
+  ml::{models::ModelDownloadStatus, ui::ksng_ml_status_panel},
+};
 
 #[derive(Default)]
 pub struct ModelsTab {
   selected_model: Option<Uuid>,
 }
 
+impl PartialEq for ModelsTab {
+  fn eq(&self, _other: &Self) -> bool {
+    true
+  }
+}
+
 impl ModelsTab {
-  pub fn models_tab(&mut self, ui: &mut egui::Ui, worker: &WorkerManager) {
+  pub fn models_tab(&mut self, ui: &mut egui::Ui, app: &KsngContext) {
+    if !ksng_ml_status_panel(ui, app) {
+      return;
+    }
+
+    let worker = &app.worker;
+
     let models_ref = worker.models.read().unwrap();
     let selected_model = if let Some(model_id) = self.selected_model {
       models_ref

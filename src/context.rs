@@ -6,6 +6,7 @@ use std::{
 use eframe::Storage;
 use egui::{Context, Ui};
 use egui_dock::DockState;
+use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -16,7 +17,10 @@ use crate::{
   components::{lyrics_editor::LyricsEditor, timeline::Timeline},
   fs::Data,
   locker::Locker,
-  ml::worker::WorkerManager,
+  ml::{
+    ui::{htdemucs::HtdemucsTab, models::ModelsTab},
+    worker::WorkerManager,
+  },
   modals::{
     ModalManager, dirty_warning::DirtyWarningModal, export_video::ExportVideoModal,
     open_project::OpenProjectModal, save_project::SaveProjectModal,
@@ -137,7 +141,22 @@ impl KsngContext {
     }
     self.lyrics_editor.borrow_mut().on_project_change(self);
     if let Some(dock_state) = dock_state {
-      dock_state.retain_tabs(|t| !matches!(t, AppTab::TrackConfig(..)));
+      dock_state
+        .retain_tabs(|t| !matches!(t, AppTab::TrackConfig(..)) && !matches!(t, AppTab::Sync(..)));
+      // retain_tabs can result in a crash if it results in a window with no
+      // tabs we have to manually remove those windows to work around this
+      // crash
+      let empty_surfaces = dock_state
+        .iter_surfaces_indexed()
+        .filter(|(_, s)| s.iter_nodes().all(|n| n.is_empty()))
+        .map(|(i, _)| i)
+        .collect_vec();
+      for surface in empty_surfaces {
+        if surface.is_main() {
+          continue;
+        }
+        dock_state.remove_surface(surface);
+      }
     }
   }
 
@@ -239,6 +258,7 @@ impl KsngContext {
 
           if let Some(active_path) = active_path {
             dock_state.set_active_tab(active_path).unwrap();
+            dock_state.set_focused_node_and_surface(active_path.node_path());
           } else if let Some(other_path) = other_path
             && let Some(leaf) = dock_state.leaf_mut(other_path.node_path()).ok()
           {
@@ -263,6 +283,7 @@ impl KsngContext {
 
           if let Some(active_path) = active_path {
             dock_state.set_active_tab(active_path).unwrap();
+            dock_state.set_focused_node_and_surface(active_path.node_path());
           } else if let Some(other_path) = other_path
             && let Some(leaf) = dock_state.leaf_mut(other_path.node_path()).ok()
           {
@@ -282,6 +303,52 @@ impl KsngContext {
           true,
         ),
         AppTabInitializer::Log => Self::show_or_focus_tab(dock_state, AppTab::Log, false),
+        AppTabInitializer::Models => {
+          let mut active_path = None;
+          let mut other_path = None;
+          for (path, tab) in dock_state.iter_all_tabs() {
+            if matches!(tab, AppTab::StemSeparation(..)) {
+              other_path = Some(path);
+            } else if matches!(tab, AppTab::Models(..)) {
+              active_path = Some(path);
+              break;
+            }
+          }
+
+          if let Some(path) = active_path {
+            dock_state.set_focused_node_and_surface(path.node_path());
+            dock_state.set_active_tab(path).unwrap();
+          } else if let Some(other_path) = other_path
+            && let Some(leaf) = dock_state.leaf_mut(other_path.node_path()).ok()
+          {
+            leaf.append_tab(AppTab::Models(ModelsTab::default()));
+          } else {
+            dock_state.add_window(vec![AppTab::Models(ModelsTab::default())]);
+          }
+        }
+        AppTabInitializer::StemSeparation => {
+          let mut active_path = None;
+          let mut other_path = None;
+          for (path, tab) in dock_state.iter_all_tabs() {
+            if matches!(tab, AppTab::Models(..)) {
+              other_path = Some(path);
+            } else if matches!(tab, AppTab::StemSeparation(..)) {
+              active_path = Some(path);
+              break;
+            }
+          }
+
+          if let Some(path) = active_path {
+            dock_state.set_focused_node_and_surface(path.node_path());
+            dock_state.set_active_tab(path).unwrap();
+          } else if let Some(other_path) = other_path
+            && let Some(leaf) = dock_state.leaf_mut(other_path.node_path()).ok()
+          {
+            leaf.append_tab(AppTab::StemSeparation(HtdemucsTab::default()));
+          } else {
+            dock_state.add_window(vec![AppTab::StemSeparation(HtdemucsTab::default())]);
+          }
+        }
       },
       KsngEvent::CloseTabWindow(tab) => {
         self.tabs_to_close.borrow_mut().insert(tab);

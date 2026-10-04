@@ -5,6 +5,7 @@ use uuid::Uuid;
 use crate::{
   KsngContext,
   components::{self},
+  ml::ui::{htdemucs::HtdemucsTab, models::ModelsTab},
   util::calculate_track_name,
   windows::{preferences::PreferencesWindow, sync::SyncWindow, track_config::TrackConfigWindow},
 };
@@ -18,6 +19,8 @@ pub enum AppTabInitializer {
   Preferences,
   Log,
   Sync { track_id: Uuid },
+  Models,
+  StemSeparation,
 }
 
 #[derive(PartialEq)]
@@ -29,6 +32,8 @@ pub enum AppTab {
   Preferences(PreferencesWindow),
   Log,
   Sync(SyncWindow),
+  Models(ModelsTab),
+  StemSeparation(HtdemucsTab),
 }
 
 pub struct KsngApp {
@@ -85,6 +90,8 @@ impl<'a> TabViewer for AppTabViewer<'a> {
       AppTab::Preferences(_) => "preferences".to_owned(),
       AppTab::Log => "log".to_owned(),
       AppTab::Sync(s) => format!("sync_lyrics_{}", s.track_id()),
+      AppTab::Models(_) => "models".to_owned(),
+      AppTab::StemSeparation(_) => "stem_separation".to_owned(),
     })
   }
 
@@ -106,6 +113,8 @@ impl<'a> TabViewer for AppTabViewer<'a> {
         ),
         None => "Lyrics Sync".to_owned(),
       },
+      AppTab::Models(_) => "Model Manager".to_owned(),
+      AppTab::StemSeparation(_) => "Stem Separation".to_owned(),
     }
     .into()
   }
@@ -119,6 +128,8 @@ impl<'a> TabViewer for AppTabViewer<'a> {
       AppTab::Preferences(p) => p.process(self.app, ui),
       AppTab::Log => components::log::log(self.app, ui),
       AppTab::Sync(s) => s.process(self.app, ui),
+      AppTab::Models(m) => m.models_tab(ui, self.app),
+      AppTab::StemSeparation(s) => s.htdemucs_tab(self.app, ui, &self.app.worker),
     }
   }
 
@@ -148,6 +159,8 @@ impl<'a> TabViewer for AppTabViewer<'a> {
           track_id: s.track_id(),
         })
         .is_some(),
+      AppTab::Models(..) => to_close.take(&AppTabInitializer::Models).is_some(),
+      AppTab::StemSeparation(..) => to_close.take(&AppTabInitializer::StemSeparation).is_some(),
     };
 
     if ret && let AppTab::Sync(s) = tab {

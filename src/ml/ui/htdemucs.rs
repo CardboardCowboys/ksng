@@ -12,7 +12,7 @@ use crate::{
   KsngContext,
   fs::KsngAttachmentResolver,
   ml::{
-    ui::{model_select_dropdown, task::TaskModal},
+    ui::{ksng_ml_status_panel, model_select_dropdown, task::TaskModal},
     worker::WorkerManager,
   },
 };
@@ -21,6 +21,12 @@ pub struct HtdemucsTab {
   selected_model: Option<(Uuid, String)>,
   selected_codec: AudioCodec,
   bitrate: u32,
+}
+
+impl PartialEq for HtdemucsTab {
+  fn eq(&self, _other: &Self) -> bool {
+    true
+  }
 }
 
 impl Default for HtdemucsTab {
@@ -35,6 +41,10 @@ impl Default for HtdemucsTab {
 
 impl HtdemucsTab {
   pub fn htdemucs_tab(&mut self, app: &KsngContext, ui: &mut Ui, worker: &WorkerManager) {
+    if !ksng_ml_status_panel(ui, app) {
+      return;
+    }
+
     let project_ref = app.project.borrow();
     let Some(project) = &*project_ref else {
       ui.label("No project loaded.");
