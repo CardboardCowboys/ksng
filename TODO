@@ -28,7 +28,7 @@
 ☐ make EditableConfigUi good
 	☐ combo boxes shouldn't be so scuffed
 	☐ proper rect editor
-☐ video export broke
+✔ video export broke @done(26-10-04 03:28)
 
 ✔ replace audio engine @done(26-01-04 10:23)
 ✔ lyrics editor @done(26-01-12 04:41)

@@ -10,7 +10,6 @@ use ffmpeg_next::{
   ChannelLayout, Dictionary, Rational,
 };
 use klib_macros::EditableConfig;
-use zerocopy::IntoBytes;
 
 use crate::{
   audio::mixer_stream::AudioMixerStream,
@@ -240,15 +239,22 @@ impl FfmpegEncoder {
           return Ok(());
         }
 
-        let num_samples = if is_interleaved {
+        let num_frames = if is_interleaved {
           mixer.process_interleaved(&mut buffer)?
         } else {
           mixer.process_planar(&mut buffer)?
         };
 
-        let num_frames = num_samples / 2;
-        let frame_data = &mut frame.data_mut(0)[0..num_samples * size_of::<f32>()];
-        frame_data.copy_from_slice(buffer[0..num_samples].as_bytes());
+        let num_samples = num_frames * 2;
+        if is_interleaved {
+          let frame_data: &mut [f32] = &mut frame.plane_mut(0)[0..num_samples];
+          frame_data.copy_from_slice(&buffer[0..num_samples]);
+        } else {
+          for i in 0..2 {
+            let frame_data = &mut frame.plane_mut(i)[0..num_frames];
+            frame_data.copy_from_slice(&buffer[(i * block_size)..(i * block_size + num_frames)]);
+          }
+        }
         frame.set_samples(num_frames);
         frame.set_pts(Some((finished_samples as i64) / 2));
 
