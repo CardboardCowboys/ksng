@@ -17,4 +17,5 @@ pub enum KsngEvent {
   AudioDeviceChanged,
   CloseWindow(u64),
   OpenTabWindow(AppTabInitializer),
+  CloseTabWindow(AppTabInitializer),
 }

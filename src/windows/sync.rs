@@ -1,5 +1,5 @@
 use egui::{
-  Button, Color32, FontId, Frame, Id, Key, Sides, TextFormat,
+  Button, Color32, FontId, Frame, Id, Key, Sides, TextFormat, Ui,
   text::{CCursor, LayoutJob, LayoutSection},
 };
 use klib::{
@@ -12,13 +12,11 @@ use klib::{
 use uuid::Uuid;
 
 use crate::{
-  KsngContext, commands::event::SetEventTimingsCommand, modals::confirm::ConfirmModal,
-  util::ui_event::KsngEvent, windows::KWindow,
+  KsngContext, commands::event::SetEventTimingsCommand, locker::LockHandle,
+  modals::confirm::ConfirmModal, util::ui_event::KsngEvent,
 };
 
 pub struct SyncWindow {
-  open: bool,
-  should_request_focus: bool,
   track_id: Uuid,
   layout_job: Option<LayoutJob>,
   layout_cursor: CCursor,
@@ -31,15 +29,19 @@ pub struct SyncWindow {
   undo_context: Vec<(usize, Option<usize>, Timecode, Timecode)>,
   min_time: Timecode,
   pending_scroll: bool,
-  unique_value: u64,
   is_dirty: bool,
+  active_lock: Option<LockHandle>,
+}
+
+impl PartialEq for SyncWindow {
+  fn eq(&self, other: &Self) -> bool {
+    self.track_id == other.track_id
+  }
 }
 
 impl SyncWindow {
   pub fn new(track_id: Uuid) -> SyncWindow {
     SyncWindow {
-      open: true,
-      should_request_focus: false,
       track_id,
       layout_job: None,
       layout_cursor: CCursor::new(0),
@@ -52,8 +54,8 @@ impl SyncWindow {
       undo_context: Vec::new(),
       min_time: Timecode(0),
       pending_scroll: true,
-      unique_value: egui::util::hash("sync_window"),
       is_dirty: false,
+      active_lock: None,
     }
   }
 
@@ -271,6 +273,9 @@ impl SyncWindow {
     self.min_time = time + Timecode::from_seconds(0.05);
     self.pending_scroll = true;
     self.is_dirty = true;
+    if self.active_lock.is_none() {
+      self.active_lock = Some(app.locker.lock(self.track_id, "active lyrics sync"));
+    }
   }
 
   fn handle_break(&mut self, app: &KsngContext) {
@@ -347,80 +352,67 @@ impl SyncWindow {
         &self.event_timings,
       ));
     self.is_dirty = false;
-  }
-}
-
-impl KWindow for SyncWindow {
-  fn should_cleanup(&self) -> bool {
-    !self.open
+    if let Some(lock) = self.active_lock {
+      app.locker.unlock(lock);
+      self.active_lock = None;
+    }
   }
 
-  fn process(&mut self, app: &crate::KsngContext, context: &egui::Context) {
-    if !self.open {
-      return;
+  pub fn process(&mut self, app: &crate::KsngContext, ui: &mut Ui) {
+    let project = app.project.borrow();
+    let track = project
+      .iter()
+      .flat_map(|p| p.file.tracks.iter().find(|t| t.id == self.track_id))
+      .next();
+
+    if let Some(track) = track
+      && !track.events.is_empty()
+      && self.event_timings.is_empty()
+    {
+      self.event_timings = track
+        .events
+        .iter()
+        .map(|t| (t.start_timecode, t.end_timecode))
+        .collect();
+      self.event_ids = track.events.iter().map(|t| t.id).collect();
     }
 
-    // TODO: handle track change
+    if let Some(track) = track
+      && self.current_idx == 0
+      && !track.events.is_empty()
+      && track.events[self.current_idx].event_type != EventType::Lyric
+    {
+      self.current_idx += 1;
+      while self.current_idx < track.events.len()
+        && track.events[self.current_idx].event_type != EventType::Lyric
+      {
+        self.events_need_repositioning.push(self.current_idx);
+        self.current_idx += 1;
+      }
+    }
 
-    let window = egui::Window::new("Sync Lyrics")
-      .min_width(200.0)
-      .min_height(200.0)
-      .show(context, |ui| {
-        let project = app.project.borrow();
-        let track = project
-          .iter()
-          .flat_map(|p| p.file.tracks.iter().find(|t| t.id == self.track_id))
-          .next();
+    let is_at_end = track.is_none() || self.current_idx >= track.as_ref().unwrap().events.len();
 
-        if let Some(track) = track
-          && !track.events.is_empty()
-          && self.event_timings.is_empty()
-        {
-          self.event_timings = track
-            .events
-            .iter()
-            .map(|t| (t.start_timecode, t.end_timecode))
-            .collect();
-					self.event_ids = track.events.iter().map(|t| t.id).collect();
-        }
+    let mut handle_sync = false;
+    let mut handle_break = false;
+    let mut handle_back = false;
+    let mut handle_save = false;
 
-        if let Some(track) = track
-          && self.current_idx == 0
-          && !track.events.is_empty()
-          && track.events[self.current_idx].event_type != EventType::Lyric
-        {
-          self.current_idx += 1;
-          while self.current_idx < track.events.len()
-            && track.events[self.current_idx].event_type != EventType::Lyric
-          {
-            self.events_need_repositioning.push(self.current_idx);
-            self.current_idx += 1;
-          }
-        }
+    if ui.input_mut(|i| {
+      i.consume_key(egui::Modifiers::NONE, Key::Z) || i.consume_key(egui::Modifiers::NONE, Key::X)
+    }) {
+      handle_sync = true;
+    }
 
-        let is_at_end = track.is_none() || self.current_idx >= track.as_ref().unwrap().events.len();
+    if ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::Space)) {
+      handle_break = true;
+    }
 
-				let mut handle_sync = false;
-				let mut handle_break = false;
-				let mut handle_back = false;
-				let mut handle_save = false;
+    if ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::Backspace)) {
+      handle_back = true;
+    }
 
-        if ui.input_mut(|i| {
-          i.consume_key(egui::Modifiers::NONE, Key::Z)
-            || i.consume_key(egui::Modifiers::NONE, Key::X)
-        }) {
-          handle_sync = true;
-        }
-
-        if ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::Space)) {
-          handle_break = true;
-        }
-
-				if ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::Backspace)) {
-					handle_back = true;
-				}
-
-        egui::Panel::bottom("sync#buttons").show(ui, |ui| {
+    egui::Panel::bottom("sync#buttons").show(ui, |ui| {
           ui.add_space(5.0);
           Sides::new().show(
             ui,
@@ -453,10 +445,11 @@ impl KWindow for SyncWindow {
 									app.modals.add(ConfirmModal::new(
 										"Discard sync changes?".to_string(),
 										"You have made changes to event synchronization. If you cancel, these changes will be discarded. Are you sure?".to_string(),
-										KsngEvent::CloseWindow(self.unique_value)
+										KsngEvent::CloseTabWindow(crate::app::AppTabInitializer::Sync { track_id: self.track_id })
 									));
 								} else {
-									self.open = false;
+									app.dispatch(
+										KsngEvent::CloseTabWindow(crate::app::AppTabInitializer::Sync { track_id: self.track_id }));
 								}
 							}
               if ui.button("Save").clicked() {
@@ -466,72 +459,67 @@ impl KWindow for SyncWindow {
           );
         });
 
-				if handle_sync {
-					self.handle_sync(app, track);
-				}
+    if handle_sync {
+      self.handle_sync(app, track);
+    }
 
-				if handle_break {
-					self.handle_break(app);
-				}
+    if handle_break {
+      self.handle_break(app);
+    }
 
-				if handle_back {
-					self.handle_back(app);
-				}
+    if handle_back {
+      self.handle_back(app);
+    }
 
-				if handle_save {
-					self.handle_save(app, track);
-				}
+    if handle_save {
+      self.handle_save(app, track);
+    }
 
-        if self.layout_job.is_none() {
-          let (job, cursor) = Self::layout_lyrics(track, self.current_idx);
-          self.layout_job = Some(job);
-          self.layout_cursor = cursor;
+    if self.layout_job.is_none() {
+      let (job, cursor) = Self::layout_lyrics(track, self.current_idx);
+      self.layout_job = Some(job);
+      self.layout_cursor = cursor;
+    }
+
+    egui::CentralPanel::default().show(ui, |ui| {
+      egui::ScrollArea::both().auto_shrink(false).show(ui, |ui| {
+        let mut layout = self.layout_job.as_ref().unwrap().clone();
+        let mut text = layout.text.clone();
+        let mut layouter = |ui: &egui::Ui, _buf: &dyn egui::TextBuffer, wrap_width: f32| {
+          layout.wrap.max_width = wrap_width;
+          ui.fonts_mut(|f| f.layout_job(layout.clone()))
+        };
+
+        let text_edit_id = Id::new("sync#lyrics_text");
+
+        let response = egui::TextEdit::multiline(&mut text)
+          .id(text_edit_id)
+          .frame(Frame::NONE)
+          .interactive(false)
+          .desired_width(ui.available_width() - 20.0)
+          .font(FontId::proportional(20.0))
+          .layouter(&mut layouter)
+          .show(ui);
+
+        if self.pending_scroll {
+          // Scroll to current position every time sync is clicked
+          let rect = response.galley.pos_from_cursor(self.layout_cursor);
+          let rect = rect.translate(response.galley_pos.to_vec2());
+          ui.scroll_to_rect(rect, Some(egui::Align::Center));
+          self.pending_scroll = false;
         }
-
-        egui::CentralPanel::default().show(ui, |ui| {
-          egui::ScrollArea::both().auto_shrink(false).show(ui, |ui| {
-            let mut layout = self.layout_job.as_ref().unwrap().clone();
-            let mut text = layout.text.clone();
-            let mut layouter = |ui: &egui::Ui, _buf: &dyn egui::TextBuffer, wrap_width: f32| {
-              layout.wrap.max_width = wrap_width;
-              ui.fonts_mut(|f| f.layout_job(layout.clone()))
-            };
-
-            let text_edit_id = Id::new("sync#lyrics_text");
-
-            let response = egui::TextEdit::multiline(&mut text)
-              .id(text_edit_id)
-							.frame(Frame::NONE)
-              .interactive(false)
-              .desired_width(ui.available_width() - 20.0)
-              .font(FontId::proportional(20.0))
-              .layouter(&mut layouter)
-              .show(ui);
-
-            if self.pending_scroll {
-              // Scroll to current position every time sync is clicked
-              let rect = response.galley.pos_from_cursor(self.layout_cursor);
-              let rect = rect.translate(response.galley_pos.to_vec2());
-              ui.scroll_to_rect(rect, Some(egui::Align::Center));
-              self.pending_scroll = false;
-            }
-          });
-        });
       });
+    });
+  }
 
-    if let Some(window) = window
-      && self.should_request_focus
-    {
-      window.response.request_focus();
-      self.should_request_focus = false;
+  pub fn on_close(&mut self, app: &KsngContext) {
+    if let Some(active_lock) = self.active_lock {
+      app.locker.unlock(active_lock);
+      self.active_lock = None;
     }
   }
 
-  fn request_focus(&mut self) {
-    self.should_request_focus = true;
-  }
-
-  fn unique_value(&self) -> Option<u64> {
-    Some(self.unique_value)
+  pub fn track_id(&self) -> Uuid {
+    self.track_id
   }
 }

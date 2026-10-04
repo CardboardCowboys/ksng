@@ -28,7 +28,6 @@ use crate::{
     icons,
   },
   util::{ui::KsngUiExt, ui_event::KsngEvent},
-  windows::sync::SyncWindow,
 };
 
 pub const TRACK_HEIGHT: f32 = 50.0;
@@ -318,6 +317,10 @@ impl Timeline {
             &mut child_ui,
             |ui| {
               ui.inert_heading(format!("{:?}", track.track_type));
+              if let Some(reason) = app.locker.lock_reason(track.id) {
+                ui.visuals_mut().override_text_color = Some(ui.visuals().weak_text_color());
+                ui.inert_label(format!("Locked by {}", reason));
+              }
             },
             |ui| {
               let settings_button = Button::image(icons::GEAR);
@@ -367,7 +370,9 @@ impl Timeline {
                   })
                   .clicked()
               {
-                app.windows.add(SyncWindow::new(track.id));
+                app.dispatch(KsngEvent::OpenTabWindow(AppTabInitializer::Sync {
+                  track_id: track.id,
+                }));
                 buttons_clicked = true;
               }
             },
@@ -472,6 +477,7 @@ impl Timeline {
 
       let mut track_y = -scroll_y + TRACK_INNER_PADDING as f32;
       for track in &project.file.tracks {
+        let is_locked = app.locker.is_locked(track.id);
         for ev in track.events.events_in_range((visible_start, visible_end)) {
           let (mut start, mut end) = (ev.start_timecode, ev.end_timecode);
           if let Some(drag_state) = self.drag_state.as_ref()
@@ -494,17 +500,17 @@ impl Timeline {
             ),
           };
 
-          if ev_rect.intersects(multiselect_box) {
+          if !is_locked && ev_rect.intersects(multiselect_box) {
             multiselect_events.push(ev.id);
           }
 
           let response = ui.allocate_rect(ev_rect, Sense::click_and_drag());
 
-          if response.contains_pointer() {
+          if !is_locked && response.contains_pointer() {
             pointer_over = Some(ev.id);
           }
 
-          if self.drag_state.is_none() {
+          if self.drag_state.is_none() && !is_locked {
             let is_touching_start = if let Some(mouse_pos) = mouse_pos
               && mouse_pos.y >= ev_rect.min.y
               && mouse_pos.y < ev_rect.max.y
@@ -554,6 +560,11 @@ impl Timeline {
           }*/
 
           let color = colors::color_for_event_type(ev.event_type);
+          let color = if is_locked {
+            color.gamma_multiply(0.75)
+          } else {
+            color
+          };
           let stroke_color = if app.selection.is_event_selected(ev.id) {
             colors::SELECTED_COLOR
           } else {

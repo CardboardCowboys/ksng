@@ -1,4 +1,7 @@
-use std::{cell::RefCell, collections::VecDeque};
+use std::{
+  cell::RefCell,
+  collections::{HashSet, VecDeque},
+};
 
 use eframe::Storage;
 use egui::{Context, Ui};
@@ -12,6 +15,7 @@ use crate::{
   commands::CommandDispatcher,
   components::{lyrics_editor::LyricsEditor, timeline::Timeline},
   fs::Data,
+  locker::Locker,
   ml::worker::WorkerManager,
   modals::{
     ModalManager, dirty_warning::DirtyWarningModal, export_video::ExportVideoModal,
@@ -23,7 +27,10 @@ use crate::{
   selection::SelectionManager,
   util::{logger::Logger, ui_event::KsngEvent},
   video::VideoState,
-  windows::{WindowManager, preferences::PreferencesWindow, track_config::TrackConfigWindow},
+  windows::{
+    WindowManager, preferences::PreferencesWindow, sync::SyncWindow,
+    track_config::TrackConfigWindow,
+  },
 };
 
 pub struct KsngContext {
@@ -38,12 +45,15 @@ pub struct KsngContext {
   pub video: RefCell<VideoState>,
   pub lyrics_editor: RefCell<LyricsEditor>,
   pub worker: WorkerManager,
+  pub locker: Locker,
 
   pub preferences: RefCell<Preferences>,
 
   event_queue: RefCell<VecDeque<KsngEvent>>,
   pub timeline: RefCell<Timeline>,
   close_allowed: RefCell<bool>,
+
+  pub tabs_to_close: RefCell<HashSet<AppTabInitializer>>,
 }
 
 impl Default for KsngContext {
@@ -58,6 +68,7 @@ impl Default for KsngContext {
       playback: Playback::new(&preferences.audio_config, logger.clone()).into(),
       video: RefCell::new(VideoState::new().unwrap()),
       worker: WorkerManager::new(logger.clone()),
+      locker: Locker::default(),
       logger,
       commands: CommandDispatcher::default(),
       selection: SelectionManager::default(),
@@ -66,6 +77,7 @@ impl Default for KsngContext {
       preferences: RefCell::new(preferences),
       lyrics_editor: Default::default(),
       close_allowed: RefCell::new(false),
+      tabs_to_close: Default::default(),
     }
   }
 }
@@ -114,6 +126,7 @@ impl KsngContext {
   fn on_project_change(&self, ctx: &Context, dock_state: Option<&mut DockState<AppTab>>) {
     self.selection.clear();
     self.windows.clear();
+    self.locker.clear();
     *self.timeline.borrow_mut() = Timeline::default();
     self.waveforms.borrow_mut().clear(ctx);
     self.playback.borrow_mut().on_audio_change(self);
@@ -234,6 +247,30 @@ impl KsngContext {
             dock_state.add_window(vec![AppTab::TrackConfig(TrackConfigWindow::new(track))]);
           }
         }
+        AppTabInitializer::Sync { track_id } => {
+          let mut active_path = None;
+          let mut other_path = None;
+          for (path, tab) in dock_state.iter_all_tabs() {
+            if let AppTab::Sync(t) = tab
+              && t.track_id() == track_id
+            {
+              active_path = Some(path);
+              break;
+            } else if matches!(tab, AppTab::Sync(..)) {
+              other_path = Some(path);
+            }
+          }
+
+          if let Some(active_path) = active_path {
+            dock_state.set_active_tab(active_path).unwrap();
+          } else if let Some(other_path) = other_path
+            && let Some(leaf) = dock_state.leaf_mut(other_path.node_path()).ok()
+          {
+            leaf.append_tab(AppTab::Sync(SyncWindow::new(track_id)));
+          } else {
+            dock_state.add_window(vec![AppTab::Sync(SyncWindow::new(track_id))]);
+          }
+        }
         AppTabInitializer::Player => Self::show_or_focus_tab(dock_state, AppTab::Player, false),
         AppTabInitializer::LyricsEditor => {
           Self::show_or_focus_tab(dock_state, AppTab::LyricsEditor, false)
@@ -246,6 +283,9 @@ impl KsngContext {
         ),
         AppTabInitializer::Log => Self::show_or_focus_tab(dock_state, AppTab::Log, false),
       },
+      KsngEvent::CloseTabWindow(tab) => {
+        self.tabs_to_close.borrow_mut().insert(tab);
+      }
     }
   }
 

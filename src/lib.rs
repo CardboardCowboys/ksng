@@ -6,6 +6,7 @@ mod commands;
 mod components;
 mod context;
 mod fs;
+mod locker;
 mod ml;
 mod modals;
 mod playback;

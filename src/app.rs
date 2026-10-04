@@ -6,10 +6,10 @@ use crate::{
   KsngContext,
   components::{self},
   util::calculate_track_name,
-  windows::{preferences::PreferencesWindow, track_config::TrackConfigWindow},
+  windows::{preferences::PreferencesWindow, sync::SyncWindow, track_config::TrackConfigWindow},
 };
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum AppTabInitializer {
   Player,
   LyricsEditor,
@@ -17,9 +17,10 @@ pub enum AppTabInitializer {
   TrackConfig { track_id: Uuid },
   Preferences,
   Log,
+  Sync { track_id: Uuid },
 }
 
-#[derive(PartialEq, Clone, Debug)]
+#[derive(PartialEq)]
 pub enum AppTab {
   Player,
   LyricsEditor,
@@ -27,6 +28,7 @@ pub enum AppTab {
   TrackConfig(TrackConfigWindow),
   Preferences(PreferencesWindow),
   Log,
+  Sync(SyncWindow),
 }
 
 pub struct KsngApp {
@@ -82,6 +84,7 @@ impl<'a> TabViewer for AppTabViewer<'a> {
       AppTab::TrackConfig(t) => format!("track_config_{}", t.track_id()),
       AppTab::Preferences(_) => "preferences".to_owned(),
       AppTab::Log => "log".to_owned(),
+      AppTab::Sync(s) => format!("sync_lyrics_{}", s.track_id()),
     })
   }
 
@@ -96,6 +99,13 @@ impl<'a> TabViewer for AppTabViewer<'a> {
       },
       AppTab::Preferences(_) => "Preferences".to_owned(),
       AppTab::Log => "Log".to_owned(),
+      AppTab::Sync(s) => match &*self.app.project.borrow() {
+        Some(p) => format!(
+          "Lyrics Sync for {}",
+          calculate_track_name(&p.file, s.track_id())
+        ),
+        None => "Lyrics Sync".to_owned(),
+      },
     }
     .into()
   }
@@ -108,7 +118,43 @@ impl<'a> TabViewer for AppTabViewer<'a> {
       AppTab::TrackConfig(t) => t.show(ui, self.app),
       AppTab::Preferences(p) => p.process(self.app, ui),
       AppTab::Log => components::log::log(self.app, ui),
+      AppTab::Sync(s) => s.process(self.app, ui),
     }
+  }
+
+  fn on_close(&mut self, tab: &mut Self::Tab) -> egui_dock::tab_viewer::OnCloseResponse {
+    if let AppTab::Sync(s) = tab {
+      s.on_close(self.app);
+    }
+
+    egui_dock::tab_viewer::OnCloseResponse::Close
+  }
+
+  fn force_close(&mut self, tab: &mut Self::Tab) -> bool {
+    let mut to_close = self.app.tabs_to_close.borrow_mut();
+    let ret = match tab {
+      AppTab::Player => to_close.take(&AppTabInitializer::Player).is_some(),
+      AppTab::LyricsEditor => to_close.take(&AppTabInitializer::LyricsEditor).is_some(),
+      AppTab::Timeline => to_close.take(&AppTabInitializer::Timeline).is_some(),
+      AppTab::TrackConfig(t) => to_close
+        .take(&AppTabInitializer::TrackConfig {
+          track_id: t.track_id(),
+        })
+        .is_some(),
+      AppTab::Preferences(_) => to_close.take(&AppTabInitializer::Preferences).is_some(),
+      AppTab::Log => to_close.take(&AppTabInitializer::Log).is_some(),
+      AppTab::Sync(s) => to_close
+        .take(&AppTabInitializer::Sync {
+          track_id: s.track_id(),
+        })
+        .is_some(),
+    };
+
+    if ret && let AppTab::Sync(s) = tab {
+      s.on_close(self.app);
+    }
+
+    ret
   }
 
   fn scroll_bars(&self, tab: &Self::Tab) -> [bool; 2] {

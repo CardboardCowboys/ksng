@@ -8,7 +8,6 @@ use crate::{
   ml::ui::models_window::ModelsWindow,
   modals::{alert::AlertModal, open_file::OpenFileModal},
   util::ui_event::KsngEvent,
-  windows::sync::SyncWindow,
 };
 enum MenuEntry {
   MenuItem(MenuItemBuilder),
@@ -273,9 +272,9 @@ fn build_menu(app: &KsngContext) -> MenuBuilder {
     .divider()
     .child(
       MenuItemBuilder::new("Sync Lyrics...", move |app| {
-        app
-          .windows
-          .add(SyncWindow::new(lyrics_track_id.unwrap_or_default()));
+        app.dispatch(KsngEvent::OpenTabWindow(AppTabInitializer::Sync {
+          track_id: lyrics_track_id.unwrap(),
+        }));
       })
       .enabled(lyrics_track_id.is_some())
       .shortcut(Key::L, Modifiers::COMMAND),
