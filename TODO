@@ -13,7 +13,7 @@
 ☐ check that all output formats work (webm w/ vp9 seems scuffed)
 ✔ fix audio EOF log spam @done(26-09-17 18:28)
 ☐ pause / mute audio while seeking (or issue only one seek?)
-☐ make channel remapper more robust (any input -> any output)
+✔ make channel remapper more robust (any input -> any output) @done(26-10-04 04:08)
 ✔ fix file selector on export window (just use native selector?) @done(26-09-23 19:25)
 ✔ timeline doesn't work with too many tracks @done(26-09-23 20:28)
 ✔ waveform hitting texture limits with too-long track @done(26-09-23 21:20)

@@ -40,18 +40,7 @@ impl AudioChunkProvider {
     }
 
     if target_channels != builder.info().num_channels {
-      if builder.info().num_channels == 1 && target_channels == 2 {
-        builder = builder.with_channel_remapper(2, &[0, 0])?;
-      } else if builder.info().num_channels > 2 && target_channels == 2 {
-        builder = builder.with_channel_remapper(2, &[0, 1])?;
-      } else if builder.info().num_channels > 1 && target_channels == 1 {
-        builder = builder.with_channel_remapper(1, &[0])?;
-      } else {
-        return Err(anyhow::Error::msg(format!(
-          "Can't figure out how to remap {} channels to {target_channels} channels",
-          builder.info().num_channels
-        )));
-      }
+      builder = builder.with_channel_remapper(target_channels)?;
     }
 
     let chunk_buffer = PlanarVecBuffer::new(target_channels, chunk_frames);

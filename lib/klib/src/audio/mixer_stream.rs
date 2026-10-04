@@ -173,18 +173,8 @@ impl AudioMixerStream {
           log::info!("loaded file {:?}", file.source);
 
           let mut builder = source.builder();
-          if builder.info().num_channels > 1 && self.channels == 1 {
-            builder = builder.with_channel_remapper(1, &[0])?;
-          } else if builder.info().num_channels == 1 && self.channels == 2 {
-            builder = builder.with_channel_remapper(2, &[0, 0])?;
-          } else if builder.info().num_channels > 2 && self.channels == 2 {
-            builder = builder.with_channel_remapper(2, &[0, 1])?;
-          } else if builder.info().num_channels != self.channels {
-            return Err(Error::Audio(format!(
-              "Loaded file with {} channels but outputting {} - don't know how to remap",
-              builder.info().num_channels,
-              self.channels
-            )));
+          if builder.info().num_channels != self.channels {
+            builder = builder.with_channel_remapper(self.channels)?;
           }
 
           if builder.info().sample_rate != self.sample_rate {
