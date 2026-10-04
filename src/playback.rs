@@ -18,17 +18,15 @@ pub enum PlaybackState {
 pub struct Playback {
   state: PlaybackState,
   mixer: AudioMixer,
-  logger: Logger,
   last_started: Instant,
   last_position: Timecode,
 }
 
 impl Playback {
-  pub fn new(config: &AudioConfig, logger: Logger) -> Playback {
+  pub fn new(config: &AudioConfig) -> Playback {
     Playback {
       state: PlaybackState::Stopped,
-      mixer: AudioMixer::new(config, logger.clone()).unwrap(),
-      logger,
+      mixer: AudioMixer::new(config).unwrap(),
       last_started: Instant::now(),
       last_position: Timecode(0),
     }
@@ -36,7 +34,7 @@ impl Playback {
 
   pub fn on_audio_change(&mut self, app: &KsngContext) {
     if let Some(project) = app.project.borrow().as_ref() {
-      self.logger.wrap(self.mixer.update_streams(project));
+      Logger::wrap(self.mixer.update_streams(project));
     } else {
       self.mixer.reset();
       self.state = PlaybackState::Stopped;
@@ -45,7 +43,7 @@ impl Playback {
 
   pub fn on_audio_device_change(&mut self, app: &KsngContext) {
     let pos = self.mixer.position();
-    self.logger.wrap(
+    Logger::wrap(
       self
         .mixer
         .update_audio_device(&app.preferences.borrow().audio_config),

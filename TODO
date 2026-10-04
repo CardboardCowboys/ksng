@@ -50,4 +50,4 @@
 	☐ MIDI
 ☐ timestretching / slow speed playback
 ✔ refactor ksng to use egui_dock @done(26-09-23 19:25)
-☐ replace logger with log facade
+✔ replace logger with log facade @done(26-10-04 06:27)

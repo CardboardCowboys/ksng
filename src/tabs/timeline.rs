@@ -18,7 +18,7 @@ use klib::{
 use uuid::Uuid;
 
 use crate::{
-  KsngContext,
+  KsngContext, Logger,
   app::AppTabInitializer,
   audio::waveform::{self, WaveformCache},
   commands::{event::SetEventTimingsCommand, track::MuteTrackCommand},
@@ -576,7 +576,7 @@ impl Timeline {
           if ev.event_type == EventType::AudioClip
             && let Some(cache) = app.waveforms.borrow().get_waveform(&project.file, ev)
           {
-            Self::draw_audio_event(ui, app, ev, ev_rect, pixels_per_second, ofs, cache);
+            Self::draw_audio_event(ui, ev, ev_rect, pixels_per_second, ofs, cache);
           }
 
           ui.painter().rect_stroke(
@@ -738,7 +738,6 @@ impl Timeline {
 
   fn draw_audio_event(
     ui: &mut Ui,
-    app: &KsngContext,
     ev: &Event,
     ev_rect: Rect,
     pixels_per_second: f32,
@@ -746,7 +745,7 @@ impl Timeline {
     cache: Arc<RwLock<WaveformCache>>,
   ) {
     let mut cache_ref = cache.write().unwrap();
-    let Some(info) = app.logger.wrap(cache_ref.info()) else {
+    let Some(info) = Logger::wrap(cache_ref.info()) else {
       return;
     };
     let audio_offset = match &ev.value {
@@ -788,10 +787,7 @@ impl Timeline {
         continue;
       }
 
-      if let Some((uri, bytes)) = app
-        .logger
-        .wrap(cache.write().unwrap().load_entry(mip_level, i))
-      {
+      if let Some((uri, bytes)) = Logger::wrap(cache.write().unwrap().load_entry(mip_level, i)) {
         let image = egui::Image::new(ImageSource::Bytes {
           uri: uri.into(),
           bytes,

@@ -11,7 +11,6 @@ fn log_layout(app: &KsngContext, ui: &mut Ui) {
   let mut job = LayoutJob::default();
   let messages = app.logger.messages.read().unwrap();
   for msg in &*messages {
-    log::info!("{}", msg.text);
     let date = format!(
       "[{:02}:{:02}:{:02}] ",
       msg.time.hour(),
@@ -20,6 +19,7 @@ fn log_layout(app: &KsngContext, ui: &mut Ui) {
     );
     job.append(&date, 0.0, TextFormat::simple(font.clone(), weak_col));
     let color = match msg.log_type {
+      LogType::Trace => Color32::LIGHT_GRAY,
       LogType::Debug => Color32::CYAN,
       LogType::Info => text_col,
       LogType::Warning => Color32::YELLOW,

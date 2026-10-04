@@ -58,17 +58,21 @@ pub struct KsngContext {
   pub tabs_to_close: RefCell<HashSet<AppTabInitializer>>,
 }
 
-impl Default for KsngContext {
-  fn default() -> Self {
-    let logger = Logger::default();
+#[derive(Serialize, Deserialize, Default)]
+struct AppSavedData {
+  project_id: Option<Uuid>,
+}
+
+impl KsngContext {
+  pub fn new(logger: Logger) -> Self {
     let preferences = Preferences::default();
     Self {
       project: RefCell::new(None),
       modals: Default::default(),
-      waveforms: RefCell::new(AudioWaveformProvider::new(logger.clone())),
-      playback: Playback::new(&preferences.audio_config, logger.clone()).into(),
+      waveforms: RefCell::new(AudioWaveformProvider::new()),
+      playback: Playback::new(&preferences.audio_config).into(),
       video: RefCell::new(VideoState::new().unwrap()),
-      worker: WorkerManager::new(logger.clone()),
+      worker: WorkerManager::new(),
       locker: Locker::default(),
       logger,
       commands: CommandDispatcher::default(),
@@ -81,34 +85,24 @@ impl Default for KsngContext {
       tabs_to_close: Default::default(),
     }
   }
-}
 
-#[derive(Serialize, Deserialize, Default)]
-struct AppSavedData {
-  project_id: Option<Uuid>,
-}
-
-impl KsngContext {
   pub fn load_storage(&self, storage: &dyn Storage, ctx: &Context) {
     let data: AppSavedData = eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default();
     if let Some(project_id) = data.project_id {
-      let project = self
-        .logger
-        .wrap(Data::list_projects().and_then(|manifest| Data::load_project(project_id, &manifest)));
+      let project = Logger::wrap(
+        Data::list_projects().and_then(|manifest| Data::load_project(project_id, &manifest)),
+      );
       self.project.replace(project);
       self.on_project_change(ctx, None);
     }
-    let preferences = self
-      .logger
-      .wrap(Data::load_preferences())
-      .unwrap_or_default();
+    let preferences = Logger::wrap(Data::load_preferences()).unwrap_or_default();
     self.preferences.replace(preferences);
     self.playback.borrow_mut().on_audio_device_change(self);
 
-    if let Some(b) = self.logger.wrap(WorkerManager::is_installed())
+    if let Some(b) = Logger::wrap(WorkerManager::is_installed())
       && b
     {
-      self.logger.wrap(self.worker.start());
+      Logger::wrap(self.worker.start());
     }
   }
 
@@ -194,9 +188,9 @@ impl KsngContext {
         self.modals.add(OpenProjectModal::new());
       }
       KsngEvent::ProjectOpenId(id) => {
-        let project = self
-          .logger
-          .wrap(Data::list_projects().and_then(|manifest| Data::load_project(id, &manifest)));
+        let project = Logger::wrap(
+          Data::list_projects().and_then(|manifest| Data::load_project(id, &manifest)),
+        );
 
         if let Some(project) = project {
           self.project.replace(Some(project));
@@ -215,13 +209,13 @@ impl KsngContext {
         ctx.send_viewport_cmd(egui::ViewportCommand::Close);
       }
       KsngEvent::ProjectDelete(id) => {
-        self.logger.wrap(Data::delete_project(id));
+        Logger::wrap(Data::delete_project(id));
       }
       KsngEvent::Undo => {
-        self.logger.wrap(self.commands.undo(self));
+        Logger::wrap(self.commands.undo(self));
       }
       KsngEvent::Redo => {
-        self.logger.wrap(self.commands.redo(self));
+        Logger::wrap(self.commands.redo(self));
       }
       KsngEvent::AudioDeviceChanged => {
         self.playback.borrow_mut().on_audio_device_change(self);
@@ -377,12 +371,12 @@ impl KsngContext {
     }
     drop(queue);
 
-    self.logger.wrap(self.commands.process(self));
+    Logger::wrap(self.commands.process(self));
     self.modals.process(self, ctx);
     self.playback.borrow_mut().update();
     self.worker.tasks.write().unwrap().poll_tasks(self);
 
-    self.logger.wrap(
+    Logger::wrap(
       self
         .video
         .borrow_mut()

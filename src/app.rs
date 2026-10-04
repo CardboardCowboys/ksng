@@ -3,7 +3,7 @@ use egui_dock::{DockArea, DockState, NodeIndex, TabViewer};
 use uuid::Uuid;
 
 use crate::{
-  KsngContext,
+  KsngContext, Logger,
   components::{self},
   ml::ui::{htdemucs::HtdemucsTab, models::ModelsTab},
   tabs::{preferences::PreferencesWindow, sync::SyncWindow, track_config::TrackConfigWindow},
@@ -41,28 +41,24 @@ pub struct KsngApp {
   dock_state: DockState<AppTab>,
 }
 
-impl Default for KsngApp {
-  fn default() -> Self {
-    let mut dock_state = DockState::new(vec![AppTab::LyricsEditor]);
-    let [a, _] =
-      dock_state
-        .main_surface_mut()
-        .split_below(NodeIndex::root(), 0.7, vec![AppTab::Timeline]);
-    let [_, _] = dock_state
-      .main_surface_mut()
-      .split_right(a, 0.7, vec![AppTab::Player]);
-
-    Self {
-      context: Default::default(),
-      dock_state,
-    }
-  }
-}
-
 impl KsngApp {
   /// Called once before the first frame.
-  pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
-    let app = KsngApp::default();
+  pub fn new(cc: &eframe::CreationContext<'_>, logger: Logger) -> Self {
+    let app = {
+      let mut dock_state = DockState::new(vec![AppTab::LyricsEditor]);
+      let [a, _] =
+        dock_state
+          .main_surface_mut()
+          .split_below(NodeIndex::root(), 0.7, vec![AppTab::Timeline]);
+      let [_, _] = dock_state
+        .main_surface_mut()
+        .split_right(a, 0.7, vec![AppTab::Player]);
+
+      Self {
+        context: KsngContext::new(logger),
+        dock_state,
+      }
+    };
 
     if let Some(storage) = cc.storage {
       app.context.load_storage(storage, &cc.egui_ctx);

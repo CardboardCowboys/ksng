@@ -1,8 +1,12 @@
 #![warn(clippy::all, rust_2018_idioms)]
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
+use ksng::Logger;
+
 fn main() -> eframe::Result {
-  colog::init();
+  let logger = Logger::default();
+  log::set_boxed_logger(Box::new(logger.clone())).unwrap();
+  log::set_max_level(log::LevelFilter::Info);
 
   let native_options = eframe::NativeOptions {
     viewport: egui::ViewportBuilder::default()
@@ -18,6 +22,6 @@ fn main() -> eframe::Result {
   eframe::run_native(
     &format!("ksng {}", env!("CARGO_PKG_VERSION")),
     native_options,
-    Box::new(|cc| Ok(Box::new(ksng::KsngApp::new(cc)))),
+    Box::new(|cc| Ok(Box::new(ksng::KsngApp::new(cc, logger)))),
   )
 }

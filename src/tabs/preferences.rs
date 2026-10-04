@@ -4,7 +4,7 @@ use cpal::{HostId, traits::DeviceTrait};
 use egui::{Button, ComboBox, Sides, Ui};
 
 use crate::{
-  audio::config::AudioConfig, fs::Data, preferences::Preferences, util::ui_event::KsngEvent,
+  Logger, audio::config::AudioConfig, fs::Data, preferences::Preferences, util::ui_event::KsngEvent,
 };
 
 #[derive(Clone, Debug)]
@@ -104,9 +104,7 @@ impl PreferencesWindow {
         if ui.add_enabled(self.dirty, Button::new("Apply")).clicked() {
           self.dirty = false;
           *app.preferences.borrow_mut() = self.preferences.clone();
-          app
-            .logger
-            .wrap(Data::save_preferences(&app.preferences.borrow()));
+          Logger::wrap(Data::save_preferences(&app.preferences.borrow()));
           app.dispatch(KsngEvent::AudioDeviceChanged);
           self.old_preferences = self.preferences.clone();
         }

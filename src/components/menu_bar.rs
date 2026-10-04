@@ -2,7 +2,7 @@ use egui::{Button, Key, KeyboardShortcut, MenuBar, Modifiers, Sides, Ui, WidgetT
 use klib::{audio::info::AudioFileInfo, objects::track::TrackType};
 
 use crate::{
-  KsngContext,
+  KsngContext, Logger,
   app::AppTabInitializer,
   commands::{event::AddAudioEventCommand, track::AddTrackCommand},
   modals::{alert::AlertModal, open_file::OpenFileModal},
@@ -242,7 +242,10 @@ fn build_menu(app: &KsngContext) -> MenuBuilder {
         app.dispatch(KsngEvent::OpenTabWindow(AppTabInitializer::Timeline))
       })
       .shortcut(Key::Num3, Modifiers::COMMAND),
-    );
+    )
+    .child(MenuItemBuilder::new("Log", |app| {
+      app.dispatch(KsngEvent::OpenTabWindow(AppTabInitializer::Log));
+    }));
 
   let lyrics_track_id = project.as_ref().and_then(|p| {
     p.file
@@ -298,7 +301,7 @@ fn build_menu(app: &KsngContext) -> MenuBuilder {
             "Audio Files".to_string(),
             vec!["mp3", "wav", "flac", "aac", "ogg", "opus"],
             move |app, path| {
-              if let Some(info) = app.logger.wrap(AudioFileInfo::from_file(&path)) {
+              if let Some(info) = Logger::wrap(AudioFileInfo::from_file(&path)) {
                 match info {
                   Some(info) => {
                     app
@@ -328,12 +331,6 @@ fn build_menu(app: &KsngContext) -> MenuBuilder {
       app.dispatch(KsngEvent::OpenTabWindow(AppTabInitializer::StemSeparation));
     }));
 
-  let help = MenuItemBuilder::submenu("Help")
-    .min_size(150.0)
-    .child(MenuItemBuilder::new("Log", |app| {
-      app.dispatch(KsngEvent::OpenTabWindow(AppTabInitializer::Log));
-    }));
-
   MenuBuilder::default()
     .item(file)
     .item(edit)
@@ -341,7 +338,6 @@ fn build_menu(app: &KsngContext) -> MenuBuilder {
     .item(track)
     .item(event)
     .item(models)
-    .item(help)
 }
 
 pub fn menu_bar(app: &KsngContext, ui: &mut Ui) {

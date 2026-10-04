@@ -32,21 +32,19 @@ type SendQueue = Arc<deadqueue::unlimited::Queue<HostPacket>>;
 
 pub struct WorkerManager {
   instance: RefCell<Option<WorkerInstance>>,
-  logger: Logger,
   send_queue: SendQueue,
   pub models: Models,
   pub tasks: Tasks,
 }
 
 impl WorkerManager {
-  pub fn new(logger: Logger) -> WorkerManager {
+  pub fn new() -> WorkerManager {
     let send_queue = Arc::new(deadqueue::unlimited::Queue::new());
     WorkerManager {
       instance: RefCell::new(None),
       models: Arc::new(RwLock::new(ModelManager::new(send_queue.clone()))),
       tasks: Arc::new(RwLock::new(TaskManager::new(send_queue.clone()))),
       send_queue,
-      logger,
     }
   }
 
@@ -60,7 +58,6 @@ impl WorkerManager {
     }
 
     let inst = WorkerInstance::start(
-      self.logger.clone(),
       self.models.clone(),
       self.tasks.clone(),
       self.send_queue.clone(),
@@ -97,7 +94,6 @@ struct WorkerInstance {
 
 #[derive(Clone)]
 struct ListenerParams {
-  logger: Logger,
   send_queue: SendQueue,
   models: Models,
   tasks: Tasks,
@@ -107,7 +103,6 @@ struct ListenerParams {
 
 impl WorkerInstance {
   pub fn start(
-    logger: Logger,
     models: Models,
     tasks: Tasks,
     send_queue: SendQueue,
@@ -136,7 +131,6 @@ impl WorkerInstance {
 
     let params = ListenerParams {
       send_queue: send_queue.clone(),
-      logger: logger.clone(),
       models,
       tasks,
       closed: closed.clone(),
@@ -144,16 +138,15 @@ impl WorkerInstance {
     };
 
     thread::spawn(move || {
-      let rt = logger.wrap(Runtime::new());
+      let rt = Logger::wrap(Runtime::new());
       if let Some(rt) = rt {
         rt.block_on(async move {
           let name_s = format!("{ns_name:?}");
-          let socket = logger.wrap(ListenerOptions::new().name(ns_name).create_tokio());
+          let socket = Logger::wrap(ListenerOptions::new().name(ns_name).create_tokio());
           if let Some(socket) = socket {
             log::info!("host listening on socket {name_s}");
-            let logger_clone = logger.clone();
             barrier_clone.wait();
-            logger_clone.wrap(Self::listen_thread(socket, params).await);
+            Logger::wrap(Self::listen_thread(socket, params).await);
           }
         });
       }
@@ -201,9 +194,7 @@ impl WorkerInstance {
       let closed = params.closed.clone();
       let conn = socket.accept().await?;
       log::info!("accepted connection from worker");
-      params
-        .logger
-        .wrap(Self::listen_client(conn, params.clone()).await);
+      Logger::wrap(Self::listen_client(conn, params.clone()).await);
       if closed.load(Ordering::Relaxed) {
         break;
       }
@@ -256,22 +247,16 @@ impl WorkerInstance {
               models.write().unwrap().recv_dl_models_list(response);
             }
             worker_packet::Contents::JobStatusResponse(response) => {
-              params
-                .logger
-                .wrap(models.write().unwrap().recv_job_status(response));
+              Logger::wrap(models.write().unwrap().recv_job_status(response));
             }
             worker_packet::Contents::ModelsListResponse(response) => {
               models.write().unwrap().recv_models_list(response);
             }
             worker_packet::Contents::TaskResult(result) => {
-              params
-                .logger
-                .wrap(tasks.write().unwrap().recv_task_result(result));
+              Logger::wrap(tasks.write().unwrap().recv_task_result(result));
             }
             worker_packet::Contents::TaskInfo(info) => {
-              params
-                .logger
-                .wrap(tasks.write().unwrap().recv_task_info(info));
+              Logger::wrap(tasks.write().unwrap().recv_task_info(info));
             }
           }
           drop(recv_future);
@@ -280,10 +265,7 @@ impl WorkerInstance {
           >(&mut recv_reader));
         }
         std::task::Poll::Ready(Err(err)) => {
-          params.logger.log(
-            crate::util::logger::LogType::Error,
-            format!("Failed to read host packet from IPC: {err:?}"),
-          );
+          log::error!("Failed to read host packet from IPC: {err:?}");
         }
         std::task::Poll::Pending => {}
       }

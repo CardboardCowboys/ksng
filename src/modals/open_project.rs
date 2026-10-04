@@ -3,6 +3,7 @@ use egui_extras::{Column, TableBuilder};
 use uuid::Uuid;
 
 use crate::{
+  Logger,
   fs::Data,
   modals::{KModal, alert::AlertModal, confirm::ConfirmModal},
   style::icons,
@@ -38,7 +39,7 @@ impl KModal for OpenProjectModal {
       ui.set_min_height(400.0);
 
       ui.vertical(|ui| {
-        let manifest = app.logger.wrap(Data::list_projects()).unwrap_or_default();
+        let manifest = Logger::wrap(Data::list_projects()).unwrap_or_default();
 
         if self.selected_id.is_some()
           && !manifest

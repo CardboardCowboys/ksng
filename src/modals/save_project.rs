@@ -1,6 +1,6 @@
 use egui::{Button, Id, Modal, Sides};
 
-use crate::{KsngContext, fs::Data, modals::KModal, util::ui_event::KsngEvent};
+use crate::{KsngContext, Logger, fs::Data, modals::KModal, util::ui_event::KsngEvent};
 
 pub struct SaveProjectModal {
   open: bool,
@@ -20,7 +20,7 @@ impl SaveProjectModal {
         return;
       }
 
-      app.logger.wrap(Data::save_project(project));
+      Logger::wrap(Data::save_project(project));
     }
 
     app.set_dirty_state(false);
@@ -56,7 +56,7 @@ impl KModal for SaveProjectModal {
             && let Some(project) = &mut *app.project.borrow_mut()
           {
             project.name = Some(self.name.clone());
-            app.logger.wrap(Data::save_project(project));
+            Logger::wrap(Data::save_project(project));
             project.dirty = false;
             self.open = false;
             if let Some(after) = &self.after {

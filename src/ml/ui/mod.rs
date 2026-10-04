@@ -1,7 +1,7 @@
 use egui::{AsIdSalt, ComboBox, Ui, WidgetText};
 use uuid::Uuid;
 
-use crate::{KsngContext, ml::worker::WorkerManager};
+use crate::{KsngContext, Logger, ml::worker::WorkerManager};
 
 pub mod htdemucs;
 pub mod models;
@@ -47,7 +47,7 @@ fn model_select_dropdown(
 }
 
 fn ksng_ml_status_panel(ui: &mut Ui, app: &KsngContext) -> bool {
-  if !matches!(app.logger.wrap(WorkerManager::is_installed()), Some(true)) {
+  if !matches!(Logger::wrap(WorkerManager::is_installed()), Some(true)) {
     egui::CentralPanel::default().show(ui, |ui| {
       ui.vertical_centered(|ui| {
         ui.label("ksng-ml has not been installed!");
@@ -61,7 +61,7 @@ fn ksng_ml_status_panel(ui: &mut Ui, app: &KsngContext) -> bool {
       ui.vertical_centered(|ui| {
         ui.label("ksng-ml is not running");
         if ui.button("Start").clicked() {
-          app.logger.wrap(app.worker.start());
+          Logger::wrap(app.worker.start());
         }
       });
     });

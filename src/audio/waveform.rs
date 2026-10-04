@@ -321,14 +321,12 @@ type WaveformsMap = Arc<RwLock<HashMap<Uuid, WaveformState>>>;
 
 pub struct AudioWaveformProvider {
   waveforms: WaveformsMap,
-  logger: Logger,
 }
 
 impl AudioWaveformProvider {
-  pub fn new(logger: Logger) -> AudioWaveformProvider {
+  pub fn new() -> AudioWaveformProvider {
     AudioWaveformProvider {
       waveforms: Default::default(),
-      logger,
     }
   }
 
@@ -408,10 +406,9 @@ impl AudioWaveformProvider {
   }
 
   fn load_waveform(&self, id: Uuid, path: PathBuf) {
-    let logger = self.logger.clone();
     let waveforms = self.waveforms.clone();
     thread::spawn(move || {
-      let path = logger.wrap(Self::load_waveform_impl(id, path));
+      let path = Logger::wrap(Self::load_waveform_impl(id, path));
       let mut waveforms = waveforms.write().ok();
       if let Some(waveforms) = waveforms.as_mut() {
         if let Some(cache) = path {

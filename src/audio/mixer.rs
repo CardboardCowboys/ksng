@@ -13,10 +13,7 @@ use crate::{
   audio::config::AudioConfig,
   fs::KsngAttachmentResolver,
   project::Project,
-  util::{
-    error::UiError,
-    logger::{LogType, Logger},
-  },
+  util::{error::UiError, logger::Logger},
 };
 
 const BUFFER_SIZE: usize = 48000;
@@ -24,7 +21,6 @@ const BUFFER_SIZE: usize = 48000;
 struct SharedOutputContext {
   mixer_stream: Mutex<AudioMixerStream>,
   buffer: RwLock<CircularBuffer<BUFFER_SIZE, f32>>,
-  logger: Logger,
 }
 
 pub struct AudioMixer {
@@ -34,8 +30,8 @@ pub struct AudioMixer {
 }
 
 impl AudioMixer {
-  pub fn new(config: &AudioConfig, logger: Logger) -> Result<Self, UiError> {
-    let (stream, context) = Self::create_output_stream(config, logger)?;
+  pub fn new(config: &AudioConfig) -> Result<Self, UiError> {
+    let (stream, context) = Self::create_output_stream(config)?;
     Ok(AudioMixer {
       output_stream: stream,
       duration: Timecode(0),
@@ -70,10 +66,7 @@ impl AudioMixer {
   }
 
   pub fn seek(&self, time: Timecode) {
-    self
-      .shared_context
-      .logger
-      .wrap(self.shared_context.mixer_stream.lock().unwrap().seek(time));
+    Logger::wrap(self.shared_context.mixer_stream.lock().unwrap().seek(time));
     self.shared_context.buffer.write().unwrap().clear();
   }
 
@@ -93,7 +86,7 @@ impl AudioMixer {
   }
 
   pub fn update_audio_device(&mut self, config: &AudioConfig) -> Result<(), UiError> {
-    let (stream, context) = Self::create_output_stream(config, self.shared_context.logger.clone())?;
+    let (stream, context) = Self::create_output_stream(config)?;
     self.output_stream = stream;
     self.shared_context = context;
     Ok(())
@@ -101,7 +94,6 @@ impl AudioMixer {
 
   fn create_output_stream(
     config: &AudioConfig,
-    logger: Logger,
   ) -> Result<(Box<dyn StreamTrait>, Arc<SharedOutputContext>), UiError> {
     let device = config.to_device().unwrap_or_else(|| {
       log::warn!("Failed to find audio device {:?}, using default", config);
@@ -122,7 +114,6 @@ impl AudioMixer {
         output_config.sample_rate() as usize,
         1024,
       )?),
-      logger,
       buffer: RwLock::new(CircularBuffer::new()),
     });
 
@@ -141,7 +132,6 @@ impl AudioMixer {
     read_buffer.resize(read_buffer_len, 0.0f32);
 
     let ret_context = context.clone();
-    let err_context = context.clone();
     let stream = device
       .build_output_stream::<f32, _, _>(
         &output_config.config(),
@@ -150,9 +140,8 @@ impl AudioMixer {
           let mut mixer_stream = context.mixer_stream.lock().unwrap();
           let mut buffer = context.buffer.write().unwrap();
           while buffer.len() < need_samples {
-            let Some(frames_written) = context
-              .logger
-              .wrap(mixer_stream.process_interleaved(&mut read_buffer))
+            let Some(frames_written) =
+              Logger::wrap(mixer_stream.process_interleaved(&mut read_buffer))
             else {
               return;
             };
@@ -171,9 +160,7 @@ impl AudioMixer {
           buffer.drain(0..buf.len());
         },
         move |err| {
-          err_context
-            .logger
-            .log(LogType::Warning, format!("CPAL stream error: {:?}", err));
+          log::warn!("CPAL stream error: {:?}", err);
         },
         None,
       )
